@@ -1,0 +1,110 @@
+# Combined .gitignore for frontend and backend
+
+# Frontend (React/TypeScript) ignores
+## dependencies
+node_modules/
+/.pnp
+.pnp.js
+
+## builds and dist
+/dist
+/build
+/claribi/dist
+
+## testing
+/coverage
+
+## production
+/claribi/build
+
+## misc
+.DS_Store
+*.pem
+
+## debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+## local env files
+.env*.local
+
+# Backend (Flask) ignores
+## Python environments
+venv/
+env/
+ENV/
+.env
+
+## Python bytecode and cache
+*.py[cod]
+__pycache__/
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+
+## Flask session data
+flask_session/
+Backend/flask_session/
+
+## Logs
+*.log
+logs/
+
+# Database files
+*.sqlite
+*.sqlite3
+*.db
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+.vs/
+*.sublime-project
+*.sublime-workspace
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# SSL/TLS certificates
+*.pem
+*.key
+*.crt
+*.cer
+*.der
+# But allow certificate examples/templates in repo
+!certificates/example-*
+
+# Generated documentation
+docs/_build/
+
+# Large static files
+*.zip
+*.tar.gz
+*.tgz
+*.rar
+
+# Backup files
+*~
+*.bak
+
+# Jupyter Notebook
+.ipynb_checkpoints 
+
+
+# Reference app from David
+claribi_21_05_25v2/
+
+#MD files
+*.md
+*.html
+*.tmdl
