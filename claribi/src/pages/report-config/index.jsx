@@ -33,6 +33,9 @@ const ReportConfigPage = () => {
     config
   } = useReportConfig(projectId, reportId);
 
+  // Add check for selected fields
+  const hasSelectedFields = tableData.some(row => row.selected);
+
   const handleSaveSelection = async () => {
     try {
       // Transform tableData into the format expected by the API
@@ -91,7 +94,7 @@ const ReportConfigPage = () => {
     handleSaveAndProceed,
     handleProceedWithoutSaving,
     handleCancel,
-  } = useNavigation(hasUnsavedChanges, handleSaveSelection, handleDiscardChanges);
+  } = useNavigation(hasUnsavedChanges, handleSaveSelection, handleDiscardChanges, hasData, hasSelectedFields);
 
   const handleDeleteTable = async (tableName) => {
     try {
@@ -176,6 +179,8 @@ const ReportConfigPage = () => {
           onStepChange={handleStepChange}
           onPreviousStep={handlePreviousStep}
           onNextStep={handleNextStep}
+          hasData={hasData}
+          hasSelectedFields={hasSelectedFields}
         />
         
         <Box sx={{ flex: 1, mt: 3, minHeight: 0 }}>

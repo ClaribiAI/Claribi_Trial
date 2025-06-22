@@ -361,6 +361,29 @@ def update_report_status(project_id: int, report_id: int) -> Tuple[Dict[str, Any
             logger.warning(f"Report not found. Report ID: {report_id}, Project ID: {project_id}")
             return jsonify({'error': 'Report not found'}), 404
 
+        # If setting to Live, validate that at least one field is selected and one report page exists
+        if new_status == 'Live':
+            # Get project data to check selected fields
+            project_data = ProjectService.get_project_data(project_id, report_id)
+            selected_fields = project_data.get('selected_data', {}) if project_data else {}
+            
+            # Check if any fields are selected
+            has_selected_fields = False
+            for table_fields in selected_fields.values():
+                if table_fields and len(table_fields) > 0:
+                    has_selected_fields = True
+                    break
+                    
+            if not has_selected_fields:
+                logger.warning(f"Cannot set report {report_id} to Live: No fields selected")
+                return jsonify({'error': 'Cannot set report to Live: At least one field must be selected'}), 400
+                
+            # Check if any report pages exist
+            report_pages = ReportPageService.get_report_pages_for_project(project_id, report_id)
+            if not report_pages or len(report_pages) == 0:
+                logger.warning(f"Cannot set report {report_id} to Live: No report pages maintained")
+                return jsonify({'error': 'Cannot set report to Live: At least one report page must be maintained'}), 400
+
         success = ReportService.edit_report(report_id, status=new_status)
         if success:
             logger.info(f"Successfully updated report {report_id} status to {new_status}")
@@ -732,3 +755,74 @@ def api_generate_value_rules(project_id: int, report_id: int) -> Tuple[Dict[str,
     except Exception as e:
         logger.error(f"Error in api_generate_value_rules: {str(e)}")
         return jsonify({'error': 'Failed to generate value rules'}), 500
+
+@reports_bp.route('/project/<int:project_id>/report/<int:report_id>/copy', methods=['POST'])
+@login_required
+@csrf_protected
+@rate_limit(limit=MUTATION_LIMIT, key_func=get_user_rate_limit_key)
+def copy_report_endpoint(project_id: int, report_id: int) -> Tuple[Dict[str, Any], int]:
+    """Create a copy of an existing report.
+    
+    Args:
+        project_id: Project ID
+        report_id: Report ID of the source report
+        
+    Returns:
+        tuple: (Response data, HTTP status code)
+    """
+    try:
+        # Verify source project exists and user has access
+        project = ProjectService.get_project(project_id, g.user['ms_object_id'])
+        if not project:
+            return jsonify({'error': 'Project not found'}), 404
+
+        if not request.is_json:
+            return jsonify({'error': 'Request must be JSON'}), 400
+
+        data = request.get_json()
+        new_name = data.get('name')
+        new_description = data.get('description')
+        target_project_id = data.get('target_project_id')
+
+        if not new_name:
+            return jsonify({'error': 'Report name is required'}), 400
+
+        # If target project is specified, verify it exists and user has appropriate access
+        if target_project_id:
+            target_project = ProjectService.get_project(target_project_id, g.user['ms_object_id'])
+            if not target_project:
+                return jsonify({'error': 'Target project not found'}), 404
+                
+            # Check if user has owner or co-owner access to target project
+            user_access = ProjectService.get_user_access_type(target_project_id, g.user['ms_object_id'])
+            if user_access not in ['owner', 'co_owner']:
+                return jsonify({'error': 'You must be an owner or co-owner of the target project'}), 403
+
+        # Create copy using service
+        new_report_id = ReportService.copy_report(
+            project_id=project_id,
+            source_report_id=report_id,
+            new_name=new_name,
+            new_description=new_description,
+            target_project_id=target_project_id
+        )
+
+        if new_report_id:
+            return jsonify({
+                'success': True,
+                'report_id': new_report_id,
+                'message': 'Report copied successfully'
+            }), 201
+        else:
+            return jsonify({'error': 'Failed to copy report'}), 500
+    except ReportValidationError as e:
+        return jsonify({'error': str(e)}), 400
+    except ProjectNotFoundError:
+        return jsonify({'error': 'Project not found'}), 404
+    except ProjectAccessDeniedError:
+        return jsonify({'error': 'Access denied'}), 403
+    except ReportNotFoundError:
+        return jsonify({'error': 'Source report not found'}), 404
+    except Exception as e:
+        logger.error(f"Error in copy_report_endpoint: {str(e)}")
+        return jsonify({'error': 'Failed to copy report'}), 500

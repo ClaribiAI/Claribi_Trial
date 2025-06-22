@@ -610,3 +610,31 @@ class ProjectService:
         except Exception as e:
             logger.error(f"Error deleting table from project data: {str(e)}")
             return False
+
+    @staticmethod
+    def get_user_access_type(project_id: int, user_id: str) -> Optional[str]:
+        """Get a user's access type for a project.
+        
+        Args:
+            project_id: Project ID
+            user_id: User's ms_object_id
+            
+        Returns:
+            Optional[str]: The user's access type ('owner', 'co_owner', 'editor', 'viewer') or None if no access
+        """
+        try:
+            with get_db_cursor() as cursor:
+                cursor.execute('''
+                    SELECT access_type 
+                    FROM project_access 
+                    WHERE project_id = %s 
+                    AND subject_type = 'user'
+                    AND subject_id = %s
+                ''', (project_id, user_id))
+                
+                result = cursor.fetchone()
+                return result['access_type'] if result else None
+                
+        except Exception as e:
+            logger.error(f"Error getting user access type: {str(e)}")
+            return None

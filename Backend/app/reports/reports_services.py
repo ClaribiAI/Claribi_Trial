@@ -10,9 +10,12 @@ import logging
 from app.core.database import get_db_cursor
 from app.core.exceptions import (
     ReportNotFoundError,
-    ReportValidationError
+    ReportValidationError,
+    ProjectAccessDeniedError
 )
 from app.models.report import Report
+from app.projects.services.project_service import ProjectService
+from flask import g
 
 logger = logging.getLogger(__name__)
 
@@ -247,4 +250,75 @@ class ReportService:
                 return dict(report) if report else None
             except Exception as e:
                 logger.error(f"Error fetching report: {str(e)}")
+                return None
+
+    @staticmethod
+    def copy_report(
+        project_id: int,
+        source_report_id: int,
+        new_name: str,
+        new_description: Optional[str] = None,
+        target_project_id: Optional[int] = None
+    ) -> Optional[int]:
+        """Create a copy of an existing report with a new name and description.
+        
+        Args:
+            project_id: The ID of the source project
+            source_report_id: The ID of the report to copy
+            new_name: The name for the new report
+            new_description: The description for the new report (optional)
+            target_project_id: The ID of the project to copy to (optional, defaults to source project)
+            
+        Returns:
+            The ID of the created report copy, or None if creation failed
+            
+        Raises:
+            ReportValidationError: If required parameters are invalid
+            ReportNotFoundError: If source report doesn't exist
+        """
+        if not project_id or not source_report_id or not new_name:
+            raise ReportValidationError("Project ID, source report ID, and new name are required")
+        
+        # If target_project_id is not specified, use the source project_id
+        target_project_id = target_project_id or project_id
+        
+        with get_db_cursor(commit=True) as cursor:
+            try:
+                # First verify the source report exists and belongs to the project
+                cursor.execute(
+                    'SELECT * FROM reports WHERE id = %s AND project_id = %s',
+                    (source_report_id, project_id)
+                )
+                source_report = cursor.fetchone()
+                if not source_report:
+                    raise ReportNotFoundError("Source report not found or does not belong to this project")
+
+                # Create the new report with status "In Draft"
+                cursor.execute(
+                    'INSERT INTO reports (project_id, name, description, default_report, status, created_at, updated_at) '
+                    'VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id',
+                    (target_project_id, new_name, new_description, False, 'In Draft', 
+                     datetime.now(timezone.utc), datetime.now(timezone.utc))
+                )
+                new_report_id = cursor.fetchone()[0]
+
+                # Copy project data from source report to new report
+                cursor.execute(
+                    'INSERT INTO project_data (project_id, report_id, tables_info, selected_data, synonyms, report_url, value_rules) '
+                    'SELECT %s, %s, tables_info, selected_data, synonyms, report_url, value_rules '
+                    'FROM project_data WHERE project_id = %s AND report_id = %s',
+                    (target_project_id, new_report_id, project_id, source_report_id)
+                )
+
+                # Copy report pages from source report to new report
+                cursor.execute(
+                    'INSERT INTO report_pages (project_id, report_id, page_name, page_description, page_url, created_at) '
+                    'SELECT %s, %s, page_name, page_description, page_url, %s '
+                    'FROM report_pages WHERE project_id = %s AND report_id = %s',
+                    (target_project_id, new_report_id, datetime.now(timezone.utc), project_id, source_report_id)
+                )
+
+                return new_report_id
+            except Exception as e:
+                logger.error(f"Error copying report: {str(e)}")
                 return None

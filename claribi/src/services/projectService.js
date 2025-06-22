@@ -20,6 +20,27 @@ const getProjects = async (page = 1, perPage = 50, filters = {}) => {
       throw error;
     }
 };
+
+const getRecentProjects = async (limit = 5) => {
+    try {
+      const params = new URLSearchParams({
+        page: 1,
+        per_page: limit,
+        sort: 'updated_at',
+        order: 'desc'
+      });
+      const response = await api.get(`/projects?${params}`);
+      return {
+        items: response.data.items || [],
+        metadata: response.data.metadata || {}
+      };
+    } catch (error) {
+      if (error.response?.status === 400) {
+        throw new Error(error.response.data.error || 'Failed to list recent projects');
+      }
+      throw error;
+    }
+};
   
 const getProject = async (projectId) => {
     try {
@@ -296,39 +317,42 @@ const updateProjectStatus = async (projectId, newStatus) => {
   }
 };
 
-// Create service object with all methods
-const projectService = {
-  getProjects,
-  getProject,
-  createProject,
-  editProject,
-  renameProject,
-  deleteProject,
-  selectProject,
-  shareProject,
-  extendProjectShare,
-  revokeProjectShare,
-  getProjectSharingInfo,
-  createShareLinks,
-  updateProjectStatus
+const leaveProject = async (projectId) => {
+  try {
+    await api.post(`/project/${projectId}/leave`);
+    return true;
+  } catch (error) {
+    if (error.response) {
+      switch (error.response.status) {
+        case 404:
+          throw new Error('Project not found');
+        case 403:
+          throw new Error(error.response.data.error || 'Access denied');
+        default:
+          throw new Error('Failed to leave project');
+      }
+    }
+    throw error;
+  }
 };
 
-// Export both individually and as an object
-export {
-  getProjects,
-  getProject,
-  createProject,
-  editProject,
-  renameProject,
-  deleteProject,
-  selectProject,
-  shareProject,
-  extendProjectShare,
-  revokeProjectShare,
-  getProjectSharingInfo,
-  createShareLinks,
-  updateProjectStatus,
-  projectService
+// Export all functions as a service object
+const projectService = {
+    getProjects,
+    getRecentProjects,
+    getProject,
+    createProject,
+    editProject,
+    renameProject,
+    deleteProject,
+    selectProject,
+    shareProject,
+    extendProjectShare,
+    revokeProjectShare,
+    getProjectSharingInfo,
+    createShareLinks,
+    updateProjectStatus,
+    leaveProject
 };
 
 export default projectService;  

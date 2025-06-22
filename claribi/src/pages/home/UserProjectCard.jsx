@@ -24,10 +24,14 @@ import {
   faXmark
 } from '@fortawesome/free-solid-svg-icons';
 import { formatLastModified } from '../../utils/dateUtils';
+import { useProjects } from '../../contexts/ProjectContext';
+import { useNotification } from '../../contexts/NotificationContext';
 
-const UserProjectCard = ({ project, onLeave }) => {
-  const { id, name, status, description } = project;
+const UserProjectCard = ({ project }) => {
+  const { id, name, status, description, access_type } = project;
   const navigate = useNavigate();
+  const { leaveProject } = useProjects();
+  const { showNotification } = useNotification();
   
   // Format the lastModified date
   const lastModified = project.lastModified || formatLastModified(project.updated_at || project.created_at);
@@ -59,11 +63,22 @@ const UserProjectCard = ({ project, onLeave }) => {
   const handleLeaveClick = (event) => {
     if (event) event.stopPropagation();
     handleMenuClose(event);
+    if (access_type === 'owner') {
+      showNotification('You cannot leave this project as you are the owner', 'error');
+      return;
+    }
     setLeaveDialogOpen(true);
   };
   
-  const handleConfirmLeave = () => {
-    onLeave();
+  const handleConfirmLeave = async () => {
+    try {
+      const success = await leaveProject(id);
+      if (success) {
+        showNotification('Successfully left the project', 'success');
+      }
+    } catch (error) {
+      showNotification(error.message || 'Failed to leave project', 'error');
+    }
     setLeaveDialogOpen(false);
   };
 

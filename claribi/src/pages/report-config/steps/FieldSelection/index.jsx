@@ -150,11 +150,7 @@ const FieldSelection = ({
           p: 4,
         }}
       >
-        <img 
-          src="/assets/images/upload-illustration.svg" 
-          alt="No data" 
-          style={{ width: 200, height: 200 }} 
-        />
+        
         <Typography
           variant="h6"
           sx={{

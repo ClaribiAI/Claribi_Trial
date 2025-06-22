@@ -12,12 +12,12 @@ import { formatLastModified } from '../../utils/dateUtils';
 
 const HomePage = () => {
   const { currentUser } = useAuth();
-  const { projects, loading, error, fetchProjects } = useProjects();
+  const { recentProjects, loading, error, fetchRecentProjects, deleteProject } = useProjects();
   
-  // Fetch projects on component mount
+  // Fetch recent projects on component mount
   useEffect(() => {
-    fetchProjects();
-  }, []);
+    fetchRecentProjects(5);
+  }, [fetchRecentProjects]);
   
   // Mock data for stats
   const stats = [
@@ -35,21 +35,25 @@ const HomePage = () => {
     console.log('Edit project', updatedProject);
   };
 
-  const handleDeleteProject = (id) => {
-    // The actual deletion is handled in ProjectContext
-    console.log('Delete project', id);
+  const handleDeleteProject = async (id) => {
+    try {
+      const success = await deleteProject(id);
+      if (!success) {
+        throw new Error('Failed to delete project');
+      }
+    } catch (err) {
+      // Error handling managed by context and ProjectCard
+      throw err;
+    }
   };
 
   // Process projects to include formatted lastModified
-  const processedProjects = Array.isArray(projects) 
-    ? projects.map(project => ({
+  const processedProjects = Array.isArray(recentProjects) 
+    ? recentProjects.map(project => ({
         ...project,
         lastModified: formatLastModified(project.updated_at || project.created_at)
       }))
     : [];
-    
-  // Get only the 5 most recent projects
-  const recentProjects = processedProjects.slice(0, 5);
 
   // Render data analyst project cards
   const renderAnalystProjectCards = () => {
@@ -69,7 +73,7 @@ const HomePage = () => {
       );
     }
     
-    if (recentProjects.length === 0) {
+    if (processedProjects.length === 0) {
       return (
         <Box sx={{ 
           p: 3, 
@@ -84,7 +88,7 @@ const HomePage = () => {
       );
     }
     
-    return recentProjects.map((project) => (
+    return processedProjects.map((project) => (
       <ProjectCard
         key={project.id}
         project={project}
@@ -111,7 +115,7 @@ const HomePage = () => {
         </Box>
       );
     }
-    const liveProjects = recentProjects.filter(project => project.status === 'Live');
+    const liveProjects = processedProjects.filter(project => project.status === 'Live');
     if (liveProjects.length === 0) {
       return (
         <Box sx={{ 
@@ -130,7 +134,6 @@ const HomePage = () => {
       <UserProjectCard
         key={project.id}
         project={project}
-        onLeave={() => handleDeleteProject(project.id)}
       />
     ));
   };

@@ -31,6 +31,7 @@ chat = initialize_ai()
 def extract_with_gemini(query, selected_data, synonyms, value_rules=None):
     """
     Extract fields, values, and operators from a natural language query using Gemini AI.
+    First checks for exact matches in the raw query, then uses Gemini for remaining extraction.
     
     Args:
         query (str): The natural language query to process
@@ -53,6 +54,39 @@ def extract_with_gemini(query, selected_data, synonyms, value_rules=None):
     if not query:
         logger.warning("Empty query provided to extract_with_gemini")
         return fields_and_values, field_to_table, field_to_operator
+
+    # First, check for exact matches in the raw query
+    if value_rules:
+        for field_key, rules in value_rules.items():
+            if 'rules' in rules:
+                for rule in rules['rules']:
+                    if rule.get('type') == 'exact_match':
+                        valid_values = rule.get('valid_values', [])
+                        case_sensitive = rule.get('case_sensitive', False)
+                        
+                        # Create lookup for case-insensitive matching
+                        if not case_sensitive:
+                            lookup = {str(v).lower(): v for v in valid_values}
+                            query_lower = query.lower()
+                            # Check each value in the lookup
+                            for lower_value, original_value in lookup.items():
+                                if lower_value in query_lower:
+                                    # Split field_key into table and field
+                                    table_name, field_name = field_key.split('.')
+                                    fields_and_values[field_name] = original_value
+                                    field_to_table[field_name] = table_name
+                                    field_to_operator[field_name] = 'eq'
+                                    logger.info(f"Found exact match for {field_key}: {original_value}")
+                        else:
+                            # Case-sensitive matching
+                            for value in valid_values:
+                                if str(value) in query:
+                                    # Split field_key into table and field
+                                    table_name, field_name = field_key.split('.')
+                                    fields_and_values[field_name] = value
+                                    field_to_table[field_name] = table_name
+                                    field_to_operator[field_name] = 'eq'
+                                    logger.info(f"Found exact match for {field_key}: {value}")
 
     # Prepare the selected data for the prompt
     try:
@@ -88,6 +122,8 @@ def extract_with_gemini(query, selected_data, synonyms, value_rules=None):
     except Exception as e:
         logger.error(f"Error preparing synonym_info: {str(e)}")
         synonym_info = []
+
+    # Prepare pattern information
     pattern_info = []
     if value_rules:
         try:
@@ -106,6 +142,16 @@ def extract_with_gemini(query, selected_data, synonyms, value_rules=None):
                                 })
         except Exception as e:
             logger.error(f"Error preparing pattern_info: {str(e)}")
+
+    # Add information about already found exact matches to the prompt
+    exact_matches_info = []
+    for field_name, value in fields_and_values.items():
+        exact_matches_info.append({
+            "field": field_name,
+            "table": field_to_table[field_name],
+            "value": value
+        })
+
     # Construct the prompt for Gemini
     prompt = f"""
     You are a data extraction assistant. Extract the fields, values, and operators from the following query.
@@ -124,6 +170,14 @@ def extract_with_gemini(query, selected_data, synonyms, value_rules=None):
     
     Synonyms information:
     {json.dumps(synonym_info, indent=2)}
+    """
+
+    # Add exact matches information if any were found
+    if exact_matches_info:
+        prompt += f"""
+    
+    Already identified exact matches (DO NOT extract these again):
+    {json.dumps(exact_matches_info, indent=2)}
     """
 
     # Add regex pattern information if available
@@ -163,6 +217,7 @@ def extract_with_gemini(query, selected_data, synonyms, value_rules=None):
     Choose the most appropriate operator for each field based on the query's language.
     If the operator isn't clear, use "eq" as the default.
     All dictionaries must be JSON objects, not arrays.
+    DO NOT extract fields and values that were already identified in the exact matches list.
     """
 
     try:
@@ -177,19 +232,30 @@ def extract_with_gemini(query, selected_data, synonyms, value_rules=None):
         # First, try to parse the entire response as JSON
         try:
             parsed_result = json.loads(response_text)
-            # Extract the fields and values
+            # Extract additional fields and values from Gemini
             if 'fields_and_values' in parsed_result and isinstance(parsed_result['fields_and_values'], dict):
-                fields_and_values = parsed_result['fields_and_values']
+                # Merge with existing fields_and_values, but don't override exact matches
+                for field, value in parsed_result['fields_and_values'].items():
+                    if field not in fields_and_values:
+                        fields_and_values[field] = value
             else:
                 logger.warning("fields_and_values is missing or not a dictionary in the Gemini response")   
-            # Extract the field to table mapping
+
+            # Extract additional field to table mappings
             if 'field_to_table' in parsed_result and isinstance(parsed_result['field_to_table'], dict):
-                field_to_table = parsed_result['field_to_table']
+                # Merge with existing field_to_table, but don't override exact matches
+                for field, table in parsed_result['field_to_table'].items():
+                    if field not in field_to_table:
+                        field_to_table[field] = table
             else:
                 logger.warning("field_to_table is missing or not a dictionary in the Gemini response")
-            # Extract the field to operator mapping
+
+            # Extract additional field to operator mappings
             if 'field_to_operator' in parsed_result and isinstance(parsed_result['field_to_operator'], dict):
-                field_to_operator = parsed_result['field_to_operator']
+                # Merge with existing field_to_operator, but don't override exact matches
+                for field, operator in parsed_result['field_to_operator'].items():
+                    if field not in field_to_operator:
+                        field_to_operator[field] = operator
             else:
                 logger.warning("field_to_operator is missing or not a dictionary in the Gemini response")
                 
@@ -200,21 +266,30 @@ def extract_with_gemini(query, selected_data, synonyms, value_rules=None):
                 try:
                     parsed_result = json.loads(json_match.group(1))
                     
-                    # Extract the fields and values
+                    # Extract additional fields and values
                     if 'fields_and_values' in parsed_result and isinstance(parsed_result['fields_and_values'], dict):
-                        fields_and_values = parsed_result['fields_and_values']
+                        # Merge with existing fields_and_values, but don't override exact matches
+                        for field, value in parsed_result['fields_and_values'].items():
+                            if field not in fields_and_values:
+                                fields_and_values[field] = value
                     else:
                         logger.warning("fields_and_values is missing or not a dictionary in the code block")
                     
-                    # Extract the field to table mapping
+                    # Extract additional field to table mappings
                     if 'field_to_table' in parsed_result and isinstance(parsed_result['field_to_table'], dict):
-                        field_to_table = parsed_result['field_to_table']
+                        # Merge with existing field_to_table, but don't override exact matches
+                        for field, table in parsed_result['field_to_table'].items():
+                            if field not in field_to_table:
+                                field_to_table[field] = table
                     else:
                         logger.warning("field_to_table is missing or not a dictionary in the code block")
                         
-                    # Extract the field to operator mapping
+                    # Extract additional field to operator mappings
                     if 'field_to_operator' in parsed_result and isinstance(parsed_result['field_to_operator'], dict):
-                        field_to_operator = parsed_result['field_to_operator']
+                        # Merge with existing field_to_operator, but don't override exact matches
+                        for field, operator in parsed_result['field_to_operator'].items():
+                            if field not in field_to_operator:
+                                field_to_operator[field] = operator
                     else:
                         logger.warning("field_to_operator is missing or not a dictionary in the code block")
                 except Exception as json_ex:
@@ -227,20 +302,13 @@ def extract_with_gemini(query, selected_data, synonyms, value_rules=None):
     if not isinstance(fields_and_values, dict):
         logger.warning(f"final fields_and_values is not a dictionary, converting to empty dict.")
         fields_and_values = {}
-    
     if not isinstance(field_to_table, dict):
         logger.warning(f"final field_to_table is not a dictionary, converting to empty dict.")
         field_to_table = {}
-        
     if not isinstance(field_to_operator, dict):
         logger.warning(f"final field_to_operator is not a dictionary, converting to empty dict.")
         field_to_operator = {}
-        
-    # Add default operator (eq) for any fields missing an operator
-    for field in fields_and_values:
-        if field not in field_to_operator:
-            field_to_operator[field] = "eq"
-            
+    
     return fields_and_values, field_to_table, field_to_operator
 
 

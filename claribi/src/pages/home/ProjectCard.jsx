@@ -57,7 +57,7 @@ const ProjectCard = ({ project, onEdit, onDelete, onToggleStatus }) => {
   const creationDate = new Date(Date.now() - Math.floor(Math.random() * 30) * 24 * 60 * 60 * 1000)
     .toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 
-  const { showNotification } = useNotification ? useNotification() : { showNotification: () => {} };
+  const { showNotification } = useNotification();
 
   const handleProjectClick = () => {
     navigate(`/projects/${id}`);
@@ -109,8 +109,13 @@ const ProjectCard = ({ project, onEdit, onDelete, onToggleStatus }) => {
     setEditModalOpen(false);
   };
   
-  const handleConfirmDelete = () => {
-    onDelete();
+  const handleConfirmDelete = async () => {
+    try {
+      await onDelete();
+      showNotification('Project deleted successfully', 'success');
+    } catch (error) {
+      showNotification(error.message || 'Failed to delete project', 'error');
+    }
     setDeleteDialogOpen(false);
   };
   

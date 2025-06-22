@@ -24,7 +24,8 @@ import {
   Alert,
   Collapse,
   LinearProgress,
-  CircularProgress
+  CircularProgress,
+  Input
 } from '@mui/material';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
@@ -34,6 +35,7 @@ import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
 import valueValidationService from '../../../services/valueValidationService';
 
 const ValueFormatModal = ({ 
@@ -68,6 +70,10 @@ const ValueFormatModal = ({
   const [aiLoading, setAILoading] = useState(false);
   const [aiError, setAIError] = useState('');
   const [aiResult, setAIResult] = useState(null);
+
+  // Add new state for file upload
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
 
   // Constants for validation
   const MAX_RULES = 5;
@@ -465,8 +471,13 @@ const ValueFormatModal = ({
 
   const getRuleDescription = (rule) => {
     switch (rule.type) {
-      case 'exact_match':
-        return `Exact match: ${rule.valid_values.join(', ')} (${rule.case_sensitive ? 'case-sensitive' : 'case-insensitive'})`;
+      case 'exact_match': {
+        const values = rule.valid_values;
+        const displayValues = values.slice(0, 20);
+        const remainingCount = values.length - 20;
+        const displayText = displayValues.join(', ') + (remainingCount > 0 ? ` (+${remainingCount} more)` : '');
+        return `Exact match: ${displayText} (${rule.case_sensitive ? 'case-sensitive' : 'case-insensitive'})`;
+      }
       case 'pattern':
         return `Pattern: ${rule.pattern}`;
       case 'transformation':
@@ -479,6 +490,51 @@ const ValueFormatModal = ({
         return `Date format: ${rule.input_formats.join(', ')} → ${rule.output_format}`;
       default:
         return 'Unknown rule';
+    }
+  };
+
+  const handleFileUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Check if it's a CSV file
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      setUploadError('Please upload a CSV file');
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadError('');
+
+    try {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target.result;
+        const lines = text.split(/\r?\n/);
+        
+        // Get unique, non-empty values
+        const newValues = [...new Set(lines
+          .map(line => line.trim())
+          .filter(line => line && !validValues.includes(line))
+        )];
+
+        if (newValues.length === 0) {
+          setUploadError('No new valid values found in the CSV file');
+        } else {
+          setValidValues([...validValues, ...newValues]);
+        }
+        setIsUploading(false);
+      };
+
+      reader.onerror = () => {
+        setUploadError('Error reading the file');
+        setIsUploading(false);
+      };
+
+      reader.readAsText(file);
+    } catch (error) {
+      setUploadError('Error processing the file');
+      setIsUploading(false);
     }
   };
 
@@ -570,15 +626,80 @@ const ValueFormatModal = ({
                       <ListItemText 
                         primary={
                           <Box>
-                            <Typography 
-                              variant="body2" 
-                              sx={{ 
-                                color: isInactive ? 'text.disabled' : 'text.primary',
-                                fontSize: '0.875rem'
-                              }}
-                            >
-                              {getRuleDescription(rule)}
-                            </Typography>
+                            {rule.type === 'exact_match' && rule.valid_values.length > 20 ? (
+                              <Tooltip
+                                title={
+                                  <Box sx={{ p: 1 }}>
+                                    <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                                      All Valid Values ({rule.valid_values.length}):
+                                    </Typography>
+                                    <Box sx={{ 
+                                      maxHeight: '200px', 
+                                      overflowY: 'auto',
+                                      '&::-webkit-scrollbar': {
+                                        width: '8px',
+                                      },
+                                      '&::-webkit-scrollbar-track': {
+                                        background: 'rgba(0,0,0,0.1)',
+                                        borderRadius: '4px',
+                                      },
+                                      '&::-webkit-scrollbar-thumb': {
+                                        background: 'rgba(0,0,0,0.2)',
+                                        borderRadius: '4px',
+                                        '&:hover': {
+                                          background: 'rgba(0,0,0,0.3)',
+                                        },
+                                      },
+                                    }}>
+                                      {rule.valid_values.map((value, idx) => (
+                                        <Typography key={idx} variant="body2" sx={{ mb: 0.5 }}>
+                                          • {value}
+                                        </Typography>
+                                      ))}
+                                    </Box>
+                                  </Box>
+                                }
+                                arrow
+                                placement="top"
+                                componentsProps={{
+                                  tooltip: {
+                                    sx: {
+                                      bgcolor: 'background.paper',
+                                      color: 'text.primary',
+                                      '& .MuiTooltip-arrow': {
+                                        color: 'background.paper',
+                                      },
+                                      boxShadow: 2,
+                                      maxWidth: 'none',
+                                    }
+                                  }
+                                }}
+                              >
+                                <Typography 
+                                  variant="body2" 
+                                  sx={{ 
+                                    color: isInactive ? 'text.disabled' : 'text.primary',
+                                    fontSize: '0.875rem',
+                                    cursor: 'pointer',
+                                    '&:hover': {
+                                      textDecoration: 'underline'
+                                    }
+                                  }}
+                                >
+                                  {getRuleDescription(rule)}
+                                </Typography>
+                              </Tooltip>
+                            ) : (
+                              <Typography 
+                                variant="body2" 
+                                sx={{ 
+                                  color: isInactive ? 'text.disabled' : 'text.primary',
+                                  fontSize: '0.875rem'
+                                }}
+                              >
+                                {getRuleDescription(rule)}
+                              </Typography>
+                            )}
                             {isInactiveByRegex && (
                               <Typography 
                                 variant="caption" 
@@ -833,8 +954,39 @@ const ValueFormatModal = ({
                       Add
                     </Button>
                   </Box>
+
+                  {/* Add CSV Upload section */}
+                  <Box sx={{ mb: 2 }}>
+                    <input
+                      accept=".csv"
+                      style={{ display: 'none' }}
+                      id="csv-file-upload"
+                      type="file"
+                      onChange={handleFileUpload}
+                    />
+                    <label htmlFor="csv-file-upload">
+                      <Button
+                        variant="outlined"
+                        component="span"
+                        startIcon={<UploadFileIcon />}
+                        disabled={isUploading}
+                        sx={{ mb: 1 }}
+                      >
+                        Upload CSV
+                      </Button>
+                    </label>
+                    {isUploading && (
+                      <LinearProgress sx={{ mt: 1 }} />
+                    )}
+                    {uploadError && (
+                      <Alert severity="error" sx={{ mt: 1 }}>
+                        {uploadError}
+                      </Alert>
+                    )}
+                  </Box>
+
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-                    {validValues.map((value, index) => (
+                    {validValues.slice(0, 20).map((value, index) => (
                       <Chip
                         key={index}
                         label={value}
@@ -842,6 +994,68 @@ const ValueFormatModal = ({
                         size="small"
                       />
                     ))}
+                    {validValues.length > 20 && (
+                      <Tooltip 
+                        title={
+                          <Box sx={{ p: 1 }}>
+                            <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                              Additional Values ({validValues.length - 20}):
+                            </Typography>
+                            <Box sx={{ 
+                              maxHeight: '200px', 
+                              overflowY: 'auto',
+                              '&::-webkit-scrollbar': {
+                                width: '8px',
+                              },
+                              '&::-webkit-scrollbar-track': {
+                                background: 'rgba(0,0,0,0.1)',
+                                borderRadius: '4px',
+                              },
+                              '&::-webkit-scrollbar-thumb': {
+                                background: 'rgba(0,0,0,0.2)',
+                                borderRadius: '4px',
+                                '&:hover': {
+                                  background: 'rgba(0,0,0,0.3)',
+                                },
+                              },
+                            }}>
+                              {validValues.slice(20).map((value, index) => (
+                                <Typography key={index} variant="body2" sx={{ mb: 0.5 }}>
+                                  • {value}
+                                </Typography>
+                              ))}
+                            </Box>
+                          </Box>
+                        }
+                        arrow
+                        placement="top"
+                        componentsProps={{
+                          tooltip: {
+                            sx: {
+                              bgcolor: 'background.paper',
+                              color: 'text.primary',
+                              '& .MuiTooltip-arrow': {
+                                color: 'background.paper',
+                              },
+                              boxShadow: 2,
+                              maxWidth: 'none',
+                            }
+                          }
+                        }}
+                      >
+                        <Chip
+                          label={`+${validValues.length - 20} more`}
+                          size="small"
+                          sx={{ 
+                            backgroundColor: 'primary.light',
+                            '&:hover': {
+                              backgroundColor: 'primary.main',
+                              color: 'white'
+                            }
+                          }}
+                        />
+                      </Tooltip>
+                    )}
                   </Box>
                   <FormControlLabel
                     control={

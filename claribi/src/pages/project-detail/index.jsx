@@ -19,10 +19,14 @@ import {
   Tooltip,
   Chip,
   Menu,
-  MenuItem
+  MenuItem,
+  Select,
+  FormControl,
+  InputLabel,
+  CircularProgress
 } from '@mui/material';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPlus, faPenToSquare, faTrash, faArrowLeft, faShareNodes, faUsers, faLink } from '@fortawesome/free-solid-svg-icons';
+import { faPlus, faPenToSquare, faTrash, faArrowLeft, faShareNodes, faUsers, faLink, faCopy } from '@fortawesome/free-solid-svg-icons';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import TimerIcon from '@mui/icons-material/Timer';
 import Modal from '../../components/ui/Modal';
@@ -82,6 +86,16 @@ const ProjectDetailPage = () => {
   
   // State for status menu
   const [statusMenuAnchorEl, setStatusMenuAnchorEl] = useState(null);
+  
+  // Add new state for copy report modal
+  const [isCopyReportModalOpen, setIsCopyReportModalOpen] = useState(false);
+  const [reportToCopy, setReportToCopy] = useState(null);
+  const [isCopyingReport, setIsCopyingReport] = useState(false);
+  
+  // Add new state for project selection
+  const [availableProjects, setAvailableProjects] = useState([]);
+  const [selectedTargetProject, setSelectedTargetProject] = useState('');
+  const [loadingProjects, setLoadingProjects] = useState(false);
   
   // Check if we should navigate to access management
   useEffect(() => {
@@ -281,6 +295,28 @@ const ProjectDetailPage = () => {
     }
   }, [currentView, projectId]);
 
+  // Add effect to fetch available projects when copy modal opens
+  useEffect(() => {
+    const fetchProjects = async () => {
+      if (isCopyReportModalOpen) {
+        try {
+          setLoadingProjects(true);
+          const response = await projectService.getProjects();
+          // Filter out current project and only include projects where user is owner/co-owner
+          const filteredProjects = response.items.filter(p => 
+            p.id !== projectId && ['owner', 'co_owner'].includes(p.access_type)
+          );
+          setAvailableProjects(filteredProjects);
+        } catch (error) {
+          console.error('Error fetching projects:', error);
+        } finally {
+          setLoadingProjects(false);
+        }
+      }
+    };
+    fetchProjects();
+  }, [isCopyReportModalOpen, projectId]);
+
   const handleBackToProjects = () => {
     navigate('/projects');
   };
@@ -292,11 +328,15 @@ const ProjectDetailPage = () => {
   const handleCloseModal = () => {
     setIsAddReportModalOpen(false);
     setIsEditReportModalOpen(false);
+    setIsCopyReportModalOpen(false);
     setReportName('');
     setReportDescription('');
     setSetAsDefault(false);
     setIsCreatingReport(false);
+    setIsCopyingReport(false);
     setEditingReportId(null);
+    setReportToCopy(null);
+    setSelectedTargetProject('');
   };
   
   const handleCreateReport = async () => {
@@ -390,7 +430,16 @@ const ProjectDetailPage = () => {
       }
     } catch (err) {
       console.error('Failed to update report status:', err);
-      showNotification(err.message || 'Failed to update report status', 'error');
+      // Check for specific validation errors
+      if (err.message.includes('At least one field must be selected')) {
+        showNotification('Cannot set report to Live: You must select at least one field in the Field Selection step', 'error');
+      } else if (err.message.includes('At least one report page must be maintained')) {
+        showNotification('Cannot set report to Live: You must add at least one report page in the Report URL step', 'error');
+      } else if (err.message.includes('Cannot set report to Live when project is not Live')) {
+        showNotification('Cannot set report to Live: The project must be Live first', 'error');
+      } else {
+        showNotification(err.message || 'Failed to update report status', 'error');
+      }
     }
   };
   
@@ -636,6 +685,69 @@ const ProjectDetailPage = () => {
     }
   };
 
+  // Function to fetch reports
+  const fetchReports = async () => {
+    try {
+      setReportsLoading(true);
+      const response = await reportService.getReports(projectId);
+      if (response.data && response.data.reports) {
+        setReports(response.data.reports);
+      }
+    } catch (error) {
+      console.error('Error fetching reports:', error);
+    } finally {
+      setReportsLoading(false);
+    }
+  };
+
+  // Effect to fetch reports when project changes
+  useEffect(() => {
+    if (projectId) {
+      fetchReports();
+    }
+  }, [projectId]);
+
+  const handleCopyReport = async () => {
+    if (reportName.trim() && !isCopyingReport && reportToCopy) {
+      try {
+        setIsCopyingReport(true);
+        const targetProjectId = selectedTargetProject || projectId;
+        await reportService.copyReport(
+          projectId,
+          reportToCopy.id,
+          reportName.trim(),
+          reportDescription.trim() || undefined,
+          targetProjectId !== projectId ? targetProjectId : undefined
+        );
+        
+        // Refresh data based on where the report was copied
+        if (targetProjectId === projectId) {
+          await fetchReports();
+        }
+        
+        setIsCopyReportModalOpen(false);
+        setReportName('');
+        setReportDescription('');
+        setSelectedTargetProject('');
+        setReportToCopy(null);
+        showNotification('Report copied successfully', 'success');
+      } catch (error) {
+        console.error('Error copying report:', error);
+        showNotification(error.message || 'Failed to copy report', 'error');
+      } finally {
+        setIsCopyingReport(false);
+      }
+    }
+  };
+
+  const handleCopyClick = (report) => {
+    setReportToCopy(report);
+    setReportName(`${report.name} (Copy)`);
+    setReportDescription(report.description || '');
+    setSelectedTargetProject('');
+    setIsCopyReportModalOpen(true);
+  };
+
   // Display loading spinner
   if (loading) {
     return <LoadingSpinner />;
@@ -867,16 +979,23 @@ const ProjectDetailPage = () => {
                         
                         <Box sx={{ mb: 1 }}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                            <Typography 
-                              variant="h6" 
-                              sx={{ 
-                                fontWeight: 600,
-                                fontFamily: "'Inter', sans-serif",
-                                wordBreak: 'break-word'
-                              }}
-                            >
-                              {report.name}
-                            </Typography>
+                            <Tooltip title={report.name} placement="top">
+                              <Typography 
+                                variant="h6" 
+                                sx={{ 
+                                  fontWeight: 600,
+                                  fontFamily: "'Inter', sans-serif",
+                                  wordBreak: 'break-word',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                  minWidth: '200px',
+                                  maxWidth: '200px'  
+                                }}
+                              >
+                                {report.name}
+                              </Typography>
+                            </Tooltip>
                             <Chip
                               label={report.status || 'In Draft'}
                               size="small"
@@ -890,7 +1009,8 @@ const ProjectDetailPage = () => {
                                 color: 'white',
                                 fontWeight: 600,
                                 fontSize: '0.7rem',
-                                height: '20px'
+                                height: '20px',
+                                flexShrink: 0  // Prevent the chip from shrinking
                               }}
                             />
                           </Box>
@@ -947,6 +1067,17 @@ const ProjectDetailPage = () => {
                             sx={{ color: '#555555' }}
                           >
                             <FontAwesomeIcon icon={faPenToSquare} size="xs" />
+                          </IconButton>
+                          
+                          <IconButton 
+                            size="small" 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCopyClick(report);
+                            }}
+                            sx={{ color: '#555555' }}
+                          >
+                            <FontAwesomeIcon icon={faCopy} size="xs" />
                           </IconButton>
                           
                           <IconButton 
@@ -1906,6 +2037,58 @@ const ProjectDetailPage = () => {
             In Draft
           </MenuItem>
         </Menu>
+
+        {/* Copy Report Modal */}
+
+        <Dialog open={isCopyReportModalOpen} onClose={handleCloseModal} maxWidth="sm" fullWidth>
+          <DialogTitle>Copy Report</DialogTitle>
+          <DialogContent>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
+              <TextField
+                label="Report Name"
+                value={reportName}
+                onChange={(e) => setReportName(e.target.value)}
+                fullWidth
+                required
+              />
+              <TextField
+                label="Description"
+                value={reportDescription}
+                onChange={(e) => setReportDescription(e.target.value)}
+                fullWidth
+                multiline
+                rows={3}
+              />
+              <FormControl fullWidth>
+                <InputLabel>Target Project (Optional)</InputLabel>
+                <Select
+                  value={selectedTargetProject}
+                  onChange={(e) => setSelectedTargetProject(e.target.value)}
+                  disabled={loadingProjects}
+                >
+                  <MenuItem value="">
+                    <em>Current Project</em>
+                  </MenuItem>
+                  {availableProjects.map((p) => (
+                    <MenuItem key={p.id} value={p.id}>
+                      {p.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseModal}>Cancel</Button>
+            <Button 
+              onClick={handleCopyReport}
+              disabled={!reportName.trim() || isCopyingReport}
+              variant="contained"
+            >
+              {isCopyingReport ? <CircularProgress size={24} /> : 'Copy'}
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     );
   };

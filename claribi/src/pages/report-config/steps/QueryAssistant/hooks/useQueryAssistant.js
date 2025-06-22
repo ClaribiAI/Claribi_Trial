@@ -91,7 +91,12 @@ export const useQueryAssistant = (projectId, reportId) => {
         if (url && url.startsWith('https://app.powerbi.com/reportEmbed?')) {
           setEmbedHistory(prev => {
             const newHistory = prev.slice(0, embedIndex + 1); // Discard forward history if any
-            newHistory.push({ url, message: botMessageText, timestamp: botMessage.timestamp });
+            newHistory.push({ 
+              url, 
+              message: botMessageText, 
+              timestamp: botMessage.timestamp,
+              filters: filters // Store filters in embed history
+            });
             return newHistory;
           });
           setEmbedIndex(prev => prev + 1);

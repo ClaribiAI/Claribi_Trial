@@ -300,4 +300,45 @@ def update_project_status(project_id: int) -> Tuple[Dict[str, Any], int]:
         return jsonify({'error': 'Access denied'}), 403
     except Exception as e:
         logger.error(f"Error in update_project_status: {str(e)}", exc_info=True)
-        return jsonify({'error': 'Failed to update project status'}), 500 
+        return jsonify({'error': 'Failed to update project status'}), 500
+
+@project_bp.route('/project/<int:project_id>/leave', methods=['POST'])
+@login_required
+@csrf_protected
+@rate_limit(limit=MUTATION_LIMIT, key_func=get_user_rate_limit_key)
+def leave_project(project_id: int) -> Tuple[Dict[str, Any], int]:
+    """Leave a project by removing user's access.
+    
+    Args:
+        project_id: Project ID
+        
+    Returns:
+        tuple: (Response data, HTTP status code)
+    """
+    try:
+        if not g.user.get('ms_object_id'):
+            logger.error("Missing ms_object_id in user context")
+            return jsonify({'error': 'Invalid user context'}), 400
+            
+        # Check if user is owner
+        project = ProjectService.get_project(project_id, g.user['ms_object_id'])
+        if project.access_type == 'owner':
+            return jsonify({'error': 'Project owner cannot leave the project'}), 403
+            
+        # Remove user's access
+        success, message = ProjectService.revoke_project_access(
+            project_id=project_id,
+            user_id=g.user['ms_object_id']
+        )
+        
+        if not success:
+            return jsonify({'error': message}), 400
+            
+        return '', 204
+    except ProjectNotFoundError:
+        return jsonify({'error': 'Project not found'}), 404
+    except ProjectAccessDeniedError:
+        return jsonify({'error': 'Access denied'}), 403
+    except Exception as e:
+        logger.error(f"Error in leave_project: {str(e)}")
+        return jsonify({'error': 'Failed to leave project'}), 500 

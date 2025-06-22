@@ -95,8 +95,14 @@ const reportService = {
           if (error.response.data.error.includes('Invalid status')) {
             throw new Error('Invalid status value. Status must be Live, In Draft, or Deleted');
           }
-          if (error.response.data.error.includes('Cannot set report to Live')) {
+          if (error.response.data.error.includes('Cannot set report to Live when project is not Live')) {
             throw new Error('Cannot set report to Live when project is not Live');
+          }
+          if (error.response.data.error.includes('At least one field must be selected')) {
+            throw new Error('At least one field must be selected');
+          }
+          if (error.response.data.error.includes('At least one report page must be maintained')) {
+            throw new Error('At least one report page must be maintained');
           }
         }
         // Return backend error message if available
@@ -104,6 +110,20 @@ const reportService = {
       }
       // Handle network or other errors
       throw new Error('Network error occurred while updating report status');
+    }
+  },
+  
+  // Copy a report
+  copyReport: async (projectId, reportId, newName, newDescription, targetProjectId = null) => {
+    try {
+      const response = await api.post(`/project/${projectId}/report/${reportId}/copy`, {
+        name: newName,
+        description: newDescription,
+        target_project_id: targetProjectId
+      });
+      return response;
+    } catch (error) {
+      throw error;
     }
   }
 };

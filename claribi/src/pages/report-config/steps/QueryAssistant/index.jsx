@@ -54,14 +54,7 @@ const QueryAssistant = ({ projectId, reportId }) => {
 
       {hasData && (
         <>
-          {/* Show filters applied below the heading and above the embed */}
-          {currentEmbed && currentEmbed.filters && (
-            <Box sx={{ width: '100%', mb: 2, display: 'flex', justifyContent: 'center' }}>
-              <Typography variant="body2" sx={{ color: '#888', fontFamily: "'Nunito Sans', sans-serif", fontSize: '0.95rem', textAlign: 'center' }}>
-                Filters applied: {currentEmbed.filters}
-              </Typography>
-            </Box>
-          )}
+        
 
           {currentEmbed ? (
             <>
@@ -88,6 +81,31 @@ const QueryAssistant = ({ projectId, reportId }) => {
                     </IconButton>
                   )}
                 </Box>
+                {/* Display filters below the embed */}
+                {currentEmbed.filters && (
+                  <Box sx={{ 
+                    width: '100%', 
+                    mt: 2, 
+                    display: 'flex', 
+                    justifyContent: 'center',
+                    backgroundColor: 'rgba(0, 0, 0, 0.03)',
+                    borderRadius: '8px',
+                    p: 2
+                  }}>
+                    <Typography 
+                      variant="body2" 
+                      sx={{ 
+                        color: 'text.secondary', 
+                        fontFamily: "'Nunito Sans', sans-serif", 
+                        fontSize: '0.9rem',
+                        textAlign: 'center',
+                        fontStyle: 'italic'
+                      }}
+                    >
+                      Applied filters: {currentEmbed.filters}
+                    </Typography>
+                  </Box>
+                )}
               </Box>
               {/* Always show the chat input box below the embed */}
               <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>

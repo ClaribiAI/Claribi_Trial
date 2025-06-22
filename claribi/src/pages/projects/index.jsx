@@ -22,6 +22,11 @@ const ProjectsPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isDuplicateConfirmOpen, setIsDuplicateConfirmOpen] = useState(false);
   
+  // Fetch projects when component mounts
+  useEffect(() => {
+    fetchProjects();
+  }, [fetchProjects]);
+
   // Process projects to include formatted lastModified
   const projects = Array.isArray(projectsFromContext) 
     ? projectsFromContext.map(project => ({
@@ -91,9 +96,13 @@ const ProjectsPage = () => {
 
   const handleDeleteProject = async (id) => {
     try {
-      await deleteProject(id);
+      const success = await deleteProject(id);
+      if (!success) {
+        throw new Error('Failed to delete project');
+      }
     } catch (err) {
-      // Error handling managed by context
+      // Error handling managed by context and ProjectCard
+      throw err;
     }
   };
 
@@ -140,7 +149,6 @@ const ProjectsPage = () => {
           <UserProjectCard
             key={project.id}
             project={project}
-            onLeave={() => handleDeleteProject(project.id)}
           />
         ))
       : <EmptyProjectsMessage showAddButton={false} />

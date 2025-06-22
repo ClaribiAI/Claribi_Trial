@@ -8,6 +8,7 @@ const ProjectContext = createContext();
 
 export const ProjectProvider = ({ children }) => {
   const [projects, setProjects] = useState([]);
+  const [recentProjects, setRecentProjects] = useState([]);
   const [currentProject, setCurrentProject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -53,6 +54,31 @@ export const ProjectProvider = ({ children }) => {
     } catch (err) {
       setError(err.message || 'Failed to fetch projects');
       setProjects([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []); // No dependencies needed as all used functions/values are stable
+
+  const fetchRecentProjects = useCallback(async (limit = 5) => {
+    try {
+      setLoading(true);
+      const response = await projectService.getRecentProjects(limit);
+      
+      if (response && response.items) {
+        const formattedProjects = response.items.map(project => ({
+          ...project,
+          lastModified: formatLastModified(project.updated_at || project.created_at)
+        }));
+        
+        setRecentProjects(formattedProjects);
+        setError(null);
+      } else {
+        setError('API returned unexpected data format');
+        setRecentProjects([]);
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to fetch recent projects');
+      setRecentProjects([]);
     } finally {
       setLoading(false);
     }
@@ -266,17 +292,35 @@ export const ProjectProvider = ({ children }) => {
     }
   };
 
+  const leaveProject = async (projectId) => {
+    try {
+      await projectService.leaveProject(projectId);
+      // Refetch projects to maintain pagination
+      await fetchProjects(pagination.page, pagination.perPage);
+      if (currentProject && currentProject.id === projectId) {
+        setCurrentProject(null);
+      }
+      return true;
+    } catch (err) {
+      setError(err.message);
+      return false;
+    }
+  };
+
   // Memoize the context value
   const value = React.useMemo(() => ({
     projects,
+    recentProjects,
     currentProject,
     loading,
     error,
     pagination,
     fetchProjects,
+    fetchRecentProjects,
     fetchProject,
     createProject,
     deleteProject,
+    leaveProject,
     editProject,
     updateProjectStatus,
     shareProject,
@@ -285,14 +329,17 @@ export const ProjectProvider = ({ children }) => {
     getProjectSharingInfo
   }), [
     projects,
+    recentProjects,
     currentProject,
     loading,
     error,
     pagination,
     fetchProjects,
+    fetchRecentProjects,
     fetchProject,
     createProject,
     deleteProject,
+    leaveProject,
     editProject,
     updateProjectStatus,
     shareProject,

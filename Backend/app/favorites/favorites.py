@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, g
 from app.services.favorites_service import FavoritesService
 from app.core.security import login_required
 # from app.utils.validation import validate_request
@@ -10,7 +10,7 @@ favorites_bp = Blueprint('favorites', __name__)
 def get_favorite_groups():
     """Get all favorite groups for the current user."""
     try:
-        groups = FavoritesService.get_user_groups(request.user['id'])
+        groups = FavoritesService.get_user_groups(g.user['id'])
         return jsonify({'success': True, 'data': groups})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
@@ -22,7 +22,7 @@ def create_favorite_group():
     """Create a new favorite group."""
     try:
         group = FavoritesService.create_group(
-            user_id=request.user['id'],
+            user_id=g.user['id'],
             name=request.json['name']
         )
         return jsonify({'success': True, 'data': group})
@@ -39,7 +39,7 @@ def update_favorite_group(group_id):
     try:
         group = FavoritesService.update_group(
             group_id=group_id,
-            user_id=request.user['id'],
+            user_id=g.user['id'],
             name=request.json['name']
         )
         return jsonify({'success': True, 'data': group})
@@ -53,7 +53,7 @@ def update_favorite_group(group_id):
 def delete_favorite_group(group_id):
     """Delete a favorite group."""
     try:
-        FavoritesService.delete_group(group_id=group_id, user_id=request.user['id'])
+        FavoritesService.delete_group(group_id=group_id, user_id=g.user['id'])
         return jsonify({'success': True})
     except ValueError as e:
         return jsonify({'success': False, 'error': str(e)}), 400
@@ -65,7 +65,7 @@ def delete_favorite_group(group_id):
 def get_group_urls(group_id):
     """Get all URLs in a favorite group."""
     try:
-        urls = FavoritesService.get_group_urls(group_id=group_id, user_id=request.user['id'])
+        urls = FavoritesService.get_group_urls(group_id=group_id, user_id=g.user['id'])
         return jsonify({'success': True, 'data': urls})
     except ValueError as e:
         return jsonify({'success': False, 'error': str(e)}), 400
@@ -80,7 +80,7 @@ def add_url_to_group(group_id):
     try:
         url = FavoritesService.add_url_to_group(
             group_id=group_id,
-            user_id=request.user['id'],
+            user_id=g.user['id'],
             url=request.json['url'],
             title=request.json['title'],
             filters=request.json.get('filters')
@@ -96,7 +96,7 @@ def add_url_to_group(group_id):
 def delete_url_from_group(group_id, url_id):
     """Delete a URL from a favorite group."""
     try:
-        FavoritesService.delete_url(url_id=url_id, user_id=request.user['id'])
+        FavoritesService.delete_url(url_id=url_id, user_id=g.user['id'])
         return jsonify({'success': True})
     except ValueError as e:
         return jsonify({'success': False, 'error': str(e)}), 400
