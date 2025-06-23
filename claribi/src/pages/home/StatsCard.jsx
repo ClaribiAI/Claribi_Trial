@@ -1,65 +1,63 @@
 import React from 'react';
 import { Box, Typography, Paper } from '@mui/material';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faArrowUp } from '@fortawesome/free-solid-svg-icons';
+import { TrendingUp, TrendingDown } from '@mui/icons-material';
 
-const StatsCard = ({ title, value, icon, trend = true }) => {
+const StatsCard = ({ title, value, trend = false, error = null }) => {
   return (
     <Paper 
-      elevation={0} 
-      sx={{ 
-        p: 3, 
-        borderRadius: '16px', 
-        bgcolor: 'white', 
-        height: '100%', 
-        width: '100%', 
-        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)'
+      elevation={0}
+      sx={{
+        p: 2,
+        height: '100%',
+        backgroundColor: error ? '#FFF5F5' : '#F8FAFC',
+        border: '1px solid',
+        borderColor: error ? '#FED7D7' : '#E2E8F0',
+        borderRadius: 2,
+        '&:hover': {
+          backgroundColor: error ? '#FFF5F5' : '#F1F5F9'
+        }
       }}
     >
-      <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
         <Typography 
-          variant="body2" 
-          gutterBottom 
+          variant="subtitle2" 
           sx={{ 
-            fontFamily: "'Inter', sans-serif", 
-            fontWeight: 600,
-            fontSize: '0.85rem',
-            color: 'rgba(0, 0, 0, 0.6)',
-            mb: 2
+            color: error ? '#E53E3E' : '#64748B',
+            fontSize: '0.875rem',
+            fontWeight: 500
           }}
         >
           {title}
         </Typography>
-        <Box sx={{ display: 'flex', alignItems: 'baseline' }}>
+        
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Typography 
-            variant="h4" 
-            component="div" 
+            variant="h5" 
             sx={{ 
-              fontWeight: 700, 
-              fontFamily: "'Inter', sans-serif", 
-              fontSize: '2rem',
-              color: '#333'
+              fontWeight: 600,
+              color: error ? '#E53E3E' : '#1A202C',
+              fontSize: '1.5rem'
             }}
           >
-            {value}
+            {error ? 'Error' : value}
           </Typography>
-          {trend && (
-            <Box sx={{ display: 'flex', alignItems: 'center', ml: 1 }}>
-              <FontAwesomeIcon icon={faArrowUp} size="sm" color="#4caf50" />
-              <Typography 
-                variant="body2" 
-                color="success.main" 
-                sx={{ 
-                  ml: 0.5, 
-                  fontFamily: "'Inter', sans-serif", 
-                  fontWeight: 600
-                }}
-              >
-                5%
-              </Typography>
-            </Box>
+          {trend && !error && (
+            <TrendingUp sx={{ color: '#10B981', fontSize: '1.25rem' }} />
           )}
         </Box>
+        
+        {error && (
+          <Typography 
+            variant="caption" 
+            sx={{ 
+              color: '#E53E3E',
+              fontSize: '0.75rem',
+              mt: -0.5
+            }}
+          >
+            Failed to load data
+          </Typography>
+        )}
       </Box>
     </Paper>
   );

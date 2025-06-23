@@ -27,6 +27,7 @@ class Project(Base):
     reports = relationship('Report', back_populates='project', cascade='all, delete-orphan')
     project_data = relationship('ProjectData', back_populates='project', cascade='all, delete-orphan')
     share_links = relationship('ProjectShareLink', back_populates='project', cascade='all, delete-orphan')
+    query_analytics = relationship('QueryAnalytics', back_populates='project', cascade='all, delete-orphan')
 
     def __repr__(self):
         return f"<Project(id={self.id}, name='{self.name}', owner_user_id={self.owner_user_id})>"

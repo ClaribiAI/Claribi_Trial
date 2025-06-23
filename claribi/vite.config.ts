@@ -35,6 +35,22 @@ export default defineConfig({
           });
         },
       },
+      '/analytics': {
+        target: 'https://127.0.0.1:5000',
+        secure: false,
+        changeOrigin: true,
+        configure: (proxy, _options) => {
+          proxy.on('error', (err, _req, _res) => {
+            console.log('Analytics proxy error', err);
+          });
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
+            console.log('Analytics - Sending Request to the Target:', req.method, req.url);
+          });
+          proxy.on('proxyRes', (proxyRes, req, _res) => {
+            console.log('Analytics - Received Response from the Target:', proxyRes.statusCode, req.url);
+          });
+        }
+      },
       '/api/project': {
         target: 'https://127.0.0.1:5000',
         secure: false,

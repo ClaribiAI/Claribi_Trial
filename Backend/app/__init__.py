@@ -105,6 +105,7 @@ def create_app():
     from app.chatbot import chatbot_bp
     from app.report_pages import report_pages_bp
     from app.auth import auth_bp
+    from app.analytics import analytics_bp
 
 
     # Register blueprints
@@ -116,6 +117,7 @@ def create_app():
     app.register_blueprint(chatbot_bp, supports_credentials=True, url_prefix='/api')
     app.register_blueprint(report_pages_bp)
     app.register_blueprint(favorites_bp)
+    app.register_blueprint(analytics_bp)
     
     # Add a catch-all route for SPA navigation that doesn't match API endpoints
     @app.route('/', defaults={'path': ''})

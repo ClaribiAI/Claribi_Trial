@@ -7,5 +7,6 @@ from app.models.report_page import ReportPage
 from app.models.groups import Group
 from app.models.users import User
 from app.models.project_access import ProjectAccess
+from app.models.query_analytics import QueryAnalytics
 
-__all__ = ['Project', 'Report', 'ProjectData', 'ReportPage', "Group", "User", "ProjectAccess"]
+__all__ = ['Project', 'Report', 'ProjectData', 'ReportPage', "Group", "User", "ProjectAccess", "QueryAnalytics"]

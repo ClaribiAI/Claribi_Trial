@@ -24,6 +24,7 @@ from .validators import (
     ReportUrlValidationError,
     FilterValidationError
 )
+from app.services.query_analytics_service import QueryAnalyticsService
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -58,6 +59,15 @@ class ChatbotService:
             if not reports:
                 logger.warning("No reports found for the current project")
                 return None
+            
+            # Filter reports based on whether it's a data analyst view or end user view
+            if report_id is None:
+                # End user view - only consider Live reports
+                reports = [r for r in reports if r['status'] == 'Live']
+                if not reports:
+                    logger.warning("No live reports found for the current project")
+                    return None
+            # else: Data analyst view - consider both Live and In Draft reports
             
             # If there's only one report, return it directly
             if len(reports) == 1:
@@ -456,6 +466,14 @@ class ChatbotService:
                 final_url = report_url
                 logger.info(f"No filters applied, using base URL: {final_url}")
                 response_message = f"I've found the report '{report_name}', page '{page_name}', but couldn't identify specific filters for your query."
+            
+            # If we get here, the query was successful
+            if final_url:
+                try:
+                    QueryAnalyticsService.record_query(project_id=project_id, report_id=report_id)
+                except Exception as e:
+                    logger.error(f"Failed to record query analytics: {str(e)}")
+                    # Don't let analytics failure affect the main functionality
             
             return True, final_url, response_message
                 

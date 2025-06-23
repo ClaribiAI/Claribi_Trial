@@ -9,21 +9,46 @@ import { useAuth, ROLES } from '../../contexts/AuthContext';
 import { useProjects } from '../../contexts/ProjectContext';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { formatLastModified } from '../../utils/dateUtils';
+import { getQueryAnalytics } from '../../services/analyticsService';
 
 const HomePage = () => {
   const { currentUser } = useAuth();
   const { recentProjects, loading, error, fetchRecentProjects, deleteProject } = useProjects();
+  const [stats, setStats] = useState({
+    queries_done: 0,
+    hours_saved: 0,
+    loading: true,
+    error: null
+  });
   
   // Fetch recent projects on component mount
   useEffect(() => {
     fetchRecentProjects(5);
   }, [fetchRecentProjects]);
-  
-  // Mock data for stats
-  const stats = [
-    { title: 'Queries done', value: '2,543', trend: true },
-    { title: 'Hours saved', value: '5,602', trend: true },
-  ];
+
+  // Fetch analytics data
+  useEffect(() => {
+    const fetchAnalytics = async () => {
+      try {
+        const analytics = await getQueryAnalytics();
+        setStats({
+          queries_done: analytics.total_queries,
+          hours_saved: analytics.hours_saved,
+          loading: false,
+          error: null
+        });
+      } catch (err) {
+        console.error('Error fetching analytics:', err);
+        setStats(prev => ({
+          ...prev,
+          loading: false,
+          error: err.message
+        }));
+      }
+    };
+
+    fetchAnalytics();
+  }, []);
 
   const handleToggleStatus = (id) => {
     // This would be replaced with an API call
@@ -54,6 +79,20 @@ const HomePage = () => {
         lastModified: formatLastModified(project.updated_at || project.created_at)
       }))
     : [];
+
+  // Format stats for display
+  const statsCards = [
+    { 
+      title: 'Queries done', 
+      value: stats.loading ? '...' : stats.queries_done.toLocaleString(), 
+      trend: true 
+    },
+    { 
+      title: 'Hours saved', 
+      value: stats.loading ? '...' : stats.hours_saved.toLocaleString(undefined, { maximumFractionDigits: 1 }), 
+      trend: true 
+    },
+  ];
 
   // Render data analyst project cards
   const renderAnalystProjectCards = () => {
@@ -148,11 +187,16 @@ const HomePage = () => {
       <HomeHeader username={currentUser.username}>
         {/* Stats Cards in the header */}
         <Box sx={{ display: 'flex', gap: 2 }}>
-        {stats.map((stat, index) => (
+          {statsCards.map((stat, index) => (
             <Box key={index} sx={{ width: { xs: '100%', sm: '180px' } }}>
-              <StatsCard title={stat.title} value={stat.value} trend={stat.trend} />
+              <StatsCard 
+                title={stat.title} 
+                value={stat.value} 
+                trend={stat.trend}
+                error={stats.error}
+              />
             </Box>
-        ))}
+          ))}
         </Box>
       </HomeHeader>
 
