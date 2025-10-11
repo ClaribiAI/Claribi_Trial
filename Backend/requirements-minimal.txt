@@ -1,0 +1,38 @@
+# Minimal requirements for Railway deployment
+# Core dependencies only - Railway will handle the rest
+
+# Flask core
+Flask>=3.0.0
+Flask-CORS>=4.0.0
+Flask-WTF>=1.2.0
+Flask-Session>=0.5.0
+
+# Database
+psycopg[binary]>=3.2.0
+pgvector>=0.2.5
+
+# Authentication
+msal>=1.25.0
+PyJWT>=2.8.0
+cryptography>=42.0.0
+
+# Google AI
+google-generativeai>=0.8.0
+
+# LangChain (compatible versions)
+langchain-core>=0.3.0
+langchain-community>=0.3.0
+langchain-google-genai>=2.1.0
+langchain-postgres>=0.0.15
+
+# Utilities
+python-dotenv>=1.0.0
+requests>=2.31.0
+
+# PBIXRay for Power BI files
+kaitaistruct
+apsw
+pandas
+
+# Production server
+gunicorn>=21.2.0
