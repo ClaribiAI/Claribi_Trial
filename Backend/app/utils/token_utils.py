@@ -114,7 +114,7 @@ def verify_auth_token(token):
             json.dumps(token_data),
             int(token_data.get("expires_at", time.time() + 300) - time.time())
         )
-        
+        logger.info(f"Token {token} verified and used")
         # Return user data
         return True, token_data.get("user", {}), already_used
     except Exception as e:

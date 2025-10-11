@@ -1,5 +1,12 @@
 declare module '*.jsx' {
-  const Component: any;
+  import { FC } from 'react';
+  const Component: FC;
+  export default Component;
+}
+
+declare module '*.tsx' {
+  import { FC } from 'react';
+  const Component: FC;
   export default Component;
 }
 

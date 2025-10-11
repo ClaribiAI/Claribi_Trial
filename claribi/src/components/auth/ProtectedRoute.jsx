@@ -1,10 +1,12 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { Box, CircularProgress } from '@mui/material';
+import { Box } from '@mui/material';
+import LoadingSpinner from '../ui/LoadingSpinner';
+import OrganizationAccessError from '../ui/OrganizationAccessError';
 
-const ProtectedRoute = ({ children, requiredRole }) => {
-  const { currentUser, loading } = useAuth();
+const ProtectedRoute = ({ children, requiredRole, requiredMicrosoftRole }) => {
+  const { currentUser, loading, organizationAccessError } = useAuth();
   const location = useLocation();
   
   // Only show loading indicator when actually checking auth (not on initial render)
@@ -12,11 +14,12 @@ const ProtectedRoute = ({ children, requiredRole }) => {
 
   // Show loading state while checking authentication
   if (isAuthenticating) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <CircularProgress />
-      </Box>
-    );
+    return <LoadingSpinner />;
+  }
+
+  // Show organization access error if present
+  if (organizationAccessError) {
+    return <OrganizationAccessError variant="page" />;
   }
 
   // Redirect to login if not authenticated
@@ -24,8 +27,14 @@ const ProtectedRoute = ({ children, requiredRole }) => {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />;
   }
 
-  // If a specific role is required, check if user has the role
-  if (requiredRole && !currentUser.role === requiredRole) {
+  // If a specific display role is required, check if user has the role
+  if (requiredRole && currentUser.role !== requiredRole) {
+    // Could redirect to unauthorized page or fallback to a default route
+    return <Navigate to="/" replace />;
+  }
+
+  // If a specific Microsoft role is required, check if user has the role
+  if (requiredMicrosoftRole && currentUser.microsoftRole !== requiredMicrosoftRole) {
     // Could redirect to unauthorized page or fallback to a default route
     return <Navigate to="/" replace />;
   }

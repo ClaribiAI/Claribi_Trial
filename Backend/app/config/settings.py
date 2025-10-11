@@ -6,17 +6,36 @@ load_dotenv()
 
 # Application settings
 class Config:
-    FRONTEND_URL = 'https://localhost:5173'
+    FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://localhost:5173')
+    BACKEND_URL = os.getenv('BACKEND_URL', 'https://127.0.0.1:5000')
     # Flask settings
     SECRET_KEY = os.getenv('SECRET_KEY', 'your_secret_key')  # Default from __init__.py
     DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
+    FLASK_ENV = os.getenv('FLASK_ENV', 'development')
+    
+    # Centralized cookie/security flags
+    SECURE_COOKIES = os.getenv('SECURE_COOKIES', 'true' if FLASK_ENV == 'production' else 'false').lower() == 'true'
+    COOKIE_SAMESITE = os.getenv('COOKIE_SAMESITE', 'Lax')
+    COOKIE_DOMAIN = os.getenv('COOKIE_DOMAIN')  # Optional explicit cookie domain
+    ENABLE_HSTS = os.getenv('ENABLE_HSTS', 'true' if FLASK_ENV == 'production' else 'false').lower() == 'true'
+
+    # Feature flags
+    AUTH_DEV_FALLBACKS_ENABLED = os.getenv('AUTH_DEV_FALLBACKS_ENABLED', 'false').lower() == 'true'
+    ENABLE_AUTH_DEBUG = os.getenv('ENABLE_AUTH_DEBUG', 'false').lower() == 'true'
+    
+    # Allowlist for login redirect URIs (comma-separated). FRONTEND_URL is always allowed.
+    _ALLOWED_REDIRECTS_ENV = os.getenv('ALLOWED_LOGIN_REDIRECTS', '')
+    ALLOWED_LOGIN_REDIRECTS = [url.strip() for url in _ALLOWED_REDIRECTS_ENV.split(',') if url.strip()] or []
+    if FRONTEND_URL and FRONTEND_URL not in ALLOWED_LOGIN_REDIRECTS:
+        ALLOWED_LOGIN_REDIRECTS.append(FRONTEND_URL)
     
     # Security configurations
-    SESSION_COOKIE_SECURE = False  # Ensure cookies are only sent over HTTPS
+    SESSION_COOKIE_SECURE = SECURE_COOKIES
     SESSION_COOKIE_HTTPONLY = True  # Prevent JavaScript access to session cookie
-    REMEMBER_COOKIE_SECURE = False  # Ensure remember token is only sent over HTTPS
-    PERMANENT_SESSION_LIFETIME = 3600 #1 hour
-    SESSION_COOKIE_SAMESITE = 'Lax'
+    REMEMBER_COOKIE_SECURE = SECURE_COOKIES
+    PERMANENT_SESSION_LIFETIME = 3600  # seconds
+    SESSION_COOKIE_SAMESITE = COOKIE_SAMESITE
+    SESSION_COOKIE_DOMAIN = COOKIE_DOMAIN if COOKIE_DOMAIN else None
 
     # File validation settings
     ALLOWED_EXTENSIONS = {'tmdl'}
@@ -61,14 +80,37 @@ class Config:
     
     # API settings
     GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+    
+    # RAG Pipeline Settings
+    NEON_CONNECTION_STRING ='postgresql://neondb_owner:npg_hXbP6sel9HCm@ep-morning-sky-a8ntg0mx-pooler.eastus2.azure.neon.tech/neondb?sslmode=require&channel_binding=require'
+    VECTOR_EMBEDDING_MODEL = os.getenv('VECTOR_EMBEDDING_MODEL', 'text-embedding-004')
+    RAG_LLM_MODEL = os.getenv('RAG_LLM_MODEL', 'gemini-2.5-flash')
+    VECTOR_STORE_COLLECTION_PREFIX = os.getenv('VECTOR_STORE_COLLECTION_PREFIX', 'pbix_')
+    MAX_RETRIEVAL_DOCS = int(os.getenv('MAX_RETRIEVAL_DOCS', '5'))
+    
+    # Iterative RAG Settings
+    ENABLE_ITERATIVE_RAG = os.getenv('ENABLE_ITERATIVE_RAG', 'true').lower() == 'true'
+    MAX_RAG_ITERATIONS = int(os.getenv('MAX_RAG_ITERATIONS', '4'))
+    MAX_FOLLOW_UP_QUERIES_PER_ITERATION = int(os.getenv('MAX_FOLLOW_UP_QUERIES_PER_ITERATION', '3'))
+    RAG_CONTEXT_ANALYSIS_THRESHOLD = float(os.getenv('RAG_CONTEXT_ANALYSIS_THRESHOLD', '0.7'))
 
-    # Microsoft AD Authentication Settings
+    # Microsoft AD Authentication Settings (Legacy)
     MICROSOFT_CLIENT_ID = os.getenv('MICROSOFT_CLIENT_ID')
     MICROSOFT_CLIENT_SECRET = os.getenv('MICROSOFT_CLIENT_SECRET')
     MICROSOFT_TENANT_ID = os.getenv('MICROSOFT_TENANT_ID')  # For multi-tenant apps
-    MICROSOFT_REDIRECT_URI = os.getenv('MICROSOFT_REDIRECT_URI', 'https://localhost:5000/auth/callback')
+    MICROSOFT_REDIRECT_URI = os.getenv('MICROSOFT_REDIRECT_URI', f"{BACKEND_URL}/api/auth/callback")
     MICROSOFT_AUTHORITY = os.getenv('MICROSOFT_AUTHORITY', f'https://login.microsoftonline.com/{MICROSOFT_TENANT_ID}')
-    MICROSOFT_SCOPE = os.getenv("MICROSOFT_SCOPE") 
+    MICROSOFT_SCOPE = os.getenv("MICROSOFT_SCOPE")
+    
+    # Auth2 System - New MSAL Configuration
+    MSAL_CLIENT_ID = os.getenv('MSAL_CLIENT_ID', MICROSOFT_CLIENT_ID)  # Fallback to legacy
+    MSAL_CLIENT_SECRET = os.getenv('MSAL_CLIENT_SECRET', MICROSOFT_CLIENT_SECRET)  # Fallback to legacy
+    MSAL_TENANT_ID = os.getenv('MSAL_TENANT_ID', MICROSOFT_TENANT_ID)  # Fallback to legacy
+    
+    # Auth2 Security Settings
+    AUTH2_ENABLE_DEBUG = os.getenv('AUTH2_ENABLE_DEBUG', 'false').lower() == 'true'
+    AUTH2_RATE_LIMIT_LOGIN = os.getenv('AUTH2_RATE_LIMIT_LOGIN', '5 per minute')
+    AUTH2_RATE_LIMIT_CALLBACK = os.getenv('AUTH2_RATE_LIMIT_CALLBACK', '10 per minute') 
 
     # Redis Configuration for Token Storage
     REDIS_HOST = os.getenv('REDIS_HOST')

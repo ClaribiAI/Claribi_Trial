@@ -1,5 +1,6 @@
-from flask import Flask
+from flask import Flask, jsonify
 from flask_cors import CORS
+from flask_wtf.csrf import CSRFProtect
 import os
 import google.generativeai as genai
 from app.config.settings import config
@@ -7,60 +8,98 @@ from dotenv import load_dotenv
 import logging
 from app.database.middleware import db_context_middleware
 from datetime import timedelta
-from flask_session import Session  # Import Flask-Session
-from flask import redirect
-from app.favorites.favorites import favorites_bp
+from flask_session import Session
+from .powerbi_docs import powerbi_docs_bp
 
+
+# Configure logging
 logging.getLogger('werkzeug').setLevel(logging.WARNING)
-# Configure Gemini API
-genai.configure(api_key=config.GOOGLE_API_KEY)
+
+# Load environment variables
 load_dotenv()
 
-# Database schema is managed by Alembic migrations
+# Configure Google AI API
+genai.configure(api_key=config.GOOGLE_API_KEY)
+
+# Initialize Flask extensions
+session = Session()
+cors = CORS(supports_credentials=True)
+csrf = CSRFProtect()
 
 def create_app():
+    """
+    Create and configure the Flask application.
+    
+    This factory function creates a Flask app with:
+    - Authentication system (auth2)
+    - Power BI Chat functionality
+    - Power BI Docs functionality
+    - Production-ready security settings
+    """
     app = Flask(__name__, template_folder='../templates')
-    app.config['ENV'] = os.getenv("FLASK_ENV", "development")
-    # Configure session handling
-    app.secret_key = config.SECRET_KEY  # Use secret key from settings
-    app.config['SESSION_TYPE'] = 'filesystem'  # Store sessions on filesystem for persistence
-    app.config['SESSION_PERMANENT'] = True  # Make sessions persistent
-    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=1)  # Session lifetime
+    app.config['ENV'] = config.FLASK_ENV
+    # Configure session handling for production
+    app.secret_key = config.SECRET_KEY
+    app.config['SESSION_TYPE'] = 'filesystem'  # Store sessions in files
+    app.config['SESSION_FILE_DIR'] = os.path.join(os.getcwd(), 'flask_session')
+    app.config['SESSION_PERMANENT'] = True
+    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(seconds=config.PERMANENT_SESSION_LIFETIME)
     
-    # Cookie security settings - allow non-HTTPS in development but secure in production
-    if os.getenv("FLASK_ENV") == "production":
-        app.config['SESSION_COOKIE_SECURE'] = True  # Require HTTPS for cookies
-        app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Allow cross-site cookies
-    else:
-        app.config['SESSION_COOKIE_SECURE'] = True  # Allow HTTP in development
-        app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # More permissive in development
-    
-    app.config['SESSION_COOKIE_HTTPONLY'] = True  # HTTP only cookies
-    app.config['SESSION_FILE_DIR'] = os.path.join(os.getcwd(), 'flask_session')  # Store sessions in a directory
+    # Cookie security settings - production ready
+    app.config['SESSION_COOKIE_SECURE'] = config.SECURE_COOKIES
+    app.config['SESSION_COOKIE_SAMESITE'] = config.COOKIE_SAMESITE
+    app.config['SESSION_COOKIE_HTTPONLY'] = config.SESSION_COOKIE_HTTPONLY
+    app.config['SESSION_COOKIE_DOMAIN'] = config.SESSION_COOKIE_DOMAIN
     app.config['SESSION_USE_SIGNER'] = True  # Sign session cookies
     
     # Initialize Flask-Session
     Session(app)
     
-    # Configure CORS to allow requests from frontend with credentials
-    allowed_origins = [
-        "https://localhost:5173",  # React dev server
-        "http://localhost:5173",   # React dev server without HTTPS
-        "https://127.0.0.1:5000",  # Flask dev server
-        "http://127.0.0.1:5000",   # Flask dev server without HTTPS
-    ]
+    # Initialize CSRF Protection
+    csrf.init_app(app)
     
-    # Production hosts would be added here
+    # Configure CSRF settings for production
+    app.config['WTF_CSRF_CHECK_DEFAULT'] = True
+    app.config['WTF_CSRF_TIME_LIMIT'] = None  # No time limit
+    app.config['WTF_CSRF_SSL_STRICT'] = config.SECURE_COOKIES  # Enforce SSL in production
+    
+    # Configure CSRF referer checking based on environment
+    if config.FLASK_ENV == 'production':
+        app.config['WTF_CSRF_CHECK_REFERER'] = True
+    else:
+        app.config['WTF_CSRF_CHECK_REFERER'] = False
+    
+    # Configure CSRF exemptions for auth endpoints
+    csrf.exempt('auth2.login')
+    csrf.exempt('auth2.callback') 
+    csrf.exempt('auth2.logout')
+    csrf.exempt('auth2.get_csrf_token')
+    csrf.exempt('auth2.verify_token')  # Legacy compatibility endpoint
+    
+    # Configure CSRF exemptions for streaming endpoints
+    csrf.exempt('powerbi_chat.process_powerbi_query_stream')
+    
+    # Configure CORS for production deployment
+    allowed_origins = []
+    
+    # Add configured frontend URL
+    if config.FRONTEND_URL:
+        allowed_origins.append(config.FRONTEND_URL)
+    
+    # Add production frontend URL if set
     if os.getenv("PRODUCTION_FRONTEND_URL"):
         allowed_origins.append(os.getenv("PRODUCTION_FRONTEND_URL"))
     
-    CORS(app, 
-         supports_credentials=True, 
-         origins=allowed_origins, 
-         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-         allow_headers=["Content-Type", "Authorization", "X-Requested-With", "X-CSRF-Token"],
-         expose_headers=["Set-Cookie", "Access-Control-Allow-Credentials"],
-         resources={r"/*": {"origins": allowed_origins}})  # Apply to all routes
+    # Add additional allowed origins from environment
+    if os.getenv("ALLOWED_ORIGINS"):
+        additional_origins = [origin.strip() for origin in os.getenv("ALLOWED_ORIGINS").split(',') if origin.strip()]
+        allowed_origins.extend(additional_origins)
+    
+    # Fallback for development
+    if not allowed_origins and config.FLASK_ENV == 'development':
+        allowed_origins = ['http://localhost:5173', 'https://localhost:5173']
+    
+    cors.init_app(app, origins=allowed_origins)
     
     # Load Microsoft AD config from environment
     app.config['MICROSOFT_CLIENT_ID'] = os.getenv("MICROSOFT_CLIENT_ID")
@@ -72,6 +111,8 @@ def create_app():
 
     # Configure app settings
     app.config['MAX_CONTENT_LENGTH'] = config.MAX_CONTENT_LENGTH
+    app.config['FRONTEND_URL'] = config.FRONTEND_URL
+    app.config['BACKEND_URL'] = config.BACKEND_URL
     
     # Configure Redis settings
     app.config['REDIS_HOST'] = config.REDIS_HOST
@@ -90,45 +131,51 @@ def create_app():
     # Register database middleware - use only one RLS context setting method
     db_context_middleware(app)
 
-    # Disable HTTPS enforcement for local development
-    app.config['FORCE_HTTPS'] = False
-
     # Register security middleware
-    from app.core.security import secure_headers
-    secure_headers(app)
+    from app.auth2.middleware import SecurityHeaders
+    from app.core.rate_limiter import rate_limit_headers
+    rate_limit_headers(app)  # Add rate limit headers to responses
+    
+    # Apply comprehensive security headers to all responses
+    @app.after_request
+    def apply_security_headers(response):
+        return SecurityHeaders.apply_security_headers(response)
 
-    # Import blueprints
-    from app.projects import projects_bp
-    from app.reports import reports_bp
-    from app.file_processing import file_processing_bp
-    from app.synonyms import synonyms_bp
-    from app.chatbot import chatbot_bp
-    from app.report_pages import report_pages_bp
-    from app.auth import auth_bp
-    from app.analytics import analytics_bp
+    # Add custom error handler for RLS violations
+    from app.core.exceptions import RLSPolicyViolationError
+    
+    @app.errorhandler(RLSPolicyViolationError)
+    def handle_rls_violation(error):
+        """Handle RLS policy violations with proper HTTP response."""
+        app.logger.warning(f"RLS policy violation: {str(error)}")
+        return jsonify({
+            'error': 'Access denied',
+            'message': 'You do not have permission to access this resource',
+            'type': 'authorization_error'
+        }), 403
 
+    # Add global error handler for unhandled exceptions
+    @app.errorhandler(Exception)
+    def handle_unhandled_exception(error):
+        """Handle unhandled exceptions with proper logging."""
+        app.logger.error(f"Unhandled exception: {str(error)}", exc_info=True)
+        return jsonify({
+            'error': 'An internal server error occurred',
+            'message': 'Please try again later',
+            'type': 'internal_error'
+        }), 500
+
+    # Import blueprints - only the ones that actually exist
+    from app.auth2 import auth2_bp  # Authentication system
+    from app.powerbi_chat import powerbi_chat_bp  # Power BI Chat functionality
+    from app.powerbi_docs import powerbi_docs_bp  # Power BI Docs functionality
 
     # Register blueprints
-    app.register_blueprint(auth_bp, supports_credentials=True, url_prefix='/auth')
-    app.register_blueprint(projects_bp)
-    app.register_blueprint(reports_bp)
-    app.register_blueprint(file_processing_bp, url_prefix='/api')
-    app.register_blueprint(synonyms_bp)
-    app.register_blueprint(chatbot_bp, supports_credentials=True, url_prefix='/api')
-    app.register_blueprint(report_pages_bp)
-    app.register_blueprint(favorites_bp)
-    app.register_blueprint(analytics_bp)
+    app.register_blueprint(auth2_bp, supports_credentials=True)  # Authentication at /api/auth
+    app.register_blueprint(powerbi_chat_bp, supports_credentials=True)  # Power BI Chat
+    app.register_blueprint(powerbi_docs_bp)  # Power BI Docs
     
-    # Add a catch-all route for SPA navigation that doesn't match API endpoints
-    @app.route('/', defaults={'path': ''})
-    @app.route('/<path:path>')
-    def catch_all(path):
-        # Check if the request is for a specific API endpoint or asset
-        if path.startswith(('api/', 'auth/', 'static/', 'assets/')):
-            # Let the request fall through to the appropriate handler
-            return app.send_static_file('404.html'), 404
-        
-        # For all other routes, serve the index page to let the frontend router handle it
-        return redirect('/')
+    # API-only backend - no catch-all route needed
+    # Frontend will be served separately
 
     return app

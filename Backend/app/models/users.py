@@ -21,6 +21,7 @@ class User(Base):
     ms_object_id = Column(UUID(as_uuid=True), unique=True, nullable=False)
     organization_id = Column(Text, nullable=False)
     display_id = Column(Text, nullable=True)
+    role = Column(Text, nullable=True)  # Added role column
     created_at = Column(DateTime, default=datetime.utcnow)  
 
     # Use string reference to avoid circular imports
@@ -28,4 +29,4 @@ class User(Base):
     favorite_groups = relationship("FavoriteGroup", back_populates='user', cascade='all, delete-orphan')
     
     def __repr__(self):
-        return f"<User(id={self.id}, ms_object_id='{self.ms_object_id}', organization_id='{self.organization_id}')>"
+        return f"<User(id={self.id}, ms_object_id='{self.ms_object_id}', organization_id='{self.organization_id}', role='{self.role}')>"

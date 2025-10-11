@@ -1,0 +1,67 @@
+.loading-spinner {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 3px;
+  animation: spin 1.5s linear infinite;
+  transform-origin: center;
+}
+
+.square {
+  border-radius: 2px;
+  transition: all 0.3s ease;
+}
+
+.square-black {
+  background-color: #000000;
+}
+
+.square-yellow {
+  background-color: #FFC107;
+}
+
+.top-left {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.top-right {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.bottom-left {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.bottom-right {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Add a subtle scale effect for more modern feel */
+.loading-spinner:hover {
+  animation-duration: 1s;
+}
+
+/* Responsive sizing for smaller screens */
+@media (max-width: 768px) {
+  .loading-spinner {
+    gap: 2px;
+  }
+  
+  .square {
+    border-radius: 1px;
+  }
+} 

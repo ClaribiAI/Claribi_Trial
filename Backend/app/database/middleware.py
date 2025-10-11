@@ -1,7 +1,6 @@
 from flask import session, g, current_app
-from app.database.connection import get_db
-from app.core.database import init_db_pool, get_connection_pool
-from app.core.exceptions import DatabaseError
+from app.core.database import init_db_pool, get_connection_pool, get_db_connection
+from app.core.exceptions import DatabaseError, ProjectNotFoundError
 import psycopg2
 import time
 
@@ -9,7 +8,6 @@ def set_user_context():
     """Set user context for Row Level Security (RLS)"""
     user = session.get("user")
     if not user:
-        current_app.logger.debug("No user session data")
         return  # Not logged in
         
     # Validate required fields
@@ -19,13 +17,11 @@ def set_user_context():
         current_app.logger.warning(f"Missing required user fields: {', '.join(missing_fields)}")
         return
 
-    max_retries = 3
+    max_retries = 5
     retry_count = 0
     last_error = None
 
     while retry_count < max_retries:
-        conn = None
-        cursor = None
         try:
             ms_object_id = str(user["ms_object_id"]).strip()
             organization_id = str(user["organization_id"]).strip()
@@ -34,36 +30,48 @@ def set_user_context():
                 current_app.logger.warning("Invalid user ID or organization ID")
                 return
 
-            conn = get_db()
-            if not conn:
-                raise DatabaseError("Could not get database connection")
-                
-            if conn.closed:
-                # Reinitialize the pool if connection is closed
-                init_db_pool(database_url=current_app.config['DATABASE_URL'])
-                conn = get_db()
-                if not conn or conn.closed:
-                    raise DatabaseError("Could not establish database connection")
-
-            cursor = conn.cursor()
-            if cursor.closed:
-                raise DatabaseError("Cursor is closed immediately after creation")
-
-            # Execute both statements and commit in one transaction
-            cursor.execute("SET app.current_user_ms_object_id = %s", (ms_object_id,))
-            cursor.execute("SET app.current_organization_id = %s", (organization_id,))
-            conn.commit()
-            return  # Success, exit the function
+            # Use the context manager to ensure proper connection handling
+            with get_db_connection() as conn:
+                with conn.cursor() as cursor:
+                    # Execute both statements and commit in one transaction
+                    cursor.execute("SET app.current_user_ms_object_id = %s", (ms_object_id,))
+                    cursor.execute("SET app.current_organization_id = %s", (organization_id,))
+                    conn.commit()
+                    return  # Success, exit the function
 
         except (psycopg2.Error, DatabaseError) as e:
-            last_error = str(e)
-            current_app.logger.warning(f"Database error on attempt {retry_count + 1}: {str(e)}")
+            error_message = str(e)
             
-            if conn and not conn.closed:
-                try:
-                    conn.rollback()
-                except Exception as rollback_error:
-                    current_app.logger.warning(f"Failed to rollback connection: {str(rollback_error)}")
+            # Check for Neon serverless scaling issues
+            if isinstance(e, ProjectNotFoundError) or "project not found" in error_message.lower():
+                current_app.logger.warning(f"ProjectNotFoundError during user context setup - likely Neon scaling issue: {error_message}")
+                # This is likely due to Neon scaling down and connections becoming stale
+                # Continue without user context rather than crashing the app
+                return
+            
+            # Check if this is an RLS policy violation (not a connection issue)
+            if "violates row-level security policy" in error_message.lower():
+                current_app.logger.warning(f"RLS policy violation during user context setup: {error_message}")
+                # RLS violations are expected security behavior, not connection errors
+                # Continue without user context rather than crashing the app
+                return
+            
+            # Check for other non-fatal database errors that shouldn't trigger retries
+            non_fatal_errors = [
+                "permission denied",
+                "access denied", 
+                "insufficient privilege",
+                "authentication failed",
+                "project not found"
+            ]
+            
+            if any(error_pattern in error_message.lower() for error_pattern in non_fatal_errors):
+                current_app.logger.warning(f"Non-fatal database error during user context setup: {error_message}")
+                return
+            
+            # For other errors (connection issues, etc.), use retry logic
+            last_error = error_message
+            current_app.logger.warning(f"Database error on attempt {retry_count + 1}: {error_message}")
             
             retry_count += 1
             if retry_count < max_retries:
@@ -73,13 +81,6 @@ def set_user_context():
             
             # If we've exhausted all retries, raise the error
             raise DatabaseError(f"Failed to set user context after {max_retries} attempts. Last error: {last_error}")
-            
-        finally:
-            if cursor and not cursor.closed:
-                try:
-                    cursor.close()
-                except Exception as e:
-                    current_app.logger.warning(f"Failed to close cursor in cleanup: {str(e)}")
 
 def ensure_db_pool():
     """Ensure database pool is initialized"""
@@ -126,16 +127,22 @@ def db_context_middleware(app):
 
     @app.teardown_appcontext
     def teardown_appcontext(exception=None):
-        # Return connection to pool if it was used
+        # Legacy cleanup: Return any connection from flask.g to pool if it was used
+        # Note: This is mainly for backward compatibility as the new context managers
+        # handle their own cleanup. The get_db() function has been removed.
         conn = g.pop('db_connection', None)
         if conn is not None:
             try:
                 pool = get_connection_pool()
-                if pool:
+                if pool and not conn.closed:
                     pool.putconn(conn)
-            except Exception as e:
-                current_app.logger.error(f"Error returning connection to pool: {str(e)}")
-                try:
+                elif conn and not conn.closed:
+                    # If no pool available, close the connection directly
                     conn.close()
+            except Exception as e:
+                current_app.logger.error(f"Error returning legacy connection to pool: {str(e)}")
+                try:
+                    if conn and not conn.closed:
+                        conn.close()
                 except Exception:
                     pass  # Already closed

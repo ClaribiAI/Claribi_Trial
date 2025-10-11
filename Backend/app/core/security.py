@@ -13,12 +13,11 @@ from redis import Redis
 from app.core.cache import get_redis
 from app.config.settings import config
 from app.core.logging import get_logger
-from app.database.connection import get_db
 
 logger = get_logger(__name__)
 
 class RateLimiter:
-    """Rate limiting implementation using Redis."""
+    """Rate limiting implementation - now uses advanced rate limiter as backend."""
     
     def __init__(self, redis_client: Redis):
         self.redis = redis_client
@@ -34,17 +33,26 @@ class RateLimiter:
         Returns:
             bool: True if should be rate limited
         """
-        current = int(time.time())
-        window_key = f"ratelimit:{key}:{current // window}"
-        
         try:
-            count = self.redis.incr(window_key)
-            if count == 1:
-                self.redis.expire(window_key, window)
-            return count > limit
+            # Use the advanced rate limiter for better accuracy and reliability
+            from app.core.rate_limiter import RateLimiter as AdvancedRateLimiter
+            
+            # Check rate limit using advanced implementation
+            allowed, current_count, reset_time = AdvancedRateLimiter.check_rate_limit(key, limit, window)
+            
+            # Set rate limit headers if available
+            if hasattr(g, 'rate_limit_headers'):
+                g.rate_limit_headers = {
+                    'X-RateLimit-Limit': str(limit),
+                    'X-RateLimit-Remaining': str(max(0, limit - current_count)),
+                    'X-RateLimit-Reset': str(reset_time)
+                }
+            
+            return not allowed  # Advanced returns allowed=True/False, we return limited=True/False
+            
         except Exception as e:
             logger.error(f"Rate limit check failed: {e}")
-            return False
+            return False  # Allow request if rate limiting fails
 
 def get_rate_limiter() -> RateLimiter:
     """Get rate limiter instance."""
@@ -134,6 +142,12 @@ def login_required(f: Callable) -> Callable:
             logger.warning("Unauthenticated access attempt")
             abort(401)
         
+        # Check if organization is allowed
+        from app.auth2.services import UserService
+        if not UserService.is_organization_allowed(user.get('organization_id')):
+            logger.warning(f"Organization {user.get('organization_id')} is not allowed to access the system")
+            abort(403, description="Your organization has not yet purchased a plan. Please visit www.claribi.ai to purchase a plan.")
+        
         # Set user in flask.g context
         g.user = user
             
@@ -144,17 +158,16 @@ def login_required(f: Callable) -> Callable:
     return decorated
 
 def csrf_protected(f: Callable) -> Callable:
-    """Decorator to require CSRF token validation.
+    """Decorator to require CSRF token validation using Flask-WTF.
     
-    This decorator validates the CSRF token for POST/PUT/DELETE requests.
+    This decorator validates the CSRF token for POST/PUT/DELETE/PATCH requests.
+    Flask-WTF automatically handles CSRF validation, so this decorator is now
+    a pass-through that relies on Flask-WTF's built-in protection.
     """
     @functools.wraps(f)
     def decorated(*args, **kwargs):
-        if request.method in ['POST', 'PUT', 'DELETE']:
-            token = request.headers.get('X-CSRF-Token')
-            if not token or not validate_csrf_token(token):
-                logger.warning("Invalid or missing CSRF token")
-                abort(403)
+        # Flask-WTF automatically validates CSRF tokens for state-changing requests
+        # No additional validation needed here as Flask-WTF handles it globally
         return f(*args, **kwargs)
     return decorated
 
@@ -188,19 +201,5 @@ def rate_limit(
         return decorated
     return decorator 
 
-def secure_headers(app):
-    """Add security headers to all responses"""
-    @app.after_request
-    def add_security_headers(response):
-        # Prevent browsers from detecting the mimetype incorrectly
-        response.headers['X-Content-Type-Options'] = 'nosniff'
-        # Prevent embedding in iframes (clickjacking protection)
-        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
-        # Enable browser XSS protection
-        response.headers['X-XSS-Protection'] = '1; mode=block'
-        # Enforce HTTPS - disabled for local development
-        # if app.config.get('FORCE_HTTPS', True):
-        #     response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
-        return response
-    
-    return add_security_headers 
+# Security headers are now handled by app.auth2.middleware.SecurityHeaders
+# This provides more comprehensive security headers including CSP, stricter frame options, etc. 

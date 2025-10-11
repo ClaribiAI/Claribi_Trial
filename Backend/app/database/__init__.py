@@ -1,8 +1,6 @@
 # Database module
 
-from app.database.connection import get_db
+# Note: get_db() has been deprecated in favor of get_db_connection() and get_db_cursor()
+# from app.core.database for better connection pool management
 
-
-__all__ = [
-    'get_db'
-]
+__all__ = []

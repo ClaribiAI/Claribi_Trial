@@ -1,63 +1,93 @@
-# Combined .gitignore for frontend and backend
+# Only track Backend and claribi folders, ignore everything else at root
+/*
+!/Backend/
+!/claribi/
+!.gitignore
 
-# Frontend (React/TypeScript) ignores
-## dependencies
-node_modules/
-/.pnp
-.pnp.js
+#Ingore pOwer bi docs
+Backend/powerbi_docs/
+Backend/**/powerbi_docs/
 
-## builds and dist
-/dist
-/build
-/claribi/dist
-
-## testing
-/coverage
-
-## production
-/claribi/build
-
-## misc
-.DS_Store
-*.pem
-
-## debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-## local env files
-.env*.local
-
-# Backend (Flask) ignores
-## Python environments
-venv/
-env/
-ENV/
-.env
-
-## Python bytecode and cache
-*.py[cod]
-__pycache__/
-*$py.class
-.pytest_cache/
-.coverage
-htmlcov/
-
-## Flask session data
-flask_session/
+# Backend specific ignores
+Backend/__pycache__/
+Backend/**/__pycache__/
+Backend/*.py[cod]
+Backend/**/*.py[cod]
+Backend/*$py.class
+Backend/**/*$py.class
+Backend/.pytest_cache/
+Backend/**/.pytest_cache/
+Backend/.coverage
+Backend/**/coverage
+Backend/htmlcov/
+Backend/**/htmlcov/
+Backend/venv/
+Backend/env/
+Backend/ENV/
+Backend/.env
+Backend/**/.env
 Backend/flask_session/
+Backend/**/flask_session/
+Backend/*.log
+Backend/**/*.log
+Backend/logs/
+Backend/**/logs/
+Backend/*.sqlite
+Backend/*.sqlite3
+Backend/*.db
+Backend/**/*.sqlite
+Backend/**/*.sqlite3
+Backend/**/*.db
+Backend/certificates/*.pem
+Backend/certificates/*.key
+Backend/certificates/*.crt
+Backend/certificates/*.cer
+Backend/certificates/*.der
+Backend/**/certificates/*.pem
+Backend/**/certificates/*.key
+Backend/**/certificates/*.crt
+Backend/**/certificates/*.cer
+Backend/**/certificates/*.der
+Backend/docs/_build/
+Backend/**/docs/_build/
+Backend/*.md
+Backend/**/*.md
 
-## Logs
-*.log
-logs/
+# claribi specific ignores
+claribi/node_modules/
+claribi/**/node_modules/
+claribi/dist/
+claribi/**/dist/
+claribi/build/
+claribi/**/build/
+claribi/coverage/
+claribi/**/coverage/
+claribi/.env*.local
+claribi/**/.env*.local
+claribi/npm-debug.log*
+claribi/yarn-debug.log*
+claribi/yarn-error.log*
+claribi/**/npm-debug.log*
+claribi/**/yarn-debug.log*
+claribi/**/yarn-error.log*
+claribi/logs/
+claribi/**/logs/
+claribi/temp/
+claribi/**/temp/
+claribi/certificates/*.pem
+claribi/certificates/*.key
+claribi/certificates/*.crt
+claribi/certificates/*.cer
+claribi/certificates/*.der
+claribi/**/certificates/*.pem
+claribi/**/certificates/*.key
+claribi/**/certificates/*.crt
+claribi/**/certificates/*.cer
+claribi/**/certificates/*.der
+claribi/*.md
+claribi/**/*.md
 
-# Database files
-*.sqlite
-*.sqlite3
-*.db
-
-# IDE and editor files
+# IDE and editor files (global)
 .idea/
 .vscode/
 *.swp
@@ -66,7 +96,7 @@ logs/
 *.sublime-project
 *.sublime-workspace
 
-# OS generated files
+# OS generated files (global)
 .DS_Store
 .DS_Store?
 ._*
@@ -75,36 +105,21 @@ logs/
 ehthumbs.db
 Thumbs.db
 
-# SSL/TLS certificates
-*.pem
-*.key
-*.crt
-*.cer
-*.der
-# But allow certificate examples/templates in repo
-!certificates/example-*
-
-# Generated documentation
-docs/_build/
-
-# Large static files
-*.zip
-*.tar.gz
-*.tgz
-*.rar
-
-# Backup files
+# Backup files (global)
 *~
 *.bak
 
-# Jupyter Notebook
-.ipynb_checkpoints 
+# Railway deployment specific
+.railway/
+railway.json
+railway.toml
 
+# Environment files (keep .env.example)
+.env
+.env.local
+.env.production
+.env.staging
 
-# Reference app from David
-claribi_21_05_25v2/
-
-#MD files
-*.md
-*.html
-*.tmdl
+# Temporary files
+*.tmp
+*.temp

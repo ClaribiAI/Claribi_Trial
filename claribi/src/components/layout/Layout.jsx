@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { Box, useMediaQuery, useTheme, Modal, Paper, Typography, TextField, Button, Rating, IconButton } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import SendIcon from '@mui/icons-material/Send';
+import { List } from '@phosphor-icons/react';
 import Sidebar from './Sidebar';
-import Header from './Header';
 
 const FeedbackModal = ({ open, onClose }) => {
   const [rating, setRating] = useState(5);
@@ -143,7 +143,7 @@ const FeedbackModal = ({ open, onClose }) => {
   );
 };
 
-const Layout = ({ children }) => {
+const Layout = ({ children, fullWidth = false }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
@@ -168,49 +168,107 @@ const Layout = ({ children }) => {
       width: '100%', 
       overflow: 'hidden', 
       position: 'relative',
-      bgcolor: '#EEEEEE'
+      bgcolor: '#ffffff'
     }}>
-      <Sidebar open={sidebarOpen} toggleSidebar={toggleSidebar} onOpenFeedback={handleOpenFeedback} />
+
+      <Box 
+        component="aside"
+        sx={{
+          flexShrink: 0,
+          display: {
+            xs: sidebarOpen ? 'block' : 'none',
+            sm: 'block'
+          }
+        }}
+      >
+        <Sidebar open={sidebarOpen} toggleSidebar={toggleSidebar} onOpenFeedback={handleOpenFeedback} />
+      </Box>
+
       <Box 
         sx={{ 
           flexGrow: 1, 
           display: 'flex', 
           flexDirection: 'column', 
           overflow: 'hidden',
-          width: '100%',
-          maxWidth: '100%',
-          padding: { xs: 1, sm: 3 },
           position: 'relative',
-          zIndex: 1
+          ml: 0,
+          pl: 0,
         }}
       >
-        <Header toggleSidebar={toggleSidebar} />
+        <Box sx={{ 
+          position: 'absolute',
+          top: 12,
+          left: 12,
+          zIndex: 1250,
+        }}>
+          {isMobile && (
+            <IconButton 
+              edge="start" 
+              color="inherit" 
+              aria-label="menu"
+              onClick={toggleSidebar}
+              sx={{ 
+                color: '#333',
+                backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                backdropFilter: 'blur(8px)',
+                border: '1px solid rgba(0, 0, 0, 0.08)',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
+                '&:hover': {
+                  color: '#FCC000',
+                  backgroundColor: 'rgba(255, 255, 255, 1)',
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+                }
+              }}
+            >
+              <List size={20} />
+            </IconButton>
+          )}
+        </Box>
+
         <Box 
           sx={{ 
             flexGrow: 1,
             overflow: 'auto',
             width: '100%',
-            maxWidth: '100%',
-            mt: 2,
-            background: '#fff',
-            borderRadius: '20px',
-            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.05)',
+            height: '100%',
+            background: '#ffffff',
             display: 'flex',
-            flexDirection: 'column'
+            flexDirection: 'column',
+            margin: 0,
+            padding: 0,
           }}
         >
-          <Box sx={{ 
-            width: '100%', 
-            height: '100%', 
-            p: { xs: 2, sm: 3, md: 4 },
-            overflow: 'auto'
-          }}>
-            {children}
-          </Box>
+          {fullWidth ? (
+            // Full width layout
+            <Box sx={{ 
+              width: '100%', 
+              height: '100%', 
+              display: 'flex',
+              flexDirection: 'column',
+              margin: 0,
+              padding: 0
+            }}>
+              {children}
+            </Box>
+          ) : (
+            // Constrained layout for other pages
+            <Box sx={{ 
+              width: '100%', 
+              height: '100%', 
+              p: { xs: 3, sm: 4, md: 5 },
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'flex-start',
+              maxWidth: '1400px',
+              mx: 'auto'
+            }}>
+              {children}
+            </Box>
+          )}
         </Box>
       </Box>
       
-      {/* Feedback Modal */}
       <FeedbackModal open={feedbackModalOpen} onClose={handleCloseFeedback} />
     </Box>
   );

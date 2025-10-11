@@ -1,0 +1,24 @@
+# RAG Pipeline Dependencies for Power BI Chat
+# Install these dependencies for the RAG functionality
+
+# Core RAG dependencies - using compatible LangChain versions
+langchain-core>=0.1.8,<0.2.0
+langchain-community>=0.0.10,<0.1.0
+langchain-google-genai>=0.0.6,<0.1.0
+langchain-postgres>=0.0.6,<0.1.0
+
+# Note: langchain_postgres replaces the deprecated langchain_community.vectorstores.pgvector
+
+# Vector database support
+pgvector>=0.2.4,<0.3.0
+psycopg2-binary>=2.9.9,<3.0.0
+
+# PBIXRay dependencies for PBIX file parsing
+kaitaistruct
+apsw
+icecream
+pandas
+xpress9
+
+# Additional utilities
+python-dotenv>=1.0.0,<2.0.0

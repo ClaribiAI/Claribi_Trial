@@ -1,32 +1,5 @@
 import axios from 'axios';
-
-// Function to get CSRF token from cookies
-const getCSRFToken = () => {
-  const name = 'csrf_token=';
-  const decodedCookie = decodeURIComponent(document.cookie);
-  const cookieArray = decodedCookie.split(';');
-  
-  for (let i = 0; i < cookieArray.length; i++) {
-    let cookie = cookieArray[i].trim();
-    if (cookie.indexOf(name) === 0) {
-      return cookie.substring(name.length, cookie.length);
-    }
-  }
-  return '';
-};
-
-// Function to fetch a new CSRF token
-const fetchCSRFToken = async () => {
-  try {
-    const response = await axios.get('/auth/csrf-token', {
-      withCredentials: true
-    });
-    return response.data.csrf_token;
-  } catch (error) {
-    console.error('Failed to fetch CSRF token:', error);
-    return null;
-  }
-};
+import csrfService from './csrfService';
 
 // Create an axios instance with default config
 const api = axios.create({
@@ -36,8 +9,8 @@ const api = axios.create({
     'Content-Type': 'application/json',
     'Accept': 'application/json'
   },
-  // Add timeout to prevent hanging requests
-  timeout: 15000
+  // Add timeout to prevent hanging requests - increased for file uploads
+  timeout: 120000 // 2 minutes for file uploads
 });
 
 // Add a request interceptor
@@ -45,17 +18,15 @@ api.interceptors.request.use(
   async config => {
     // Include CSRF token in POST, PUT, DELETE requests
     if (['post', 'put', 'delete', 'patch'].includes(config.method.toLowerCase())) {
-      let csrfToken = getCSRFToken();
+      console.log(`🔒 Adding CSRF token to ${config.method.toUpperCase()} request to ${config.url}`);
       
-      // If no token found, try to fetch a new one
-      if (!csrfToken) {
-        csrfToken = await fetchCSRFToken();
-      }
+      const csrfToken = await csrfService.getToken();
       
       if (csrfToken) {
-        config.headers['X-CSRF-Token'] = csrfToken;
+        config.headers['X-CSRFToken'] = csrfToken;  // Flask-WTF expects X-CSRFToken
+        console.log(`🔑 CSRF token added: ${csrfToken.substring(0, 8)}...`);
       } else {
-        console.warn('No CSRF token available');
+        console.warn('⚠️ No CSRF token available for request');
       }
       
       // Set appropriate Content-Type header based on data type
@@ -127,8 +98,28 @@ api.interceptors.response.use(
       }
       
       if (status === 403) {
-        // Forbidden - user doesn't have access
-        console.error('You do not have permission to access this resource');
+        // Check if this is an organization access error
+        if (data && typeof data === 'object' && 
+            (data.error === 'organization_not_allowed' || 
+             data.message?.toLowerCase().includes('organization') ||
+             data.message?.toLowerCase().includes('plan'))) {
+          console.error('Organization access restricted:', data.message || data.error);
+          // For organization errors, we want to let the error propagate to the component
+          // Don't modify the error, just log it
+        } else {
+          // Forbidden - user doesn't have access
+          console.error('You do not have permission to access this resource');
+        }
+      }
+      
+      if (status === 400 && data && typeof data === 'object' && 
+          (data.message?.toLowerCase().includes('csrf') || 
+           data.error?.toLowerCase().includes('csrf') ||
+           data.message?.toLowerCase().includes('referer'))) {
+        // CSRF token error - clear token and retry once
+        console.warn('CSRF validation failed:', data.message || data.error);
+        console.warn('Clearing CSRF token and will retry on next request');
+        csrfService.clearToken();
       }
 
       // Try to extract more useful error info

@@ -12,21 +12,23 @@ class AppError(Exception):
 
 class ValidationError(AppError):
     """Base exception for validation errors."""
-    def __init__(self, message: str = None):
+    def __init__(self, message: str = None, field: str = None, value: str = None):
+        self.field = field
+        self.value = value
         super().__init__(message or "Validation error", 400)
 
 class AuthenticationError(AppError):
     """Raised when authentication fails."""
     def __init__(self, message: str = None):
-        super().__init__(message or "Authentication required", 401)
+        super().__init__(message or "Authentication failed", 401)
 
 class AuthorizationError(AppError):
-    """Raised when authorization fails."""
+    """Raised when user is not authorized to perform an action."""
     def __init__(self, message: str = None):
-        super().__init__(message or "Access denied", 403)
+        super().__init__(message or "Not authorized", 403)
 
 class NotFoundError(AppError):
-    """Raised when a resource is not found."""
+    """Raised when a requested resource is not found."""
     def __init__(self, message: str = None):
         super().__init__(message or "Resource not found", 404)
 
@@ -34,6 +36,18 @@ class DatabaseError(AppError):
     """Raised when a database operation fails."""
     def __init__(self, message: str = None):
         super().__init__(message or "Database operation failed", 500)
+
+class RLSPolicyViolationError(AuthorizationError):
+    """Raised when a Row Level Security policy is violated."""
+    def __init__(self, message: str = None, table: str = None, operation: str = None):
+        self.table = table
+        self.operation = operation
+        default_message = f"Access denied: Row Level Security policy violation"
+        if table:
+            default_message += f" for table '{table}'"
+        if operation:
+            default_message += f" during {operation} operation"
+        super().__init__(message or default_message)
 
 # Project-specific exceptions
 class ProjectError(AppError):

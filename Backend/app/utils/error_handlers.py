@@ -22,6 +22,7 @@ class ErrorType:
     REDIS = "redis_error"
     EXTERNAL_SERVICE = "external_service_error"
     INTERNAL = "internal_error"
+    RLS_VIOLATION = "rls_violation"
 
 # HTTP status codes
 class StatusCode:
@@ -155,6 +156,35 @@ def handle_database_error(message="Database error", details=None, log_exception=
         "A database error occurred",  # Generic message for users
         StatusCode.INTERNAL_SERVER_ERROR,
         None  # Don't expose database details
+    )
+
+def handle_rls_violation(message="Access denied", table=None, operation=None, details=None):
+    """Handle Row Level Security policy violations
+    
+    Args:
+        message (str): Error message
+        table (str): Table name where violation occurred
+        operation (str): Operation that was attempted
+        details (dict): Optional error details
+        
+    Returns:
+        tuple: (response_json, status_code)
+    """
+    logger.warning(f"RLS policy violation: {message}")
+    if table:
+        logger.warning(f"Table: {table}")
+    if operation:
+        logger.warning(f"Operation: {operation}")
+    
+    user_message = "You do not have permission to access this resource"
+    if operation:
+        user_message = f"You do not have permission to {operation} this resource"
+        
+    return create_error_response(
+        ErrorType.RLS_VIOLATION,
+        user_message,
+        StatusCode.FORBIDDEN,
+        None  # Don't expose security details
     )
 
 def handle_redis_error(message="Redis error", details=None, log_exception=True):

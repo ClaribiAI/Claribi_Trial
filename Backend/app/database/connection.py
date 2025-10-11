@@ -1,7 +1,7 @@
 import psycopg2
 from app.config.settings import config
 from flask import current_app, g
-from app.core.database import get_connection_pool, init_db_pool
+from app.core.database import get_connection_pool, init_db_pool, validate_connection
 from app.core.exceptions import DatabaseError
 #from app.database.neon_auth import get_auth_token
 
@@ -15,48 +15,14 @@ def register_db_teardown(app):
                     pool = get_connection_pool()
                     if pool:
                         pool.putconn(conn)
-            except:
+                    else:
+                        # If pool is not available, close connection directly
+                        conn.close()
+            except Exception as cleanup_error:
                 try:
-                    conn.close()
-                except Exception as e:
-                    current_app.logger.exception("Error closing connection")
+                    if conn and not conn.closed:
+                        conn.close()
+                except Exception as close_error:
+                    current_app.logger.exception(f"Error closing connection: {close_error}")
     
     app.teardown_appcontext(cleanup)
-
-
-def get_db():
-    """Get database connection from request context"""
-    if 'db_connection' not in g:
-        try:
-            # Ensure pool exists
-            pool = get_connection_pool()
-            if not pool:
-                init_db_pool(database_url=config.DATABASE_URL)
-                pool = get_connection_pool()
-                if not pool:
-                    raise DatabaseError("Failed to initialize database pool")
-            
-            # Get connection from pool
-            conn = pool.getconn()
-            
-            # Test connection is alive
-            try:
-                cur = conn.cursor()
-                cur.execute('SELECT 1')
-                cur.close()
-            except (psycopg2.OperationalError, psycopg2.InterfaceError):
-                # Connection is dead, close and get new one
-                try:
-                    pool.putconn(conn, close=True)
-                except:
-                    pass
-                conn = pool.getconn()
-            
-            # Store in flask.g
-            g.db_connection = conn
-            
-        except Exception as e:
-            current_app.logger.error(f"Database connection error: {str(e)}")
-            raise DatabaseError(f"Could not establish database connection: {str(e)}")
-    
-    return g.db_connection

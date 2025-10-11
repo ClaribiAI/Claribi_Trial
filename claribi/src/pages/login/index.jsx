@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Typography, Paper, Button, CircularProgress, Alert, Snackbar } from '@mui/material';
+import { Box, Typography, Paper, Button, Alert, Snackbar } from '@mui/material';
 import { useNavigate, useLocation } from 'react-router-dom';
+import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { useAuth } from '../../contexts/AuthContext';
 import MicrosoftIcon from './MicrosoftIcon';
 import authService from '../../services/auth';
@@ -19,6 +20,12 @@ const LoginPage = () => {
 
   // If user is already authenticated, redirect to home
   useEffect(() => {
+    // Don't redirect if there's an organization error
+    const storedOrgError = sessionStorage.getItem('organizationError');
+    if (storedOrgError === 'true') {
+      return;
+    }
+    
     // Only redirect if we've explicitly checked and user is authenticated
     if (currentUser && !loading) {
       // Check if there is a pending share token
@@ -34,195 +41,128 @@ const LoginPage = () => {
     }
   }, [currentUser, loading, navigate]);
 
-  // Verify using all available methods to maximize chance of success
-  const verifyWithAllMethods = (directToken = null) => {
-    console.log("Verifying with all available methods");
+  // Prevent automatic refresh when there are organization access errors
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const errorMsg = urlParams.get('error');
     
-    // Get debug info to understand current state
-    authService.getDebugInfo()
-      .then(debugData => {
-        console.log("Auth debug info before verification:", debugData);
-      })
-      .catch(err => {
-        console.warn("Could not get debug info:", err);
-      });
-    
-    // Try cookie verification first if we have auth_status cookie
-    const hasAuthCookie = document.cookie.split(';').some(c => c.trim().startsWith('auth_status='));
-    
-    let verificationPromise;
-    
-    if (hasAuthCookie) {
-      console.log("Auth cookie detected, trying cookie verification first");
-      verificationPromise = authService.verifyTokenCookie();
-    } else if (directToken) {
-      console.log("Direct token available, trying URL parameter verification");
-      verificationPromise = authService.verifyDirectToken(directToken);
-    } else {
-      console.log("No token indicators found, using standard verification");
-      verificationPromise = authService.verifyAuth();
+    if (errorMsg === 'organization_not_allowed') {
+      // Don't allow refresh when there's an org error - user needs to see the message
+      const handleBeforeUnload = (e) => {
+        e.preventDefault();
+        e.returnValue = '';
+      };
+      
+      window.addEventListener('beforeunload', handleBeforeUnload);
+      
+      return () => {
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+      };
     }
-    
-    verificationPromise
-      .then(data => {
-        if (data.success) {
-          console.log("Primary verification method succeeded:", data);
-          handleSuccessfulVerification(data);
-        } else if (directToken && !hasAuthCookie) {
-          // If direct token verification failed, try cookie verification
-          console.log("Direct token verification failed, trying cookie verification");
-          return authService.verifyTokenCookie();
-        } else if (hasAuthCookie && directToken) {
-          // If cookie verification failed, try direct token
-          console.log("Cookie verification failed, trying direct token");
-          return authService.verifyDirectToken(directToken);
-        } else {
-          // If all direct methods failed, try standard verification
-          console.log("Primary verification failed, trying standard verification");
-          return authService.verifyAuth();
-        }
-      })
-      .then(data => {
-        // This will only execute if we chained to a fallback method
-        if (data && data.success) {
-          console.log("Fallback verification method succeeded:", data);
-          handleSuccessfulVerification(data);
-        } else if (data && !data.success && retryCount < MAX_RETRIES) {
-          // If verification still failed but we have retries left
-          console.log(`Verification attempt ${retryCount + 1} failed, retrying...`);
-          setRetryCount(prev => prev + 1);
-          setTimeout(() => verifyWithAllMethods(directToken), 1000);
-        } else if (data) {
-          // If verification failed after all methods
-          console.error("All verification methods failed:", data.error);
-          setErrorMessage(`Authentication failed: ${data.error}`);
-          setVerifying(false);
-        }
-      })
-      .catch(err => {
-        if (retryCount < MAX_RETRIES) {
-          console.log(`Verification attempt ${retryCount + 1} failed with error, retrying...`, err);
-          setRetryCount(prev => prev + 1);
-          setTimeout(() => verifyWithAllMethods(directToken), 1000);
-        } else {
-          console.error("Error during all verification methods:", err);
-          setErrorMessage("Authentication verification failed. Please try again.");
-          setVerifying(false);
-          
-          // Check if it's a network error
-          if (err.message && err.message.includes('Network Error')) {
-            setBackendError(true);
-          }
-        }
-      });
-  };
-  
-  // Handle successful verification
-  const handleSuccessfulVerification = (data) => {
-    console.log("Verification successful:", data);
-    
-    // Clear URL parameters to avoid reuse
-    const url = new URL(window.location);
-    url.searchParams.delete('auth');
-    url.searchParams.delete('direct_token');
-    window.history.replaceState({}, '', url);
-    
-    // Do a final session check to ensure the session is established
-    console.log("Performing final session check before redirect");
-    authService.sessionCheck()
-      .then(checkResult => {
-        if (checkResult.success) {
-          console.log("Session check successful, redirecting");
-          
-          // Check if there's a pending share token
-          const pendingShareToken = sessionStorage.getItem('pendingShareToken');
-          if (pendingShareToken) {
-            // We'll remove the token in the useEffect when we confirm the user is logged in
-            console.log("Pending share token found, will redirect to shared project");
-            // Force refresh to trigger the useEffect that handles redirect
-            setTimeout(() => {
-              window.location.reload();
-            }, 300);
-          } else {
-            // Force refresh the page to update the user context
-            setTimeout(() => {
-              window.location.href = '/';
-            }, 300);
-          }
-        } else {
-          console.error("Session check failed, auth flow incomplete");
-          // Try to get more debug info
-          authService.getDebugInfo()
-            .then(debugData => {
-              console.log("Auth debug info after session check failure:", debugData);
-              setErrorMessage("Authentication appeared to succeed, but session verification failed. Please try again.");
-              setVerifying(false);
-            })
-            .catch(e => {
-              console.error("Could not get debug info:", e);
-              setErrorMessage("Authentication appeared to succeed, but session verification failed. Please try again.");
-              setVerifying(false);
-            });
-        }
-      })
-      .catch(err => {
-        console.error("Error during final session check:", err);
-        setErrorMessage("Error during session verification. Please try again.");
+  }, [location]);
+
+  const verifyAuthentication = async () => {
+    try {
+      setRetryCount(0);
+      const data = await authService.verifyAuth();
+      
+      if (data.success) {
+        console.log("Authentication verified successfully");
+        handleSuccessfulVerification(data);
+      } else {
+        console.error("Authentication verification failed:", data.error);
+        setErrorMessage(`Authentication failed: ${data.error}`);
         setVerifying(false);
-      });
+      }
+    } catch (err) {
+      if (retryCount < MAX_RETRIES) {
+        console.log(`Verification attempt ${retryCount + 1} failed, retrying...`);
+        setRetryCount(prev => prev + 1);
+        setTimeout(() => verifyAuthentication(), 1000);
+      } else {
+        console.error("All verification attempts failed:", err);
+        setErrorMessage("Authentication verification failed after multiple attempts. Please try logging in again.");
+        setVerifying(false);
+      }
+    }
   };
 
-  // Check URL parameters and cookies for auth status
+  const handleSuccessfulVerification = (data) => {
+    console.log("Verification successful, redirecting...");
+    setVerifying(false);
+    
+    // Check if there is a pending share token
+    const pendingShareToken = sessionStorage.getItem('pendingShareToken');
+    if (pendingShareToken) {
+      // Remove the token from storage
+      sessionStorage.removeItem('pendingShareToken');
+      // Redirect to shared project handler
+      navigate(`/shared-project/${pendingShareToken}`);
+    } else {
+      // Navigate to home page
+      navigate('/');
+    }
+  };
+
+  // Check URL parameters for auth status - this should run first
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const errorMsg = urlParams.get('error');
     const authStatus = urlParams.get('auth');
-    const directToken = urlParams.get('direct_token');
     const shareToken = urlParams.get('share_token');
     
-    // Check for auth_status cookie
-    const hasAuthCookie = document.cookie.split(';').some(c => c.trim().startsWith('auth_status='));
-
     // Save share token if present
     if (shareToken) {
       sessionStorage.setItem('pendingShareToken', shareToken);
     }
     
-    if (errorMsg) {
-      // Replace '+' with spaces to properly display the error message
+    // Handle organization access error immediately
+    if (errorMsg === 'organization_not_allowed') {
+      sessionStorage.setItem('organizationError', 'true');
+      sessionStorage.setItem('organizationErrorMessage', 'Your organization has not yet purchased a plan. Please visit www.claribi.ai to purchase a plan.');
+      setErrorMessage('Your organization has not yet purchased a plan. Please visit www.claribi.ai to purchase a plan.');
+      return; // Don't proceed with other logic
+    }
+    
+    // Check for stored organization error
+    const storedOrgError = sessionStorage.getItem('organizationError');
+    if (storedOrgError === 'true') {
+      const storedErrorMessage = sessionStorage.getItem('organizationErrorMessage');
+      setErrorMessage(storedErrorMessage || 'Your organization has not yet purchased a plan. Please visit www.claribi.ai to purchase a plan.');
+      // Don't clear the stored error yet - let the user see it
+    } else if (errorMsg) {
+      // Handle other error types
       setErrorMessage(errorMsg.replace(/\+/g, ' '));
     }
 
-    if (authStatus === 'success' || hasAuthCookie) {
+    if (authStatus === 'success') {
       setShowSuccess(true);
       setVerifying(true);
       setRetryCount(0); // Reset retry count
       
-      // Use our all-methods verification approach
-      verifyWithAllMethods(directToken);
+      verifyAuthentication();
     }
   }, [location]);
 
   const handleMicrosoftLogin = () => {
-    // Use the login method with an error handler
-    login((errorMessage) => {
-      setBackendError(true);
-      setErrorMessage(errorMessage || "Cannot connect to the authentication server. Please ensure the backend is running and try again.");
-    });
+    // Clear any stored organization errors when attempting to login
+    sessionStorage.removeItem('organizationError');
+    sessionStorage.removeItem('organizationErrorMessage');
+    setErrorMessage(null);
+    
+    login();
   };
 
   const handleCloseSuccess = () => {
     setShowSuccess(false);
   };
 
-  // Show loading spinner only if we're checking authentication status
-  // or verifying after redirect
-  if ((loading && currentUser !== null) || verifying) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <CircularProgress />
-      </Box>
-    );
+  // Don't show loading spinner if there's an organization error
+  const storedOrgError = sessionStorage.getItem('organizationError');
+  if (storedOrgError === 'true') {
+    // Show the error message instead of loading
+  } else if ((loading && currentUser !== null) || verifying) {
+    return <LoadingSpinner />;
   }
 
   return (
@@ -243,7 +183,7 @@ const LoginPage = () => {
         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
       >
         <Alert onClose={handleCloseSuccess} severity="success" sx={{ width: '100%' }}>
-          Authentication successful! Verifying...
+          Sign-in successful! Setting up your account...
         </Alert>
       </Snackbar>
 
@@ -258,9 +198,25 @@ const LoginPage = () => {
           boxShadow: '0 8px 24px rgba(156, 39, 176, 0.2)',
         }}
       >
-        {errorMessage && (
-          <Alert severity="error" sx={{ mb: 3 }}>
-            {errorMessage}
+        {(errorMessage || storedOrgError === 'true') && (
+          <Alert 
+            severity="error" 
+            sx={{ 
+              mb: 3,
+              '& .MuiAlert-message': {
+                fontSize: '0.9rem',
+                lineHeight: 1.4,
+              }
+            }}
+          >
+            {errorMessage || sessionStorage.getItem('organizationErrorMessage')}
+            {(errorMessage?.includes('organization') || storedOrgError === 'true') && (
+              <Box sx={{ mt: 1 }}>
+                <Typography variant="body2" component="a" href="https://www.claribi.ai" target="_blank" sx={{ color: 'inherit', textDecoration: 'underline' }}>
+                  Visit www.claribi.ai to purchase a plan
+                </Typography>
+              </Box>
+            )}
           </Alert>
         )}
         
