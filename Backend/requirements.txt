@@ -45,7 +45,7 @@ kaitaistruct>=0.10,<1.0.0
 apsw>=3.45.0,<4.0.0
 icecream>=2.1.0,<3.0.0
 pandas>=2.0.0,<3.0.0
-xpress9>=1.0.0,<2.0.0
+xpress9>=0.3.5,<1.0.0
 
 # Logging and monitoring
 structlog>=23.2.0,<24.0.0

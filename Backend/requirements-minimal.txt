@@ -30,9 +30,9 @@ python-dotenv>=1.0.0
 requests>=2.31.0
 
 # PBIXRay for Power BI files
-kaitaistruct
-apsw
-pandas
+kaitaistruct>=0.10
+apsw>=3.45.0
+pandas>=2.0.0
 
 # Production server
 gunicorn>=21.2.0
