@@ -69,19 +69,32 @@ def login():
         # Initiate MSAL auth flow with state parameter
         auth_flow = MSALService.initiate_auth_flow_with_state(state_encoded)
         
-        # Store the code_verifier in a secure HttpOnly cookie for PKCE
+        # Store the code_verifier and nonce in a secure HttpOnly cookie for PKCE
         if 'code_verifier' in auth_flow:
             from flask import make_response
+            import json
+            import base64
+            
+            # Store both code_verifier and nonce in the cookie
+            pkce_data = {
+                'code_verifier': auth_flow['code_verifier'],
+                'nonce': auth_flow.get('nonce', ''),
+                'state': state_encoded
+            }
+            
+            # Encode the PKCE data as base64 for storage
+            pkce_data_encoded = base64.b64encode(json.dumps(pkce_data).encode('utf-8')).decode('utf-8')
+            
             response = make_response(redirect(auth_flow["auth_uri"]))
             response.set_cookie(
-                'pkce_code_verifier',
-                auth_flow['code_verifier'],
+                'pkce_data',
+                pkce_data_encoded,
                 httponly=True,
                 secure=True,
                 samesite='None',
                 max_age=600  # 10 minutes expiration
             )
-            logger.info(f"Stored code_verifier in secure cookie for PKCE")
+            logger.info(f"Stored PKCE data (code_verifier, nonce, state) in secure cookie")
             return response
         
         logger.info(f"Initiated auth flow for redirect: {validated_redirect}")
@@ -124,18 +137,32 @@ def callback():
             except Exception as e:
                 logger.warning(f"Could not parse state parameter: {e}")
         
-        # For Railway deployment, use direct token acquisition with PKCE code_verifier from cookie
+        # For Railway deployment, use direct token acquisition with PKCE data from cookie
         # This avoids the "auth_flow_not_found" error when containers restart
-        code_verifier = request.cookies.get('pkce_code_verifier')
+        pkce_data_cookie = request.cookies.get('pkce_data')
         logger.info(f"Attempting direct token acquisition with args: {list(request.args.keys())}")
-        logger.info(f"Code verifier from cookie: {'Present' if code_verifier else 'Missing'}")
+        logger.info(f"PKCE data from cookie: {'Present' if pkce_data_cookie else 'Missing'}")
         
-        result = MSALService.acquire_token_by_auth_code_direct(request.args, code_verifier)
+        # Parse PKCE data from cookie
+        code_verifier = None
+        nonce = None
+        if pkce_data_cookie:
+            try:
+                import json
+                import base64
+                pkce_data = json.loads(base64.b64decode(pkce_data_cookie).decode('utf-8'))
+                code_verifier = pkce_data.get('code_verifier')
+                nonce = pkce_data.get('nonce', '')
+                logger.info(f"Retrieved PKCE data - code_verifier: {'Present' if code_verifier else 'Missing'}, nonce: {'Present' if nonce else 'Missing'}")
+            except Exception as e:
+                logger.error(f"Failed to parse PKCE data from cookie: {e}")
+        
+        result = MSALService.acquire_token_by_auth_code_direct(request.args, code_verifier, nonce)
         logger.info(f"Token acquisition result keys: {list(result.keys()) if result else 'None'}")
         
-        # Clear the code_verifier cookie after token acquisition attempt
-        if code_verifier:
-            logger.info("Code verifier cookie will be cleared after processing")
+        # Clear the PKCE data cookie after token acquisition attempt
+        if pkce_data_cookie:
+            logger.info("PKCE data cookie will be cleared after processing")
         
         if "error" in result:
             error_msg = result.get('error_description', 'Authentication failed')
@@ -143,31 +170,31 @@ def callback():
             logger.error(f"Authentication error: {error_code} - {error_msg}")
             logger.error(f"Full error response: {result}")
             
-            # Clear the code_verifier cookie on error
+            # Clear the PKCE data cookie on error
             from flask import make_response
             response = make_response(redirect(f"{redirect_uri}?error=authentication_failed&details={error_code}"))
-            response.set_cookie('pkce_code_verifier', '', expires=0, httponly=True, secure=True, samesite='None')
-            logger.info("Cleared code_verifier cookie after authentication error")
+            response.set_cookie('pkce_data', '', expires=0, httponly=True, secure=True, samesite='None')
+            logger.info("Cleared PKCE data cookie after authentication error")
             return response
         
         # Get access token for Graph API validation
         access_token = result.get("access_token")
         if not access_token:
             logger.error("No access token received")
-            # Clear the code_verifier cookie on error
+            # Clear the PKCE data cookie on error
             from flask import make_response
             response = make_response(redirect(f"{redirect_uri}?error=no_access_token"))
-            response.set_cookie('pkce_code_verifier', '', expires=0, httponly=True, secure=True, samesite='None')
+            response.set_cookie('pkce_data', '', expires=0, httponly=True, secure=True, samesite='None')
             return response
         
         # Validate token using Graph API
         is_valid, user_data = validate_token(access_token)
         if not is_valid or not user_data:
             logger.error("Token validation failed")
-            # Clear the code_verifier cookie on error
+            # Clear the PKCE data cookie on error
             from flask import make_response
             response = make_response(redirect(f"{redirect_uri}?error=token_validation_failed"))
-            response.set_cookie('pkce_code_verifier', '', expires=0, httponly=True, secure=True, samesite='None')
+            response.set_cookie('pkce_data', '', expires=0, httponly=True, secure=True, samesite='None')
             return response
         
         # Extract user information from Graph API response
@@ -182,19 +209,19 @@ def callback():
         
         if not ms_object_id or not organization_id:
             logger.error("Missing required user identifiers")
-            # Clear the code_verifier cookie on error
+            # Clear the PKCE data cookie on error
             from flask import make_response
             response = make_response(redirect(f"{redirect_uri}?error=missing_identifiers"))
-            response.set_cookie('pkce_code_verifier', '', expires=0, httponly=True, secure=True, samesite='None')
+            response.set_cookie('pkce_data', '', expires=0, httponly=True, secure=True, samesite='None')
             return response
         
         # Check if organization is allowed
         if not UserService.is_organization_allowed(organization_id):
             logger.warning(f"Organization {organization_id} is not allowed to access the system")
-            # Clear the code_verifier cookie on error
+            # Clear the PKCE data cookie on error
             from flask import make_response
             response = make_response(redirect(f"{redirect_uri}?error=organization_not_allowed"))
-            response.set_cookie('pkce_code_verifier', '', expires=0, httponly=True, secure=True, samesite='None')
+            response.set_cookie('pkce_data', '', expires=0, httponly=True, secure=True, samesite='None')
             return response
         
         # Extract app roles from ID token claims
@@ -205,10 +232,10 @@ def callback():
         # Validate that user has at least one valid app role
         if not user_app_roles:
             logger.warning(f"User {display_id} has no valid app roles assigned")
-            # Clear the code_verifier cookie on error
+            # Clear the PKCE data cookie on error
             from flask import make_response
             response = make_response(redirect(f"{redirect_uri}?error=no_app_role"))
-            response.set_cookie('pkce_code_verifier', '', expires=0, httponly=True, secure=True, samesite='None')
+            response.set_cookie('pkce_data', '', expires=0, httponly=True, secure=True, samesite='None')
             return response
         
         # Use the first valid role
@@ -221,10 +248,10 @@ def callback():
         )
         if not db_success:
             logger.error(f"Database error: {db_error}")
-            # Clear the code_verifier cookie on error
+            # Clear the PKCE data cookie on error
             from flask import make_response
             response = make_response(redirect(f"{redirect_uri}?error=database_error"))
-            response.set_cookie('pkce_code_verifier', '', expires=0, httponly=True, secure=True, samesite='None')
+            response.set_cookie('pkce_data', '', expires=0, httponly=True, secure=True, samesite='None')
             return response
         
         # Create JWT token with user data
@@ -241,11 +268,11 @@ def callback():
         separator = '&' if '?' in redirect_uri else '?'
         final_redirect_url = f"{redirect_uri}{separator}token={jwt_token}&auth=success"
         
-        # Clear the code_verifier cookie after successful authentication
+        # Clear the PKCE data cookie after successful authentication
         from flask import make_response
         response = make_response(redirect(final_redirect_url))
-        response.set_cookie('pkce_code_verifier', '', expires=0, httponly=True, secure=True, samesite='None')
-        logger.info("Cleared code_verifier cookie after successful authentication")
+        response.set_cookie('pkce_data', '', expires=0, httponly=True, secure=True, samesite='None')
+        logger.info("Cleared PKCE data cookie after successful authentication")
         
         return response
         

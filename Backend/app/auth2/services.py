@@ -119,11 +119,12 @@ class MSALService:
     
     
     @staticmethod
-    def acquire_token_by_auth_code_direct(request_args: dict, code_verifier: str = None) -> dict:
-        """Acquire token using authorization code directly with PKCE code_verifier"""
+    def acquire_token_by_auth_code_direct(request_args: dict, code_verifier: str = None, nonce: str = None) -> dict:
+        """Acquire token using authorization code directly with PKCE code_verifier and nonce"""
         logger.info("=== DIRECT TOKEN ACQUISITION STARTED ===")
         logger.info(f"Request args keys: {list(request_args.keys())}")
         logger.info(f"Code verifier provided: {'Yes' if code_verifier else 'No'}")
+        logger.info(f"Nonce provided: {'Yes' if nonce else 'No'}")
         
         cache = MSALService.get_token_cache()
         app = MSALService.build_msal_app(cache=cache)
@@ -156,7 +157,7 @@ class MSALService:
                     'redirect_uri': MSALService.get_redirect_uri(),
                     'scope': auth2_config.MSAL_SCOPES,
                     'state': state if state else '',
-                    'nonce': '',  # Empty string instead of None
+                    'nonce': nonce if nonce else '',  # Use provided nonce or empty string
                     'claims_challenge': ''  # Empty string instead of None
                 }
                 
