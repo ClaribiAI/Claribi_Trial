@@ -745,14 +745,14 @@ def list_uploaded_files():
             return jsonify({'status': 'ok'}), 200
 
         # Query the database directly to get collections with PBIX metadata
-        import psycopg2
-        from psycopg2.extras import RealDictCursor
+        import psycopg
+        from psycopg.extras import RealDictCursor
         
         uploaded_files = []
         
         try:
             # Connect to the database
-            conn = psycopg2.connect(config.NEON_CONNECTION_STRING)
+            conn = psycopg.connect(config.NEON_CONNECTION_STRING)
             cursor = conn.cursor(cursor_factory=RealDictCursor)
             
             # Query collections with their metadata and document counts

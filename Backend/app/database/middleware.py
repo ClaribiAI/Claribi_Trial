@@ -1,7 +1,7 @@
 from flask import session, g, current_app
 from app.core.database import init_db_pool, get_connection_pool, get_db_connection
 from app.core.exceptions import DatabaseError, ProjectNotFoundError
-import psycopg2
+import psycopg
 import time
 
 def set_user_context():
@@ -39,7 +39,7 @@ def set_user_context():
                     conn.commit()
                     return  # Success, exit the function
 
-        except (psycopg2.Error, DatabaseError) as e:
+        except (psycopg.Error, DatabaseError) as e:
             error_message = str(e)
             
             # Check for Neon serverless scaling issues

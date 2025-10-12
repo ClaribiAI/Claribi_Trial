@@ -1,4 +1,4 @@
-import psycopg2
+import psycopg
 from app.config.settings import config
 from flask import current_app, g
 from app.core.database import get_connection_pool, init_db_pool, validate_connection

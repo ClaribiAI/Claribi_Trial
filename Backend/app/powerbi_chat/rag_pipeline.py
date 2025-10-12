@@ -146,10 +146,10 @@ class RAGPipeline:
                         vector_store.update_collection_metadata(collection_metadata)
                     else:
                         # Fallback: manually update the collection metadata in the database
-                        import psycopg2
-                        from psycopg2.extras import Json
+                        import psycopg
+                        from psycopg.extras import Json
                         
-                        conn = psycopg2.connect(config.NEON_CONNECTION_STRING)
+                        conn = psycopg.connect(config.NEON_CONNECTION_STRING)
                         cursor = conn.cursor()
                         
                         # Update the collection metadata

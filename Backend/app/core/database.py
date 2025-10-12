@@ -7,8 +7,8 @@ import os
 from typing import Any, Optional
 from urllib.parse import urlparse
 from contextlib import contextmanager
-from psycopg2.pool import ThreadedConnectionPool
-from psycopg2.extras import DictCursor, Json
+from psycopg.pool import ThreadedConnectionPool
+from psycopg.extras import DictCursor, Json
 from app.core.exceptions import (
     DatabaseError, 
     RLSPolicyViolationError,
@@ -20,7 +20,7 @@ from app.core.exceptions import (
 )
 from app.core.logging import get_logger
 from threading import Lock
-import psycopg2
+import psycopg
 from flask import current_app
 import re
 import json
@@ -93,7 +93,7 @@ def validate_connection(conn) -> bool:
         result = cur.fetchone()
         cur.close()
         return result is not None
-    except (psycopg2.OperationalError, psycopg2.InterfaceError):
+    except (psycopg.OperationalError, psycopg.InterfaceError):
         return False
     except Exception as e:
         # Handle potential RLS or business logic errors during validation
@@ -160,7 +160,7 @@ def init_db_pool(
             )
             
             # Register JSON adapters for JSONB support
-            from psycopg2.extras import register_default_json, register_default_jsonb
+            from psycopg.extras import register_default_json, register_default_jsonb
             register_default_json(globally=True)
             register_default_jsonb(globally=True)
             
