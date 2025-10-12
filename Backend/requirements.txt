@@ -11,6 +11,7 @@ Flask-WTF==1.2.2
 psycopg[binary]==3.2.10
 pgvector==0.3.6
 psycopg_pool==3.2.6
+psycopg2-binary==2.9.9
 # Redis removed - using JWT tokens instead
 redis==5.2.1
 # Authentication
