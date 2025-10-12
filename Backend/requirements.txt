@@ -28,6 +28,7 @@ requests==2.32.5
 kaitaistruct==0.11
 apsw==3.50.4.0
 pandas==2.3.3
+xpress9
 
 # Production server
 gunicorn==21.2.0
