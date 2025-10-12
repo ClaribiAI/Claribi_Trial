@@ -146,18 +146,21 @@ class MSALService:
             logger.info("Calling acquire_token_by_authorization_code with PKCE...")
             
             if code_verifier:
-                # Create a proper auth flow dict with PKCE parameters for MSAL
-                # This reconstructs the auth flow that was originally created
+                # For ConfidentialClientApplication with PKCE, we need to reconstruct the auth flow
+                # and use acquire_token_by_auth_code_flow method
+                logger.info("Using PKCE with ConfidentialClientApplication via auth flow")
+                
+                # Create the auth flow dict that MSAL expects
                 auth_flow = {
                     'code_verifier': code_verifier,
                     'redirect_uri': MSALService.get_redirect_uri(),
                     'scope': auth2_config.MSAL_SCOPES,
-                    'state': state,
-                    'nonce': None,  # MSAL will handle this
-                    'claims_challenge': None
+                    'state': state if state else '',
+                    'nonce': '',  # Empty string instead of None
+                    'claims_challenge': ''  # Empty string instead of None
                 }
                 
-                # Use acquire_token_by_auth_code_flow with the reconstructed auth flow
+                # Use acquire_token_by_auth_code_flow with the auth flow
                 result = app.acquire_token_by_auth_code_flow(
                     auth_flow, 
                     request_args
