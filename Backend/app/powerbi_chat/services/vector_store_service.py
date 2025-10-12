@@ -103,7 +103,9 @@ class VectorStoreService:
                     collections = cursor.fetchall()
 
                     for collection in collections:
-                        metadata = collection.get('cmetadata', {})
+                        # collections is a list of tuples: (name, cmetadata, document_count)
+                        name, cmetadata, document_count = collection
+                        metadata = cmetadata or {}
                         
                         # Use summary metadata if available, otherwise create basic summary
                         if 'summary' in metadata:
@@ -116,16 +118,16 @@ class VectorStoreService:
                                 'columns_count': 0,
                                 'relationships_count': 0,
                                 'power_query_scripts_count': 0,
-                                'document_count': int(collection['document_count'])
+                                'document_count': int(document_count)
                             }
                         
                         uploaded_files.append({
-                            'collection_name': collection['name'],
+                            'collection_name': name,
                             'filename': metadata.get('filename'),
                             'upload_time': metadata.get('upload_time'),
                             'file_size': metadata.get('file_size', 0),
                             'metadata': summary,
-                            'document_count': int(collection['document_count'])
+                            'document_count': int(document_count)
                         })
         except Exception as db_error:
             logger.error(f"Database error listing collections: {db_error}", exc_info=True)
