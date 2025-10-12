@@ -7,8 +7,9 @@ import os
 from typing import Any, Optional
 from urllib.parse import urlparse
 from contextlib import contextmanager
-from psycopg.pool import ThreadedConnectionPool
-from psycopg.extras import DictCursor, Json
+from psycopg_pool import ConnectionPool
+# Note: psycopg v3 doesn't have DictCursor in extras, using regular Cursor
+# from psycopg.extras import DictCursor, Json
 from app.core.exceptions import (
     DatabaseError, 
     RLSPolicyViolationError,
@@ -153,16 +154,17 @@ def init_db_pool(
             config = parse_db_url(db_url)
             
             # Create new pool
-            _pool = ThreadedConnectionPool(
+            _pool = ConnectionPool(
                 minconn=min_conn,
                 maxconn=max_conn,
                 **config
             )
             
-            # Register JSON adapters for JSONB support
-            from psycopg.extras import register_default_json, register_default_jsonb
-            register_default_json(globally=True)
-            register_default_jsonb(globally=True)
+            # Note: psycopg v3 doesn't have register_default_json in extras
+            # JSON adapters are handled automatically in psycopg v3
+            # from psycopg.extras import register_default_json, register_default_jsonb
+            # register_default_json(globally=True)
+            # register_default_jsonb(globally=True)
             
             # Validate pool by testing a connection
             conn = None
@@ -191,11 +193,11 @@ def init_db_pool(
                 _pool = None
             raise DatabaseError(f"Failed to initialize database connection pool: {str(e)}")
 
-def get_connection_pool() -> Optional[ThreadedConnectionPool]:
+def get_connection_pool() -> Optional[ConnectionPool]:
     """Get the database connection pool.
     
     Returns:
-        ThreadedConnectionPool: The connection pool instance or None if not initialized
+        ConnectionPool: The connection pool instance or None if not initialized
     """
     return _pool
 
@@ -356,7 +358,7 @@ def get_db_cursor(commit: bool = False):
     with get_db_connection() as conn:
         cursor = None
         try:
-            cursor = conn.cursor(cursor_factory=DictCursor)
+            cursor = conn.cursor()
             if cursor.closed:
                 raise DatabaseError("Database cursor is closed immediately after creation")
 

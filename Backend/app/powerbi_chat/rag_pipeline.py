@@ -147,7 +147,9 @@ class RAGPipeline:
                     else:
                         # Fallback: manually update the collection metadata in the database
                         import psycopg
-                        from psycopg.extras import Json
+                        # Note: psycopg v3 doesn't have Json in extras, using json.dumps
+                        # from psycopg.extras import Json
+                        import json
                         
                         conn = psycopg.connect(config.NEON_CONNECTION_STRING)
                         cursor = conn.cursor()
@@ -155,7 +157,7 @@ class RAGPipeline:
                         # Update the collection metadata
                         cursor.execute(
                             "UPDATE langchain_pg_collection SET cmetadata = %s WHERE name = %s",
-                            (Json(collection_metadata), collection_name)
+                            (json.dumps(collection_metadata), collection_name)
                         )
                         
                         conn.commit()

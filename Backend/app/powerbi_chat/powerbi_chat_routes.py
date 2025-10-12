@@ -746,14 +746,15 @@ def list_uploaded_files():
 
         # Query the database directly to get collections with PBIX metadata
         import psycopg
-        from psycopg.extras import RealDictCursor
+        # Note: psycopg v3 doesn't have RealDictCursor in extras, using regular Cursor
+        # from psycopg.extras import RealDictCursor
         
         uploaded_files = []
         
         try:
             # Connect to the database
             conn = psycopg.connect(config.NEON_CONNECTION_STRING)
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            cursor = conn.cursor()
             
             # Query collections with their metadata and document counts
             query = """

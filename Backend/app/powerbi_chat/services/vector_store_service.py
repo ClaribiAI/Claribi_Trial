@@ -3,7 +3,8 @@
 import logging
 import uuid
 import psycopg
-from psycopg.extras import RealDictCursor
+# Note: psycopg v3 doesn't have RealDictCursor in extras, using regular Cursor
+# from psycopg.extras import RealDictCursor
 from typing import List, Dict, Any
 from langchain_core.documents import Document
 from langchain_postgres import PGVector
@@ -97,7 +98,7 @@ class VectorStoreService:
         
         try:
             with psycopg.connect(self.connection_string) as conn:
-                with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                with conn.cursor() as cursor:
                     cursor.execute(query)
                     collections = cursor.fetchall()
 
