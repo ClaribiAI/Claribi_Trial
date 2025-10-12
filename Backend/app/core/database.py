@@ -155,9 +155,9 @@ def init_db_pool(
             
             # Create new pool
             _pool = ConnectionPool(
-                minconn=min_conn,
-                maxconn=max_conn,
-                **config
+                min_size=min_conn,
+                max_size=max_conn,
+                conninfo=f"postgresql://{config['user']}:{config['password']}@{config['host']}:{config['port']}/{config['dbname']}"
             )
             
             # Note: psycopg v3 doesn't have register_default_json in extras

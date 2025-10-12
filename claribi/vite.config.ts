@@ -128,7 +128,7 @@ export default defineConfig(({ mode }) => {
                 proxyReq.setHeader('cookie', req.headers.cookie);
               }
             });
-            proxy.on('proxyRes', (proxyRes, req, res) => {
+            proxy.on('proxyRes', (proxyRes, _req, res) => {
               if (proxyRes.headers['set-cookie']) {
                 res.setHeader('Set-Cookie', proxyRes.headers['set-cookie']);
               }
@@ -150,7 +150,7 @@ export default defineConfig(({ mode }) => {
                 proxyReq.setHeader('cookie', req.headers.cookie);
               }
             });
-            proxy.on('proxyRes', (proxyRes, req, res) => {
+            proxy.on('proxyRes', (proxyRes, _req, res) => {
               if (proxyRes.headers['set-cookie']) {
                 res.setHeader('Set-Cookie', proxyRes.headers['set-cookie']);
               }
@@ -205,7 +205,7 @@ export default defineConfig(({ mode }) => {
             proxy.on('error', (err, _req, _res) => {
               console.log('Chatbot API proxy error', err);
             });
-            proxy.on('proxyReq', (proxyReq, req, _res) => {
+            proxy.on('proxyReq', (_proxyReq, req, _res) => {
               console.log('Chatbot API - Sending Request to the Target:', req.method, req.url);
             });
             proxy.on('proxyRes', (proxyRes, req, _res) => {
@@ -252,8 +252,8 @@ export default defineConfig(({ mode }) => {
                 res.setHeader('Set-Cookie', proxyRes.headers['set-cookie']);
               }
             });
-            proxy.on('proxyReqWs', (proxyReq, req, socket, options, head) => {
-              console.log('Power BI Chat API - WebSocket Request:', req.url);
+            proxy.on('proxyReqWs', (_proxyReq, _req, _socket, _options, _head) => {
+              console.log('Power BI Chat API - WebSocket Request:', _req.url);
             });
           }
         },
@@ -288,13 +288,12 @@ export default defineConfig(({ mode }) => {
     },
     // Preview configuration for production testing
     preview: {
-      port: process.env.PORT || 5173,
+      port: parseInt(process.env.PORT || '5173'),
       strictPort: true,
       allowedHosts: [
         'localhost',
         '127.0.0.1',
-        'claribifrontend-production.up.railway.app'//,
-        //'.railway.app' // Allow all Railway subdomains
+        'claribifrontend-production.up.railway.app'
       ],
     },
     // Environment variables
