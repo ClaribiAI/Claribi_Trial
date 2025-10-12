@@ -12,6 +12,7 @@ psycopg[binary]==3.2.10
 pgvector==0.3.6
 psycopg_pool==3.2.6
 # Redis removed - using JWT tokens instead
+redis==5.2.1
 # Authentication
 msal==1.34.0
 PyJWT==2.10.1
