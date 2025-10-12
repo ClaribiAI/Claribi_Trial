@@ -41,13 +41,49 @@ def create_app():
     app.config['ENV'] = config.FLASK_ENV
     # Configure session handling for production
     app.secret_key = config.SECRET_KEY
-    # Use filesystem sessions for both development and production
-    # This is more reliable for Railway deployment
-    app.config['SESSION_TYPE'] = 'filesystem'
-    app.config['SESSION_FILE_DIR'] = os.path.join(os.getcwd(), 'flask_session')
+    
+    # Use Redis for production, filesystem for development
+    if config.FLASK_ENV == 'production':
+        if config.REDIS_HOST and config.REDIS_PORT:
+            try:
+                # Build Redis URL with proper authentication
+                if config.REDIS_PASSWORD:
+                    redis_url = f"redis://:{config.REDIS_PASSWORD}@{config.REDIS_HOST}:{config.REDIS_PORT}"
+                else:
+                    redis_url = f"redis://{config.REDIS_HOST}:{config.REDIS_PORT}"
+                
+                # Test Redis connection
+                test_redis = redis.from_url(redis_url)
+                test_redis.ping()  # Test connection
+                test_redis.close()
+                
+                app.config['SESSION_TYPE'] = 'redis'
+                app.config['SESSION_REDIS'] = redis.from_url(redis_url)
+                # Additional Redis session configuration for reliability
+                app.config['SESSION_REDIS_OPTIONS'] = {
+                    'socket_connect_timeout': 5,
+                    'socket_timeout': 5,
+                    'retry_on_timeout': True,
+                    'health_check_interval': 30
+                }
+                app.logger.info(f"Using Redis for session storage: {config.REDIS_HOST}:{config.REDIS_PORT}")
+            except Exception as e:
+                app.logger.error(f"Redis connection failed: {e}")
+                app.logger.error("Falling back to filesystem sessions (temporary storage)")
+                app.config['SESSION_TYPE'] = 'filesystem'
+                app.config['SESSION_FILE_DIR'] = os.path.join(os.getcwd(), 'flask_session')
+        else:
+            app.logger.warning("Redis not configured, using filesystem sessions (temporary storage)")
+            app.config['SESSION_TYPE'] = 'filesystem'
+            app.config['SESSION_FILE_DIR'] = os.path.join(os.getcwd(), 'flask_session')
+    else:
+        # Development: use filesystem
+        app.config['SESSION_TYPE'] = 'filesystem'
+        app.config['SESSION_FILE_DIR'] = os.path.join(os.getcwd(), 'flask_session')
+        app.logger.info("Using filesystem for session storage (development)")
+    
     app.config['SESSION_PERMANENT'] = True
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(seconds=config.PERMANENT_SESSION_LIFETIME)
-    app.logger.info("Using filesystem for session storage")
     
     # Cookie security settings - production ready
     app.config['SESSION_COOKIE_SECURE'] = config.SECURE_COOKIES
