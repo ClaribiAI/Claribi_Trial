@@ -317,14 +317,18 @@ const PowerBIChat = () => {
         setIsNewlyUploaded(false); // Reset the flag
         setShowUploadSuccess(false);
         
-        // Add system message about file removal
-        const systemMessage = {
-            id: Date.now(),
-            type: 'assistant',
-            content: 'Power BI file removed. I can still help with general Power BI questions, but for specific insights about your data model, please upload a .pbix file.',
-            timestamp: new Date()
-        };
-        setMessages(prev => [...prev, systemMessage]);
+        // Clear messages to return to welcome screen
+        setMessages([]);
+        
+        // Clear any ongoing processes
+        setThinkingProcess({
+            isVisible: false,
+            currentAction: '',
+            followUpQueries: [],
+            isCompleted: false
+        });
+        setActionHistory([]);
+        setError(null);
     };
 
     const handleFileSelect = (selectedFile) => {
@@ -436,9 +440,6 @@ const PowerBIChat = () => {
 		}
 	};
 
-    const formatTimestamp = (timestamp) => {
-        return timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    };
 
     // Constants to prevent re-renders
     const CLEAR_HISTORY_FALSE = false;
@@ -501,13 +502,6 @@ const PowerBIChat = () => {
                                 </Typography>
                             </Paper>
                             
-                            <Typography
-                                variant="caption"
-                                color="text.secondary"
-                                sx={{ mt: 0.5, fontSize: '0.75rem' }}
-                            >
-                                {formatTimestamp(message.timestamp)}
-                            </Typography>
                         </Box>
                         
                         <Avatar
@@ -564,13 +558,6 @@ const PowerBIChat = () => {
                             </Box>
                         )}
                         
-                        <Typography
-                            variant="caption"
-                            color="text.secondary"
-                            sx={{ mt: 1, fontSize: '0.75rem', display: 'block' }}
-                        >
-                            {formatTimestamp(message.timestamp)}
-                        </Typography>
                     </Box>
                 )}
             </Box>
@@ -579,130 +566,81 @@ const PowerBIChat = () => {
 
     return (
         <Box sx={{ width: '100%', height: '100vh', display: 'flex', flexDirection: 'column' }}>
-            {/* Header */}
-            <Box 
-                sx={{ 
-                    bgcolor: 'transparent',
-                    py: 2,
-                    px: 3,
-                    borderBottom: `1px solid ${alpha(theme.palette.divider, 0.08)}`
-                }}
-            >
-                <Box display="flex" alignItems="center" gap={2}>
-                    <Box 
-                        sx={{ 
-                            p: 1.5, 
-                            borderRadius: 2, 
-                            bgcolor: alpha(theme.palette.primary.main, 0.1),
-                            color: theme.palette.primary.main
-                        }}
-                    >
-                        <ChatCircle size={24} />
-                    </Box>
-                    <Box>
-                        <Typography variant="h5" component="h1" sx={{ fontWeight: 600, mb: 0.5, color: '#333' }}>
-                            Power BI Assistant
-                        </Typography>
-                        <Typography variant="body2" sx={{ color: '#666' }}>
-                            Get help with measures, troubleshooting, and Power BI best practices
-                        </Typography>
-                    </Box>
-                    
-                    {/* Controls and File Upload Section */}
-                    <Box display="flex" alignItems="center" gap={2}>
-
-                        {/* File Upload Section */}
-                        {pbixFile ? (
-                            <Box display="flex" alignItems="center" gap={1}>
-                                <Chip
-                                    icon={<FileText size={16} />}
-                                    label={`${pbixFile.name} (${(pbixFile.size / 1024 / 1024).toFixed(2)} MB)`}
-                                    onDelete={handleRemoveFile}
-                                    color="primary"
-                                    variant="outlined"
-                                    sx={{
-                                        maxWidth: 300,
-                                        '& .MuiChip-label': {
-                                            overflow: 'hidden',
-                                            textOverflow: 'ellipsis'
-                                        }
-                                    }}
-                                />
+            {/* Header - Only show when file is uploaded */}
+            {pbixFile && (
+                <Box 
+                    sx={{ 
+                        bgcolor: 'background.paper',
+                        py: 1.5,
+                        px: 3,
+                        borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`
+                    }}
+                >
+                    <Box display="flex" alignItems="center" justifyContent="space-between" width="100%">
+                        <Box display="flex" alignItems="center" gap={2}>
+                            <Box 
+                                sx={{ 
+                                    p: 1, 
+                                    borderRadius: 1.5, 
+                                    bgcolor: alpha(theme.palette.primary.main, 0.08),
+                                    color: theme.palette.primary.main
+                                }}
+                            >
+                                <ChatCircle size={20} />
                             </Box>
-                        ) : (
-                            <Box display="flex" alignItems="center" gap={1}>
-                                <Button
-                                    variant="outlined"
-                                    startIcon={<FileText size={16} />}
-                                    onClick={() => setShowFileSelection(true)}
-                                    sx={{
-                                        borderRadius: 2,
-                                        textTransform: 'none',
-                                        fontWeight: 500
-                                    }}
-                                >
-                                    Select File
-                                </Button>
-                                <Button
-                                    variant="outlined"
-                                    startIcon={!uploadLoading ? <CloudArrowUp size={16} /> : null}
-                                    onClick={() => fileInputRef.current?.click()}
-                                    disabled={uploadLoading}
-                                    sx={{
-                                        borderRadius: 2,
-                                        textTransform: 'none',
-                                        fontWeight: 500,
-                                        position: 'relative',
-                                        overflow: 'hidden'
-                                    }}
-                                >
-                                    {uploadLoading ? (
-                                        <Box display="flex" alignItems="center" gap={1}>
-                                            <LoadingSpinner size={16} compact />
-                                            <Typography variant="body2">
-                                                Uploading... {uploadProgress}%
-                                            </Typography>
-                                        </Box>
-                                    ) : (
-                                        'Upload New'
-                                    )}
-                                    {uploadLoading && (
-                                        <Box
-                                            sx={{
-                                                position: 'absolute',
-                                                bottom: 0,
-                                                left: 0,
-                                                height: 2,
-                                                bgcolor: 'primary.main',
-                                                width: `${uploadProgress}%`,
-                                                transition: 'width 0.3s ease'
-                                            }}
-                                        />
-                                    )}
-                                </Button>
-                            </Box>
-                        )}
+                            <Typography variant="h6" component="h1" sx={{ 
+                                fontWeight: 600, 
+                                color: theme.palette.text.primary,
+                                fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif"
+                            }}>
+                                Power BI Assistant
+                            </Typography>
+                        </Box>
+                        
+                        {/* File Status Display */}
+                        <Chip
+                            icon={<FileText size={16} />}
+                            label={`${pbixFile.name} (${(pbixFile.size / 1024 / 1024).toFixed(1)} MB)`}
+                            onDelete={handleRemoveFile}
+                            color="primary"
+                            variant="outlined"
+                            sx={{
+                                maxWidth: 280,
+                                height: 32,
+                                fontSize: '0.8rem',
+                                fontWeight: 500,
+                                '& .MuiChip-label': {
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    px: 1.5
+                                },
+                                '& .MuiChip-deleteIcon': {
+                                    fontSize: '1rem'
+                                }
+                            }}
+                        />
                     </Box>
                 </Box>
-                
-                {/* Hidden file input */}
-                <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".pbix"
-                    onChange={handleFileUpload}
-                    style={{ display: 'none' }}
-                />
-            </Box>
+            )}
+            
+            {/* Hidden file input */}
+            <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pbix"
+                onChange={handleFileUpload}
+                style={{ display: 'none' }}
+            />
 
             {/* Chat Messages Area */}
             <Box 
                 sx={{ 
                     flexGrow: 1, 
                     overflow: 'auto', 
-                    py: 3,
-                    px: 3,
-                    bgcolor: alpha(theme.palette.grey[50], 0.3)
+                    py: 4,
+                    px: 4,
+                    bgcolor: alpha(theme.palette.grey[50], 0.2),
+                    position: 'relative'
                 }}
             >
                 {/* Welcome message when no file is uploaded */}
@@ -715,58 +653,113 @@ const PowerBIChat = () => {
                             justifyContent: 'center', 
                             height: '100%',
                             textAlign: 'center',
-                            py: 8
+                            py: 8,
+                            px: 4
                         }}
                     >
                         <Box 
                             sx={{ 
-                                p: 3, 
-                                borderRadius: 3, 
-                                bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                p: 4, 
+                                borderRadius: 4, 
+                                bgcolor: alpha(theme.palette.primary.main, 0.08),
                                 color: theme.palette.primary.main,
-                                mb: 3
+                                mb: 4,
+                                border: `2px solid ${alpha(theme.palette.primary.main, 0.15)}`,
+                                boxShadow: '0 8px 32px rgba(0,0,0,0.08)'
                             }}
                         >
-                            <ChartBar size={48} />
+                            <ChartBar size={64} />
                         </Box>
-                        <Typography variant="h5" sx={{ fontWeight: 600, mb: 2, color: '#333' }}>
+                        <Typography variant="h3" sx={{ 
+                            fontWeight: 700, 
+                            mb: 2, 
+                            color: theme.palette.text.primary,
+                            fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif"
+                        }}>
                             Welcome to Power BI Assistant
                         </Typography>
-                        <Typography variant="body1" sx={{ color: '#666', mb: 4, maxWidth: 500 }}>
-                            To get started, please upload a Power BI (.pbix) file. I'll analyze your data model and help you with measures, troubleshooting, and best practices.
+                        <Typography variant="h6" sx={{ 
+                            color: theme.palette.text.secondary, 
+                            mb: 6, 
+                            maxWidth: 600,
+                            lineHeight: 1.6,
+                            fontWeight: 400
+                        }}>
+                            Upload a Power BI (.pbix) file to get started. I'll analyze your data model and provide expert assistance with measures, troubleshooting, and best practices.
                         </Typography>
-                        <Box display="flex" gap={2}>
+                        
+                        {/* Upload and Select Buttons */}
+                        <Box display="flex" gap={3} mt={2}>
                             <Button
                                 variant="contained"
                                 startIcon={<FileText size={20} />}
                                 onClick={() => setShowFileSelection(true)}
                                 sx={{
                                     borderRadius: 3,
-                                    px: 3,
+                                    px: 4,
                                     py: 1.5,
+                                    fontSize: '1rem',
+                                    fontWeight: 600,
+                                    height: 48,
                                     bgcolor: theme.palette.primary.main,
-                                    '&:hover': { bgcolor: theme.palette.primary.dark }
+                                    '&:hover': { 
+                                        bgcolor: theme.palette.primary.dark,
+                                        transform: 'translateY(-2px)',
+                                        boxShadow: '0 6px 20px rgba(0,0,0,0.15)'
+                                    },
+                                    transition: 'all 0.2s ease'
                                 }}
                             >
                                 Select File
                             </Button>
                             <Button
                                 variant="outlined"
-                                startIcon={<CloudArrowUp size={20} />}
+                                startIcon={!uploadLoading ? <CloudArrowUp size={20} /> : null}
                                 onClick={() => fileInputRef.current?.click()}
+                                disabled={uploadLoading}
                                 sx={{
                                     borderRadius: 3,
-                                    px: 3,
+                                    px: 4,
                                     py: 1.5,
+                                    fontSize: '1rem',
+                                    fontWeight: 600,
+                                    height: 48,
                                     borderColor: theme.palette.primary.main,
                                     color: theme.palette.primary.main,
+                                    position: 'relative',
+                                    overflow: 'hidden',
                                     '&:hover': { 
                                         borderColor: theme.palette.primary.dark,
-                                        bgcolor: alpha(theme.palette.primary.main, 0.05)
-                                    }
+                                        bgcolor: alpha(theme.palette.primary.main, 0.05),
+                                        transform: 'translateY(-2px)',
+                                        boxShadow: '0 6px 20px rgba(0,0,0,0.1)'
+                                    },
+                                    transition: 'all 0.2s ease'
                                 }}
                             >
-                                Upload New
+                                {uploadLoading ? (
+                                    <Box display="flex" alignItems="center" gap={1}>
+                                        <LoadingSpinner size={18} compact />
+                                        <Typography variant="body2">
+                                            Uploading... {uploadProgress}%
+                                        </Typography>
+                                    </Box>
+                                ) : (
+                                    'Upload New'
+                                )}
+                                {uploadLoading && (
+                                    <Box
+                                        sx={{
+                                            position: 'absolute',
+                                            bottom: 0,
+                                            left: 0,
+                                            height: 3,
+                                            bgcolor: 'primary.main',
+                                            width: `${uploadProgress}%`,
+                                            transition: 'width 0.3s ease'
+                                        }}
+                                    />
+                                )}
                             </Button>
                         </Box>
                     </Box>
@@ -824,15 +817,16 @@ const PowerBIChat = () => {
                 </Box>
             )}
 
-			{/* Input Area (normal or clarification mode) */}
-            <Box 
-                sx={{ 
-                    p: 3, 
-                    bgcolor: 'background.paper',
-                    borderTop: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
-                    boxShadow: theme.shadows[2]
-                }}
-            >
+			{/* Input Area (normal or clarification mode) - Only show when file is uploaded */}
+            {pbixFile && (
+                <Box 
+                    sx={{ 
+                        p: 4, 
+                        bgcolor: 'background.paper',
+                        borderTop: `1px solid ${alpha(theme.palette.divider, 0.12)}`,
+                        boxShadow: '0 -2px 8px rgba(0,0,0,0.05)'
+                    }}
+                >
 				{clarificationFlow.active ? (
 					<Box display="flex" gap={1} alignItems="flex-end">
 						<TextField
@@ -847,9 +841,17 @@ const PowerBIChat = () => {
 							sx={{
 								'& .MuiOutlinedInput-root': {
 									borderRadius: 3,
-									bgcolor: alpha(theme.palette.grey[50], 0.5),
-									'&:hover': { bgcolor: alpha(theme.palette.grey[50], 0.8) },
-									'&.Mui-focused': { bgcolor: 'background.paper' }
+									bgcolor: alpha(theme.palette.grey[50], 0.3),
+									border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+									'&:hover': { 
+										bgcolor: alpha(theme.palette.grey[50], 0.5),
+										borderColor: alpha(theme.palette.primary.main, 0.3)
+									},
+									'&.Mui-focused': { 
+										bgcolor: 'background.paper',
+										borderColor: theme.palette.primary.main,
+										boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.1)}`
+									}
 								}
 							}}
 						/>
@@ -858,12 +860,21 @@ const PowerBIChat = () => {
 							disabled={!currentClarificationAnswer.trim() || isProcessingClarifications}
 							variant="contained"
 							sx={{
-								minWidth: 48,
-								height: 48,
+								minWidth: 52,
+								height: 52,
 								borderRadius: 3,
 								bgcolor: theme.palette.primary.main,
-								'&:hover': { bgcolor: theme.palette.primary.dark },
-								'&:disabled': { bgcolor: alpha(theme.palette.primary.main, 0.3) }
+								'&:hover': { 
+									bgcolor: theme.palette.primary.dark,
+									transform: 'translateY(-1px)',
+									boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+								},
+								'&:disabled': { 
+									bgcolor: alpha(theme.palette.primary.main, 0.3),
+									transform: 'none',
+									boxShadow: 'none'
+								},
+								transition: 'all 0.2s ease'
 							}}
 						>
 							{isProcessingClarifications ? (
@@ -889,9 +900,17 @@ const PowerBIChat = () => {
 							sx={{
 								'& .MuiOutlinedInput-root': {
 									borderRadius: 3,
-									bgcolor: alpha(theme.palette.grey[50], 0.5),
-									'&:hover': { bgcolor: alpha(theme.palette.grey[50], 0.8) },
-									'&.Mui-focused': { bgcolor: 'background.paper' }
+									bgcolor: alpha(theme.palette.grey[50], 0.3),
+									border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+									'&:hover': { 
+										bgcolor: alpha(theme.palette.grey[50], 0.5),
+										borderColor: alpha(theme.palette.primary.main, 0.3)
+									},
+									'&.Mui-focused': { 
+										bgcolor: 'background.paper',
+										borderColor: theme.palette.primary.main,
+										boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.1)}`
+									}
 								}
 							}}
 						/>
@@ -900,12 +919,21 @@ const PowerBIChat = () => {
 							disabled={!inputMessage.trim() || isLoading || !pbixFile}
 							variant="contained"
 							sx={{
-								minWidth: 48,
-								height: 48,
+								minWidth: 52,
+								height: 52,
 								borderRadius: 3,
 								bgcolor: theme.palette.primary.main,
-								'&:hover': { bgcolor: theme.palette.primary.dark },
-								'&:disabled': { bgcolor: alpha(theme.palette.primary.main, 0.3) }
+								'&:hover': { 
+									bgcolor: theme.palette.primary.dark,
+									transform: 'translateY(-1px)',
+									boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+								},
+								'&:disabled': { 
+									bgcolor: alpha(theme.palette.primary.main, 0.3),
+									transform: 'none',
+									boxShadow: 'none'
+								},
+								transition: 'all 0.2s ease'
 							}}
 						>
 							{isLoading ? (
@@ -916,7 +944,8 @@ const PowerBIChat = () => {
 						</Button>
 					</Box>
 				)}
-            </Box>
+                </Box>
+            )}
 
             {/* Success Snackbar */}
             <Snackbar
