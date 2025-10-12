@@ -2,6 +2,7 @@ from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_wtf.csrf import CSRFProtect
 import os
+import redis
 import google.generativeai as genai
 from app.config.settings import config
 from dotenv import load_dotenv
@@ -40,8 +41,18 @@ def create_app():
     app.config['ENV'] = config.FLASK_ENV
     # Configure session handling for production
     app.secret_key = config.SECRET_KEY
-    app.config['SESSION_TYPE'] = 'filesystem'  # Store sessions in files
-    app.config['SESSION_FILE_DIR'] = os.path.join(os.getcwd(), 'flask_session')
+    # Use Redis for production, filesystem for development
+    if config.FLASK_ENV == 'production' and config.REDIS_HOST:
+        try:
+            app.config['SESSION_TYPE'] = 'redis'
+            app.config['SESSION_REDIS'] = redis.from_url(f"redis://{config.REDIS_HOST}:{config.REDIS_PORT}")
+        except Exception as e:
+            app.logger.warning(f"Redis not available, falling back to filesystem sessions: {e}")
+            app.config['SESSION_TYPE'] = 'filesystem'
+            app.config['SESSION_FILE_DIR'] = os.path.join(os.getcwd(), 'flask_session')
+    else:
+        app.config['SESSION_TYPE'] = 'filesystem'  # Store sessions in files for development
+        app.config['SESSION_FILE_DIR'] = os.path.join(os.getcwd(), 'flask_session')
     app.config['SESSION_PERMANENT'] = True
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(seconds=config.PERMANENT_SESSION_LIFETIME)
     
