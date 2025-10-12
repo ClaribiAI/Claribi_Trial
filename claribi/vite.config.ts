@@ -290,6 +290,12 @@ export default defineConfig(({ mode }) => {
     preview: {
       port: process.env.PORT || 5173,
       strictPort: true,
+      allowedHosts: [
+        'localhost',
+        '127.0.0.1',
+        'claribifrontend-production.up.railway.app'//,
+        //'.railway.app' // Allow all Railway subdomains
+      ],
     },
     // Environment variables
     define: {
