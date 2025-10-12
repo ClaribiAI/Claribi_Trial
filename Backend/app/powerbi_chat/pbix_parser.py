@@ -11,10 +11,7 @@ import logging
 from typing import Dict, List, Any
 from langchain_core.documents import Document
 
-# Import pbixray from the powerbi_docs module
-import sys
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'powerbi_docs'))
-from pbixray import PBIXRay
+from app.powerbi_docs.pbixray import PBIXRay
 
 logger = logging.getLogger(__name__)
 

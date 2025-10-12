@@ -3,7 +3,7 @@
 import logging
 from typing import Dict, List, Any
 from langchain_core.documents import Document
-from pbixray import PBIXRay
+from app.powerbi_docs.pbixray import PBIXRay
 
 logger = logging.getLogger(__name__)
 
