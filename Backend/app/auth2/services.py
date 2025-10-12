@@ -29,6 +29,10 @@ class MSALService:
     def build_msal_app(cache: msal.SerializableTokenCache = None) -> msal.ConfidentialClientApplication:
         """Build MSAL application instance"""
         try:
+            logger.info(f"Building MSAL app with Client ID: {auth2_config.MSAL_CLIENT_ID[:8] if auth2_config.MSAL_CLIENT_ID else 'NOT SET'}...")
+            logger.info(f"Authority: {auth2_config.MSAL_AUTHORITY}")
+            logger.info(f"Client Secret: {'SET' if auth2_config.MSAL_CLIENT_SECRET else 'NOT SET'}")
+            
             app = msal.ConfidentialClientApplication(
                 auth2_config.MSAL_CLIENT_ID,
                 authority=auth2_config.MSAL_AUTHORITY,
@@ -68,7 +72,10 @@ class MSALService:
         """Get the redirect URI for MSAL - use frontend URL for Azure AD compatibility"""
         # Use frontend URL as redirect URI since that's what's configured in Azure AD
         frontend_url = os.environ.get('FRONTEND_URL', 'https://localhost:5173')
-        return f"{frontend_url.rstrip('/')}{auth2_config.MSAL_REDIRECT_PATH}"
+        redirect_uri = f"{frontend_url.rstrip('/')}{auth2_config.MSAL_REDIRECT_PATH}"
+        logger.info(f"Generated redirect URI: {redirect_uri}")
+        logger.info(f"FRONTEND_URL env var: {frontend_url}")
+        return redirect_uri
     
     @staticmethod
     def initiate_auth_flow(scopes: list = None) -> dict:
@@ -114,6 +121,9 @@ class MSALService:
     @staticmethod
     def acquire_token_by_auth_code_direct(request_args: dict) -> dict:
         """Acquire token using authorization code directly without stored auth flow"""
+        logger.info("=== DIRECT TOKEN ACQUISITION STARTED ===")
+        logger.info(f"Request args keys: {list(request_args.keys())}")
+        
         cache = MSALService.get_token_cache()
         app = MSALService.build_msal_app(cache=cache)
         
@@ -121,18 +131,38 @@ class MSALService:
         auth_code = request_args.get('code')
         state = request_args.get('state', '')
         
+        logger.info(f"Auth code present: {bool(auth_code)}")
+        logger.info(f"State present: {bool(state)}")
+        logger.info(f"Redirect URI: {MSALService.get_redirect_uri()}")
+        logger.info(f"Scopes: {auth2_config.MSAL_SCOPES}")
+        
         if not auth_code:
+            logger.error("No authorization code provided")
             return {"error": "authorization_code_missing", "error_description": "No authorization code provided"}
         
-        # Use the direct method to acquire token
-        result = app.acquire_token_by_authorization_code(
-            auth_code,
-            scopes=auth2_config.MSAL_SCOPES,
-            redirect_uri=MSALService.get_redirect_uri()
-        )
-        
-        MSALService.save_token_cache(cache)
-        return result
+        try:
+            # Use the direct method to acquire token
+            logger.info("Calling acquire_token_by_authorization_code...")
+            result = app.acquire_token_by_authorization_code(
+                auth_code,
+                scopes=auth2_config.MSAL_SCOPES,
+                redirect_uri=MSALService.get_redirect_uri()
+            )
+            logger.info(f"Token acquisition completed. Result keys: {list(result.keys()) if result else 'None'}")
+            
+            if 'error' in result:
+                logger.error(f"Token acquisition error: {result.get('error')} - {result.get('error_description')}")
+            
+            MSALService.save_token_cache(cache)
+            return result
+            
+        except Exception as e:
+            logger.error(f"Exception during direct token acquisition: {e}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            return {
+                "error": "token_acquisition_exception",
+                "error_description": f"Exception during token acquisition: {str(e)}"
+            }
     
     @staticmethod
     def acquire_token_silent(scopes: list = None) -> Optional[dict]:

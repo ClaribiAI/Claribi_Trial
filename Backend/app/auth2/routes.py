@@ -112,12 +112,16 @@ def callback():
         
         # For Railway deployment, use direct token acquisition instead of stored auth flow
         # This avoids the "auth_flow_not_found" error when containers restart
+        logger.info(f"Attempting direct token acquisition with args: {list(request.args.keys())}")
         result = MSALService.acquire_token_by_auth_code_direct(request.args)
+        logger.info(f"Token acquisition result keys: {list(result.keys()) if result else 'None'}")
         
         if "error" in result:
             error_msg = result.get('error_description', 'Authentication failed')
-            logger.error(f"Authentication error: {result.get('error')} - {error_msg}")
-            return redirect(f"{redirect_uri}?error=authentication_failed")
+            error_code = result.get('error', 'unknown_error')
+            logger.error(f"Authentication error: {error_code} - {error_msg}")
+            logger.error(f"Full error response: {result}")
+            return redirect(f"{redirect_uri}?error=authentication_failed&details={error_code}")
         
         # Get access token for Graph API validation
         access_token = result.get("access_token")
