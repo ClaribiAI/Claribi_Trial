@@ -5,13 +5,13 @@
 Flask==3.1.2
 Flask-CORS==4.0.2
 Flask-WTF==1.2.2
-Flask-Session==0.8.0
+# Flask-Session removed - using JWT tokens instead
 
 # Database
 psycopg[binary]==3.2.10
 pgvector==0.3.6
 psycopg_pool==3.2.6
-redis==5.3.1
+# Redis removed - using JWT tokens instead
 # Authentication
 msal==1.34.0
 PyJWT==2.10.1

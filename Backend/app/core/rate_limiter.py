@@ -7,11 +7,11 @@ from abuse and ensure fair usage of the application.
 
 from flask import request, abort, current_app, g
 import time
-import redis
 import logging
 import functools
 import hashlib
 from datetime import datetime
+from collections import defaultdict, deque
 
 logger = logging.getLogger(__name__)
 

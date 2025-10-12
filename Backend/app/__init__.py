@@ -2,14 +2,11 @@ from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_wtf.csrf import CSRFProtect
 import os
-import redis
 import google.generativeai as genai
 from app.config.settings import config
 from dotenv import load_dotenv
 import logging
 from app.database.middleware import db_context_middleware
-from datetime import timedelta
-from flask_session import Session
 from .powerbi_docs import powerbi_docs_bp
 
 
@@ -23,7 +20,6 @@ load_dotenv()
 genai.configure(api_key=config.GOOGLE_API_KEY)
 
 # Initialize Flask extensions
-session = Session()
 cors = CORS(supports_credentials=True)
 csrf = CSRFProtect()
 
@@ -39,61 +35,15 @@ def create_app():
     """
     app = Flask(__name__, template_folder='../templates')
     app.config['ENV'] = config.FLASK_ENV
-    # Configure session handling for production
+    # Configure minimal session handling for CSRF protection only
     app.secret_key = config.SECRET_KEY
     
-    # Use Redis for production, filesystem for development
-    if config.FLASK_ENV == 'production':
-        if config.REDIS_HOST and config.REDIS_PORT:
-            try:
-                # Build Redis URL with proper authentication
-                if config.REDIS_PASSWORD:
-                    redis_url = f"redis://:{config.REDIS_PASSWORD}@{config.REDIS_HOST}:{config.REDIS_PORT}"
-                else:
-                    redis_url = f"redis://{config.REDIS_HOST}:{config.REDIS_PORT}"
-                
-                # Test Redis connection
-                test_redis = redis.from_url(redis_url)
-                test_redis.ping()  # Test connection
-                test_redis.close()
-                
-                app.config['SESSION_TYPE'] = 'redis'
-                app.config['SESSION_REDIS'] = redis.from_url(redis_url)
-                # Additional Redis session configuration for reliability
-                app.config['SESSION_REDIS_OPTIONS'] = {
-                    'socket_connect_timeout': 5,
-                    'socket_timeout': 5,
-                    'retry_on_timeout': True,
-                    'health_check_interval': 30
-                }
-                app.logger.info(f"Using Redis for session storage: {config.REDIS_HOST}:{config.REDIS_PORT}")
-            except Exception as e:
-                app.logger.error(f"Redis connection failed: {e}")
-                app.logger.error("Falling back to filesystem sessions (temporary storage)")
-                app.config['SESSION_TYPE'] = 'filesystem'
-                app.config['SESSION_FILE_DIR'] = os.path.join(os.getcwd(), 'flask_session')
-        else:
-            app.logger.warning("Redis not configured, using filesystem sessions (temporary storage)")
-            app.config['SESSION_TYPE'] = 'filesystem'
-            app.config['SESSION_FILE_DIR'] = os.path.join(os.getcwd(), 'flask_session')
-    else:
-        # Development: use filesystem
-        app.config['SESSION_TYPE'] = 'filesystem'
-        app.config['SESSION_FILE_DIR'] = os.path.join(os.getcwd(), 'flask_session')
-        app.logger.info("Using filesystem for session storage (development)")
-    
-    app.config['SESSION_PERMANENT'] = True
-    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(seconds=config.PERMANENT_SESSION_LIFETIME)
-    
-    # Cookie security settings - production ready
+    # Minimal session configuration for CSRF protection
     app.config['SESSION_COOKIE_SECURE'] = config.SECURE_COOKIES
     app.config['SESSION_COOKIE_SAMESITE'] = config.COOKIE_SAMESITE
     app.config['SESSION_COOKIE_HTTPONLY'] = config.SESSION_COOKIE_HTTPONLY
-    app.config['SESSION_COOKIE_DOMAIN'] = config.SESSION_COOKIE_DOMAIN
-    app.config['SESSION_USE_SIGNER'] = True  # Sign session cookies
     
-    # Initialize Flask-Session
-    Session(app)
+    app.logger.info("Using simplified JWT-based authentication (no session storage)")
     
     # Initialize CSRF Protection
     csrf.init_app(app)
@@ -154,10 +104,7 @@ def create_app():
     app.config['FRONTEND_URL'] = config.FRONTEND_URL
     app.config['BACKEND_URL'] = config.BACKEND_URL
     
-    # Configure Redis settings
-    app.config['REDIS_HOST'] = config.REDIS_HOST
-    app.config['REDIS_PORT'] = config.REDIS_PORT
-    app.config['REDIS_PASSWORD'] = config.REDIS_PASSWORD
+    # Redis configuration removed - using JWT tokens instead
 
     #Configure encryption 
     app.config['TOKEN_ENCRYPTION_KEY'] = config.TOKEN_ENCRYPTION_KEY
@@ -173,7 +120,7 @@ def create_app():
 
     # Register security middleware
     from app.auth2.middleware import SecurityHeaders
-    from app.core.rate_limiter import rate_limit_headers
+    from app.core.simple_rate_limiter import rate_limit_headers
     rate_limit_headers(app)  # Add rate limit headers to responses
     
     # Apply comprehensive security headers to all responses

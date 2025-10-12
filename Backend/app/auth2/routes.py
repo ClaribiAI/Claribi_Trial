@@ -11,7 +11,9 @@ from app.auth2.config import Auth2Config
 
 auth2_config = Auth2Config()
 from app.auth2.services import MSALService, UserService, GraphService
+from app.auth2.graphapi import validate_token, get_user_info_from_token, get_user_groups_from_token
 from app.auth2.middleware import auth_required, rate_limit, get_current_user_from_session, clear_session, require_roles
+from app.auth2.jwt_service import JWTService
 
 logger = logging.getLogger(__name__)
 
@@ -47,29 +49,27 @@ def validate_redirect_uri(redirect_uri: str) -> str:
 @rate_limit(auth2_config.LOGIN_RATE_LIMIT)
 def login():
     """
-    Initiate Microsoft authentication flow.
+    Initiate Microsoft authentication flow with JWT tokens.
     Accepts optional redirect_uri parameter for post-login redirection.
     """
     try:
         # Get and validate redirect URI
         frontend_redirect_uri = request.args.get('redirect_uri', auth2_config.ALLOWED_LOGIN_REDIRECTS[0])
         validated_redirect = validate_redirect_uri(frontend_redirect_uri)
-        session['post_login_redirect'] = validated_redirect
         
-        # Initiate MSAL auth flow
-        auth_flow = MSALService.initiate_auth_flow()
-        session["auth_flow"] = auth_flow
-        session.modified = True
-        
-        # Also store the redirect URI in the state parameter as backup
+        # Create state parameter with redirect URI
         import json
         import base64
         state_data = {
             'redirect_uri': validated_redirect,
             'timestamp': int(__import__('time').time())
         }
-        # Store state data in session as backup
-        session['auth_state_data'] = state_data
+        state_encoded = base64.b64encode(json.dumps(state_data).encode('utf-8')).decode('utf-8')
+        
+        # Initiate MSAL auth flow with state parameter
+        auth_flow = MSALService.initiate_auth_flow_with_state(state_encoded)
+        
+        logger.info(f"Initiated auth flow for redirect: {validated_redirect}")
         
         return redirect(auth_flow["auth_uri"])
         
@@ -85,76 +85,93 @@ def login():
 @rate_limit(auth2_config.CALLBACK_RATE_LIMIT)
 def callback():
     """
-    Handle Microsoft authentication callback.
-    Processes the authorization code and establishes user session.
+    Handle Microsoft authentication callback using Graph API flow with JWT tokens.
+    Processes the authorization code and creates a JWT token for the user.
     """
     try:
-
-        # Get auth flow from session
-        auth_flow = session.pop("auth_flow", {})
-        if not auth_flow:
-            # Try to recover from state data
-            state_data = session.get('auth_state_data', {})
-            fallback_redirect = state_data.get('redirect_uri') or session.get('post_login_redirect', auth2_config.ALLOWED_LOGIN_REDIRECTS[0])
-            
-            logger.warning(f"No auth flow found in session")
-            logger.warning(f"Available session keys: {list(session.keys())}")
-            logger.warning(f"State data: {state_data}")
-            logger.warning(f"Fallback redirect: {fallback_redirect}")
-            
-            # Try to create a new auth flow if we have the necessary data
-            try:
-                # We can't recreate the exact flow, but we can try to process the callback directly
-                # This is a fallback - let's try to process the token without the cached flow
-                result = MSALService.acquire_token_by_auth_code({}, request.args)
-                if "error" not in result:
-                    # Continue with the normal processing
-                    auth_flow = {}  # Empty flow to continue processing
-                else:
-                    logger.error(f"Fallback token acquisition failed: {result.get('error')}")
-                    return redirect(f"{fallback_redirect}?error=session_lost")
-            except Exception as e:
-                logger.error(f"Fallback auth flow recreation failed: {e}")
-                return redirect(f"{fallback_redirect}?error=session_lost")
+        # Get authorization code from request
+        auth_code = request.args.get('code')
+        if not auth_code:
+            logger.error("No authorization code received")
+            return redirect(f"{auth2_config.ALLOWED_LOGIN_REDIRECTS[0]}?error=no_code")
         
-        # Acquire token using authorization code
+        # Get redirect URI from state parameter or use default
+        state = request.args.get('state', '')
+        redirect_uri = auth2_config.ALLOWED_LOGIN_REDIRECTS[0]
+        
+        # Try to parse state parameter for redirect URI
+        if state:
+            try:
+                import json
+                import base64
+                state_data = json.loads(base64.b64decode(state).decode('utf-8'))
+                if 'redirect_uri' in state_data:
+                    redirect_uri = state_data['redirect_uri']
+            except Exception as e:
+                logger.warning(f"Could not parse state parameter: {e}")
+        
+        # For PKCE to work, we need to retrieve the stored auth flow
+        # This ensures the code_verifier matches the code_challenge
+        from app.auth2.services import _auth_flows
+        auth_flow = _auth_flows.get(state)
+        
+        if not auth_flow:
+            logger.error("Auth flow not found for state - PKCE verification will fail")
+            return redirect(f"{redirect_uri}?error=auth_flow_not_found")
+        
+        # Acquire token using the stored auth flow (required for PKCE)
         result = MSALService.acquire_token_by_auth_code(auth_flow, request.args)
+        
+        # Clean up the stored auth flow
+        _auth_flows.pop(state, None)
         
         if "error" in result:
             error_msg = result.get('error_description', 'Authentication failed')
             logger.error(f"Authentication error: {result.get('error')} - {error_msg}")
-            return redirect(f"{session.get('post_login_redirect', '/')}?error=authentication_failed")
+            return redirect(f"{redirect_uri}?error=authentication_failed")
         
-        # Extract user information from ID token
-        id_token_claims = result.get("id_token_claims")
-        if not id_token_claims:
-            logger.error("No ID token claims found")
-            return redirect(f"{session.get('post_login_redirect', '/')}?error=missing_claims")
+        # Get access token for Graph API validation
+        access_token = result.get("access_token")
+        if not access_token:
+            logger.error("No access token received")
+            return redirect(f"{redirect_uri}?error=no_access_token")
         
-        # Get required user identifiers
-        ms_object_id = id_token_claims.get("oid")
-        organization_id = id_token_claims.get("tid") 
-        display_id = id_token_claims.get("preferred_username") or id_token_claims.get("email")
+        # Validate token using Graph API
+        is_valid, user_data = validate_token(access_token)
+        if not is_valid or not user_data:
+            logger.error("Token validation failed")
+            return redirect(f"{redirect_uri}?error=token_validation_failed")
+        
+        # Extract user information from Graph API response
+        ms_object_id = user_data.get("id")
+        display_id = user_data.get("userPrincipalName") or user_data.get("mail")
+        organization_id = user_data.get("organizationId")
+        
+        # If organization_id is not in Graph response, get it from token claims
+        if not organization_id:
+            id_token_claims = result.get("id_token_claims", {})
+            organization_id = id_token_claims.get("tid")
         
         if not ms_object_id or not organization_id:
             logger.error("Missing required user identifiers")
-            return redirect(f"{session.get('post_login_redirect', '/')}?error=missing_identifiers")
+            return redirect(f"{redirect_uri}?error=missing_identifiers")
         
         # Check if organization is allowed
         if not UserService.is_organization_allowed(organization_id):
             logger.warning(f"Organization {organization_id} is not allowed to access the system")
-            return redirect(f"{session.get('post_login_redirect', '/')}?error=organization_not_allowed")
+            return redirect(f"{redirect_uri}?error=organization_not_allowed")
         
-        # Extract app roles from ID token claims (no API call needed)
+        # Extract app roles from ID token claims
         from app.auth2.services import SecurityService
+        id_token_claims = result.get("id_token_claims", {})
         user_app_roles = SecurityService.extract_app_roles_from_token(id_token_claims)
         
         # Validate that user has at least one valid app role
         if not user_app_roles:
             logger.warning(f"User {display_id} has no valid app roles assigned")
-            return redirect(f"{session.get('post_login_redirect', '/')}?error=no_app_role")
+            return redirect(f"{redirect_uri}?error=no_app_role")
         
-        # Use the first valid role (in a real scenario, you might want more sophisticated role selection)
+        # Use the first valid role
         user_role = user_app_roles[0]
         logger.info(f"User {display_id} authenticated with role: {user_role}")
         
@@ -164,41 +181,30 @@ def callback():
         )
         if not db_success:
             logger.error(f"Database error: {db_error}")
-            return redirect(f"{session.get('post_login_redirect', '/')}?error=database_error")
+            return redirect(f"{redirect_uri}?error=database_error")
         
-        # Store user info in session using legacy-compatible format
-        session.clear()  # Clear any existing session data first
-        session["user"] = {
+        # Create JWT token with user data
+        user_data_for_token = {
             "ms_object_id": ms_object_id,
             "organization_id": organization_id,
             "display_id": display_id,
             "role": user_role
         }
-        session.permanent = True
-        session.modified = True
         
-        # Force session save by accessing it
-        _ = session["user"]
+        jwt_token = JWTService.create_user_token(user_data_for_token)
         
-        # Get post-login redirect
-        state_data = session.get('auth_state_data', {})
-        post_login_redirect = session.pop('post_login_redirect', None) or state_data.get('redirect_uri', auth2_config.ALLOWED_LOGIN_REDIRECTS[0])
-        
-        # Clean up state data
-        session.pop('auth_state_data', None)
-        
-        # Add auth=success parameter to trigger frontend verification
-        separator = '&' if '?' in post_login_redirect else '?'
-        final_redirect_url = f"{post_login_redirect}{separator}auth=success"
+        # Redirect to frontend with JWT token
+        separator = '&' if '?' in redirect_uri else '?'
+        final_redirect_url = f"{redirect_uri}{separator}token={jwt_token}&auth=success"
         
         return redirect(final_redirect_url)
         
     except ValueError as e:
         logger.error(f"Invalid request to callback endpoint: {e}")
-        return redirect(f"{session.get('post_login_redirect', '/')}?error=invalid_request")
+        return redirect(f"{auth2_config.ALLOWED_LOGIN_REDIRECTS[0]}?error=invalid_request")
     except Exception as e:
         logger.error(f"Unexpected error in callback: {e}")
-        return redirect(f"{session.get('post_login_redirect', '/')}?error=server_error")
+        return redirect(f"{auth2_config.ALLOWED_LOGIN_REDIRECTS[0]}?error=server_error")
 
 @auth2_bp.route("/organization-not-allowed")
 def organization_not_allowed():
@@ -236,19 +242,30 @@ def logout():
 # --- Protected API Routes ---
 
 @auth2_bp.route("/profile")
-@auth_required
 def profile():
     """
-    Get authenticated user's profile information.
-    Primary endpoint for frontend to check active session.
+    Get authenticated user's profile information from JWT token.
+    Primary endpoint for frontend to check active authentication.
     """
     try:
-        user = get_current_user_from_session()
+        # Get JWT token from Authorization header
+        auth_header = request.headers.get('Authorization', '')
+        if not auth_header.startswith('Bearer '):
+            return jsonify({
+                "success": False, 
+                "error": "unauthorized",
+                "message": "No token provided"
+            }), 401
+        
+        token = auth_header.split(' ')[1]
+        
+        # Validate JWT token
+        user = JWTService.validate_user_token(token)
         if not user:
             return jsonify({
                 "success": False, 
                 "error": "unauthorized",
-                "message": "User is not authenticated"
+                "message": "Invalid or expired token"
             }), 401
         
         return jsonify({
@@ -267,15 +284,26 @@ def profile():
 @auth2_bp.route("/session-check")
 def session_check():
     """
-    Lightweight endpoint to verify user session exists.
-    Returns basic session status without full user data.
+    Lightweight endpoint to verify JWT token exists.
+    Returns basic authentication status without full user data.
     """
     try:
-        user = get_current_user_from_session()
+        # Get JWT token from Authorization header
+        auth_header = request.headers.get('Authorization', '')
+        if not auth_header.startswith('Bearer '):
+            return jsonify({
+                "success": False, 
+                "message": "Not authenticated"
+            }), 401
+        
+        token = auth_header.split(' ')[1]
+        
+        # Validate JWT token
+        user = JWTService.validate_user_token(token)
         if user:
             return jsonify({
                 "success": True,
-                "message": "Session is valid",
+                "message": "Token is valid",
                 "user_id": user.get('ms_object_id', 'unknown')
             })
         else:
@@ -285,26 +313,37 @@ def session_check():
             }), 401
             
     except Exception as e:
-        logger.error(f"Error checking session: {e}")
+        logger.error(f"Error checking token: {e}")
         return jsonify({
             "success": False,
             "error": "server_error",
-            "message": "Failed to check session"
+            "message": "Failed to check authentication"
         }), 500
 
 @auth2_bp.route("/verify-auth")
 def verify_auth():
     """
     Verify authentication after redirect from login callback.
-    This endpoint is used by the frontend to bootstrap session after login.
+    This endpoint is used by the frontend to bootstrap authentication after login.
     """
     try:
-        user = get_current_user_from_session()
+        # Get JWT token from Authorization header
+        auth_header = request.headers.get('Authorization', '')
+        if not auth_header.startswith('Bearer '):
+            return jsonify({
+                "success": False,
+                "message": "Not authenticated"
+            }), 401
+        
+        token = auth_header.split(' ')[1]
+        
+        # Validate JWT token
+        user = JWTService.validate_user_token(token)
         if user:
             return jsonify({
                 "success": True,
                 "data": user,
-                "source": "session"
+                "source": "jwt"
             })
         else:
             return jsonify({
@@ -361,7 +400,7 @@ def get_user_role():
 @auth_required
 def get_graph_data():
     """
-    Get user data from Microsoft Graph API.
+    Get user data from Microsoft Graph API using Graph API flow.
     Requires valid authentication and Graph API permissions.
     """
     try:
@@ -377,15 +416,24 @@ def get_graph_data():
                 "message": "Could not acquire access token. Please log in again."
             }), 401
         
-        # Call Microsoft Graph API
+        # Call Microsoft Graph API using Graph API functions
         access_token = result['access_token']
-        graph_data = GraphService.get_user_profile(access_token)
+        success, user_id, email, user_data = get_user_info_from_token(access_token)
         
-        if not graph_data:
+        if not success or not user_data:
             return jsonify({
                 "error": "graph_api_failed",
                 "message": "Failed to retrieve data from Graph API"
             }), 502
+        
+        # Get user groups if available
+        user_groups = get_user_groups_from_token(access_token)
+        
+        # Combine user data with groups
+        graph_data = {
+            **user_data,
+            "groups": list(user_groups) if user_groups else []
+        }
         
         return jsonify(graph_data)
         

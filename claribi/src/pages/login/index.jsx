@@ -183,7 +183,7 @@ const LoginPage = () => {
         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
       >
         <Alert onClose={handleCloseSuccess} severity="success" sx={{ width: '100%' }}>
-          Sign-in successful! Setting up your account...
+          Sign-in successful! Connecting to Microsoft Graph API...
         </Alert>
       </Snackbar>
 

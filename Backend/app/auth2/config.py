@@ -17,8 +17,8 @@ class Auth2Config:
     MSAL_CLIENT_SECRET = os.environ.get('MSAL_CLIENT_SECRET') or os.environ.get('MICROSOFT_CLIENT_SECRET')
     MSAL_TENANT_ID = os.environ.get('MSAL_TENANT_ID') or os.environ.get('MICROSOFT_TENANT_ID')
     MSAL_REDIRECT_PATH = "/api/auth/callback"
-    # Standard scopes - roles come from ID token claims, not API calls
-    MSAL_SCOPES = ["User.Read"]
+    # Graph API scopes - includes User.Read and Group.Read.All for group information
+    MSAL_SCOPES = ["User.Read", "Group.Read.All"]
     
     # Valid app roles for the application
     VALID_APP_ROLES = ["Claribi_Admin", "Claribi_User", "Claribi_Developer"]
@@ -40,11 +40,11 @@ class Auth2Config:
     
     # Session Configuration
     SESSION_LIFETIME = int(os.environ.get('PERMANENT_SESSION_LIFETIME', 3600))  # 1 hour default
-    SESSION_COOKIE_SECURE = os.environ.get('FLASK_ENV', 'development') == 'production'
-    # Use 'Lax' for better compatibility with cross-origin requests
-    SESSION_COOKIE_SAMESITE = 'Lax'
+    SESSION_COOKIE_SECURE = True  # Required for SameSite=None
+    # Use 'None' for cross-origin requests (requires Secure=True)
+    SESSION_COOKIE_SAMESITE = 'None'
     SESSION_COOKIE_HTTPONLY = True
-    SESSION_COOKIE_DOMAIN = os.environ.get('SESSION_COOKIE_DOMAIN')
+    SESSION_COOKIE_DOMAIN = None  # Let Flask handle domain automatically
     
     # Rate Limiting
     LOGIN_RATE_LIMIT = "5 per minute"

@@ -1,11 +1,40 @@
 import api from './api';
 
 /**
- * Auth service for handling authentication-related API calls
+ * JWT Token management utilities
+ */
+const tokenManager = {
+  getToken: () => {
+    return localStorage.getItem('jwt_token');
+  },
+  
+  setToken: (token) => {
+    localStorage.setItem('jwt_token', token);
+  },
+  
+  removeToken: () => {
+    localStorage.removeItem('jwt_token');
+  },
+  
+  isTokenExpired: (token) => {
+    if (!token) return true;
+    
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const currentTime = Date.now() / 1000;
+      return payload.exp < currentTime;
+    } catch (error) {
+      return true;
+    }
+  }
+};
+
+/**
+ * Auth service for handling authentication-related API calls with JWT tokens
  */
 const authService = {
   /**
-   * Get the current user profile
+   * Get the current user profile using JWT token
    * @returns {Promise} Response with user data
    */
   getUserProfile: async () => {
@@ -15,7 +44,16 @@ const authService = {
         return { success: false };
       }
       
-      const response = await api.get('/api/auth/profile');
+      const token = tokenManager.getToken();
+      if (!token || tokenManager.isTokenExpired(token)) {
+        return { success: false };
+      }
+      
+      const response = await api.get('/api/auth/profile', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       return response.data;
     } catch (error) {
       // If on login page, don't treat 401 as an error
@@ -35,12 +73,21 @@ const authService = {
   },
 
   /**
-   * Verify authentication after login redirect
+   * Verify authentication after login redirect using JWT token
    * @returns {Promise} Response with user data
    */
   verifyAuth: async () => {
     try {
-      const response = await api.get('/api/auth/verify-auth');
+      const token = tokenManager.getToken();
+      if (!token || tokenManager.isTokenExpired(token)) {
+        return { success: false, error: 'No valid token' };
+      }
+      
+      const response = await api.get('/api/auth/verify-auth', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       return response.data;
     } catch (error) {
       console.error("Auth verification failed:", error);
@@ -57,20 +104,25 @@ const authService = {
   },
 
   /**
-   * Logout the current user
+   * Logout the current user by clearing JWT token
    * @returns {Promise} Response indicating success or failure
    */
   logout: async () => {
     try {
-      const response = await api.get('/api/auth/logout');
-      return response.data;
+      // Clear JWT token from localStorage
+      tokenManager.removeToken();
+      
+      // Redirect to Microsoft logout
+      window.location.href = '/api/auth/logout';
     } catch (error) {
+      // Even if there's an error, clear the token
+      tokenManager.removeToken();
       throw error;
     }
   },
 
   /**
-   * Check if the user is authenticated
+   * Check if the user is authenticated using JWT token
    * @returns {Promise<boolean>} True if authenticated, false otherwise
    */
   isAuthenticated: async () => {
@@ -80,7 +132,16 @@ const authService = {
         return false;
       }
       
-      const response = await api.get('/api/auth/profile');
+      const token = tokenManager.getToken();
+      if (!token || tokenManager.isTokenExpired(token)) {
+        return false;
+      }
+      
+      const response = await api.get('/api/auth/profile', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       return response.data.success === true;
     } catch (error) {
       return false;
@@ -88,12 +149,21 @@ const authService = {
   },
 
   /**
-   * Check if the session is valid
+   * Check if the session is valid using JWT token
    * @returns {Promise} Response indicating session validity
    */
   sessionCheck: async () => {
     try {
-      const response = await api.get('/api/auth/session-check');
+      const token = tokenManager.getToken();
+      if (!token || tokenManager.isTokenExpired(token)) {
+        return { success: false, error: 'No valid token' };
+      }
+      
+      const response = await api.get('/api/auth/session-check', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       return response.data;
     } catch (error) {
       console.error("Session check failed:", error);
@@ -102,6 +172,69 @@ const authService = {
         error: error.response?.data?.message || "Session check failed" 
       };
     }
+  },
+
+  /**
+   * Get user data from Microsoft Graph API using JWT token
+   * @returns {Promise} Response with Graph API data
+   */
+  getGraphData: async () => {
+    try {
+      const token = tokenManager.getToken();
+      if (!token || tokenManager.isTokenExpired(token)) {
+        throw new Error('No valid token');
+      }
+      
+      const response = await api.get('/api/auth/graph-data', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Graph API data fetch failed:", error);
+      
+      // Check if this is an organization access error
+      if (error.response?.status === 403 && 
+          error.response?.data?.error === 'organization_not_allowed') {
+        // For organization errors, we want to throw them so they can be caught by AuthContext
+        throw error;
+      }
+      
+      throw error;
+    }
+  },
+
+  /**
+   * Set JWT token (used after successful login)
+   * @param {string} token - JWT token
+   */
+  setToken: (token) => {
+    tokenManager.setToken(token);
+  },
+
+  /**
+   * Get current JWT token
+   * @returns {string|null} JWT token or null
+   */
+  getToken: () => {
+    return tokenManager.getToken();
+  },
+
+  /**
+   * Check if current token is expired
+   * @returns {boolean} True if expired, false otherwise
+   */
+  isTokenExpired: () => {
+    const token = tokenManager.getToken();
+    return tokenManager.isTokenExpired(token);
+  },
+
+  /**
+   * Remove JWT token (used for logout)
+   */
+  removeToken: () => {
+    tokenManager.removeToken();
   }
 };
 

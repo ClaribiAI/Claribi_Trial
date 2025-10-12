@@ -11,10 +11,14 @@ from typing import Optional, Dict, Any, Tuple, List
 from flask import session, request
 from app.core.database import get_db_cursor
 from app.auth2.config import Auth2Config
+from app.auth2.graphapi import validate_token, get_user_info_from_token, get_user_groups_from_token
 
 auth2_config = Auth2Config()
 
 logger = logging.getLogger(__name__)
+
+# Simple in-memory store for auth flows (for PKCE)
+_auth_flows = {}
 
 class MSALService:
     """
@@ -25,51 +29,47 @@ class MSALService:
     @staticmethod
     def build_msal_app(cache: msal.SerializableTokenCache = None) -> msal.ConfidentialClientApplication:
         """Build MSAL application instance"""
-        return msal.ConfidentialClientApplication(
+        try:
+            app = msal.ConfidentialClientApplication(
+                auth2_config.MSAL_CLIENT_ID,
+                authority=auth2_config.MSAL_AUTHORITY,
+                client_credential=auth2_config.MSAL_CLIENT_SECRET,
+                token_cache=cache
+            )
+            return app
+        except Exception as e:
+            logger.error(f"Failed to create MSAL ConfidentialClientApplication: {e}")
+            raise
+    
+    @staticmethod
+    def build_public_msal_app(cache: msal.SerializableTokenCache = None) -> msal.PublicClientApplication:
+        """Build MSAL public client application instance for PKCE"""
+        return msal.PublicClientApplication(
             auth2_config.MSAL_CLIENT_ID,
             authority=auth2_config.MSAL_AUTHORITY,
-            client_credential=auth2_config.MSAL_CLIENT_SECRET,
             token_cache=cache
         )
     
     @staticmethod
     def get_token_cache() -> msal.SerializableTokenCache:
-        """Get token cache from session"""
-        cache = msal.SerializableTokenCache()
-        if session.get("token_cache"):
-            cache.deserialize(session["token_cache"])
-        return cache
+        """Get token cache - simplified for JWT approach"""
+        # For JWT approach, we don't need persistent token caching
+        # Just return a fresh cache for the current request
+        return msal.SerializableTokenCache()
     
     @staticmethod
     def save_token_cache(cache: msal.SerializableTokenCache) -> None:
-        """Save token cache to session"""
-        if cache.has_state_changed:
-            session["token_cache"] = cache.serialize()
+        """Save token cache - simplified for JWT approach"""
+        # For JWT approach, we don't need to persist token cache
+        # The JWT token contains all necessary user information
+        pass
     
     @staticmethod
     def get_redirect_uri() -> str:
-        """Get the redirect URI for MSAL"""
-        # Check if request came through Vite proxy (has localhost origin)
-        origin = request.headers.get('Origin', '')
-        referer = request.headers.get('Referer', '')
-        
-        # If request came from localhost:5173 (Vite proxy), use proxy for callback too
-        if 'localhost:5173' in origin or 'localhost:5173' in referer:
-            return f"https://localhost:5173{auth2_config.MSAL_REDIRECT_PATH}"
-        else:
-            # Use environment variable for production redirect URI
-            backend_url = os.environ.get('BACKEND_URL')
-            if backend_url:
-                # Ensure HTTPS for production
-                if backend_url.startswith('http://') and 'localhost' not in backend_url:
-                    backend_url = backend_url.replace('http://', 'https://')
-                return f"{backend_url.rstrip('/')}{auth2_config.MSAL_REDIRECT_PATH}"
-            else:
-                # Fallback to request URL but force HTTPS in production
-                base_url = request.url_root.rstrip('/')
-                if not base_url.startswith('https://') and 'localhost' not in base_url:
-                    base_url = base_url.replace('http://', 'https://')
-                return f"{base_url}{auth2_config.MSAL_REDIRECT_PATH}"
+        """Get the redirect URI for MSAL - use frontend URL for Azure AD compatibility"""
+        # Use frontend URL as redirect URI since that's what's configured in Azure AD
+        frontend_url = os.environ.get('FRONTEND_URL', 'https://localhost:5173')
+        return f"{frontend_url.rstrip('/')}{auth2_config.MSAL_REDIRECT_PATH}"
     
     @staticmethod
     def initiate_auth_flow(scopes: list = None) -> dict:
@@ -83,14 +83,78 @@ class MSALService:
         )
     
     @staticmethod
+    def initiate_auth_flow_with_state(state: str, scopes: list = None) -> dict:
+        """Initiate MSAL authentication flow with state parameter using confidential client"""
+        if scopes is None:
+            scopes = auth2_config.MSAL_SCOPES
+            
+        # Try to initiate auth flow without PKCE first
+        try:
+            app = MSALService.build_msal_app()
+            auth_flow = app.initiate_auth_code_flow(
+                scopes=scopes,
+                redirect_uri=MSALService.get_redirect_uri(),
+                state=state
+            )
+        except Exception as e:
+            logger.error(f"Auth flow initiation failed: {e}")
+            # Fallback to basic auth flow
+            try:
+                auth_flow = MSALService.build_msal_app().initiate_auth_code_flow(
+                    scopes=scopes,
+                    redirect_uri=MSALService.get_redirect_uri()
+                )
+            except Exception as fallback_e:
+                logger.error(f"Fallback auth flow also failed: {fallback_e}")
+                raise
+        
+        # Store the auth flow for callback processing
+        global _auth_flows
+        _auth_flows[state] = auth_flow
+        
+        return auth_flow
+    
+    @staticmethod
     def acquire_token_by_auth_code(auth_flow: dict, request_args: dict) -> dict:
-        """Acquire token using authorization code"""
+        """Acquire token using authorization code with confidential client"""
+        try:
+            cache = MSALService.get_token_cache()
+            app = MSALService.build_msal_app(cache=cache)
+            result = app.acquire_token_by_auth_code_flow(
+                auth_flow, request_args
+            )
+            
+            if 'error' in result:
+                logger.error(f"Token acquisition error: {result.get('error')} - {result.get('error_description')}")
+            
+            MSALService.save_token_cache(cache)
+            return result
+            
+        except Exception as e:
+            logger.error(f"Exception during token acquisition: {e}")
+            raise
+    
+    @staticmethod
+    def acquire_token_by_auth_code_direct(request_args: dict) -> dict:
+        """Acquire token using authorization code directly without stored auth flow"""
         cache = MSALService.get_token_cache()
-        result = MSALService.build_msal_app(cache=cache).acquire_token_by_auth_code_flow(
-            auth_flow, request_args
+        app = MSALService.build_msal_app(cache=cache)
+        
+        # Get the authorization code and state from request args
+        auth_code = request_args.get('code')
+        state = request_args.get('state', '')
+        
+        if not auth_code:
+            return {"error": "authorization_code_missing", "error_description": "No authorization code provided"}
+        
+        # Use the direct method to acquire token
+        result = app.acquire_token_by_authorization_code(
+            auth_code,
+            scopes=auth2_config.MSAL_SCOPES,
+            redirect_uri=MSALService.get_redirect_uri()
         )
+        
         MSALService.save_token_cache(cache)
-       # logger.info(f"Token acquired: {result}")# for debugging
         return result
     
     @staticmethod
@@ -260,27 +324,43 @@ class SecurityService:
     @staticmethod
     def clear_session() -> None:
         """Clear user session data"""
-        session.clear()
+        # Clear only auth-related session data
+        session.pop('user', None)
+        session.pop('token_cache', None)
         session.modified = True
 
 class GraphService:
-    """Service class for Microsoft Graph API operations"""
+    """Service class for Microsoft Graph API operations using Graph API flow"""
     
     @staticmethod
     def get_user_profile(access_token: str) -> Optional[Dict[str, Any]]:
-        """Get user profile from Microsoft Graph API"""
+        """Get user profile from Microsoft Graph API using Graph API functions"""
         try:
-            headers = {'Authorization': f'Bearer {access_token}'}
-            graph_endpoint = 'https://graph.microsoft.com/v1.0/me'
-            
-            response = requests.get(graph_endpoint, headers=headers, timeout=10)
-            response.raise_for_status()
-            
-            return response.json()
-            
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Graph API call failed: {e}")
-            return None
+            success, user_id, email, user_data = get_user_info_from_token(access_token)
+            if success and user_data:
+                return user_data
+            else:
+                logger.error("Failed to get user profile from Graph API")
+                return None
+                
         except Exception as e:
             logger.error(f"Unexpected error in Graph API call: {e}")
-            return None 
+            return None
+    
+    @staticmethod
+    def validate_user_token(access_token: str) -> Tuple[bool, Optional[Dict[str, Any]]]:
+        """Validate user token using Graph API"""
+        try:
+            return validate_token(access_token)
+        except Exception as e:
+            logger.error(f"Error validating token: {e}")
+            return False, None
+    
+    @staticmethod
+    def get_user_groups(access_token: str) -> set:
+        """Get user groups from token using Graph API functions"""
+        try:
+            return get_user_groups_from_token(access_token)
+        except Exception as e:
+            logger.error(f"Error getting user groups: {e}")
+            return set() 

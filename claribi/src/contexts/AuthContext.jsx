@@ -19,7 +19,7 @@ export const AuthProvider = ({ children }) => {
   const [error, setError] = useState(null);
   const [organizationAccessError, setOrganizationAccessError] = useState(false);
 
-  // Fetch the user profile from the backend
+  // Fetch the user profile from the backend using JWT tokens
   const fetchUserProfile = async () => {
     try {
       // Don't fetch profile if on login page
@@ -32,24 +32,28 @@ export const AuthProvider = ({ children }) => {
       
       setLoading(true);
       
-      // Check URL parameters
+      // Check URL parameters for JWT token
       const urlParams = new URLSearchParams(window.location.search);
       const authStatus = urlParams.get('auth');
-      const token = urlParams.get('token'); // For share tokens or other purposes
+      const jwtToken = urlParams.get('token'); // JWT token from login callback
 
       let data;
       
-      // After successful auth redirect, bootstrap session via verify-auth (no token required)
-      if (authStatus === 'success') {
-          console.log("Using verify-auth endpoint for authentication check");
-          data = await authService.verifyAuth();
-
-          // Clean up URL after verification
+      // After successful auth redirect, store JWT token and bootstrap session
+      if (authStatus === 'success' && jwtToken) {
+          console.log("Storing JWT token from login callback");
+          authService.setToken(jwtToken);
+          
+          // Clean up URL after storing token
           const url = new URL(window.location);
           url.searchParams.delete('auth');
+          url.searchParams.delete('token');
           window.history.replaceState({}, '', url);
+          
+          // Verify the token
+          data = await authService.verifyAuth();
       }
-      // Otherwise use the regular profile endpoint
+      // Otherwise use the regular profile endpoint with stored token
       else {
           data = await authService.getUserProfile();
       }
@@ -62,7 +66,9 @@ export const AuthProvider = ({ children }) => {
           username: userData.display_id,
           role: ROLES.DATA_ANALYST, // Set default role for claribi (no role switching)
           ms_object_id: userData.ms_object_id,
-          organization_id: userData.organization_id
+          organization_id: userData.organization_id,
+          // Add Graph API specific data if available
+          graph_data: userData.graph_data || null
         });
         setOrganizationAccessError(false); // Clear any previous organization errors
       } else {
@@ -158,20 +164,23 @@ export const AuthProvider = ({ children }) => {
       sessionStorage.removeItem('organizationError');
       sessionStorage.removeItem('organizationErrorMessage');
       
-      // Don't clear current user state immediately - let the backend handle the full logout flow
-      // This prevents the frontend from briefly showing the login page before Microsoft logout
+      // Clear JWT token from localStorage
+      authService.removeToken();
+      
+      // Clear current user state
+      setCurrentUser(null);
       
       // Navigate directly to logout endpoint which will:
-      // 1. Clear the session on the backend
-      // 2. Redirect to Microsoft logout
-      // 3. Microsoft will redirect back to our frontend login page
+      // 1. Redirect to Microsoft logout
+      // 2. Microsoft will redirect back to our frontend login page
       window.location.href = '/api/auth/logout';
     } catch (err) {
       console.error("Logout failed:", err);
       setError(err.message || "Logout failed");
       
-      // Only clear user state and redirect if there's an error
+      // Clear user state and redirect on error
       setCurrentUser(null);
+      authService.removeToken();
       window.location.href = '/login';
     }
   };
@@ -185,6 +194,17 @@ export const AuthProvider = ({ children }) => {
   // Check if user is a regular user
   const isUser = () => currentUser?.role === ROLES.USER;
 
+  // Fetch Graph API data for the current user
+  const fetchGraphData = async () => {
+    try {
+      const response = await authService.getGraphData();
+      return response;
+    } catch (err) {
+      console.error("Failed to fetch Graph API data:", err);
+      throw err;
+    }
+  };
+
   const value = {
     currentUser,
     loading,
@@ -195,7 +215,8 @@ export const AuthProvider = ({ children }) => {
     hasRole,
     isDataAnalyst,
     isUser,
-    fetchUserProfile
+    fetchUserProfile,
+    fetchGraphData
   };
 
   return (

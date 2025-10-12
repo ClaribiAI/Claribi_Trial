@@ -8,6 +8,7 @@ from functools import wraps
 from typing import Callable, Any, Optional, Dict
 from flask import session, request, jsonify, g
 from app.auth2.config import Auth2Config
+from app.auth2.jwt_service import JWTService
 
 auth2_config = Auth2Config()
 
@@ -15,24 +16,37 @@ logger = logging.getLogger(__name__)
 
 def auth_required(f: Callable) -> Callable:
     """
-    Decorator to require authentication for route access.
+    Decorator to require JWT authentication for route access.
     
     Args:
         f: The route function to protect
         
     Returns:
-        Wrapped function that checks authentication
+        Wrapped function that checks JWT authentication
     """
     @wraps(f)
     def decorated_function(*args, **kwargs):
         try:
-            user = get_current_user_from_session()
-            if not user:
-                logger.warning(f"Unauthorized access attempt to {request.endpoint}")
+            # Get JWT token from Authorization header
+            auth_header = request.headers.get('Authorization', '')
+            if not auth_header.startswith('Bearer '):
+                logger.warning(f"No token provided for {request.endpoint}")
                 return jsonify({
                     "success": False,
                     "error": "unauthorized",
                     "message": "Authentication required"
+                }), 401
+            
+            token = auth_header.split(' ')[1]
+            
+            # Validate JWT token
+            user = JWTService.validate_user_token(token)
+            if not user:
+                logger.warning(f"Invalid token for {request.endpoint}")
+                return jsonify({
+                    "success": False,
+                    "error": "unauthorized",
+                    "message": "Invalid or expired token"
                 }), 401
             
             # Check if organization is still allowed
@@ -181,14 +195,15 @@ def rate_limit(limit_string: str):
                     logger.error(f"Invalid time unit in rate limit: {unit}")
                     return f(*args, **kwargs)
                 
-                # Use the advanced rate limiter from auth.middleware
-                from app.core.rate_limiter import RateLimiter
+                # Use the simplified rate limiter
+                from app.core.simple_rate_limiter import get_rate_limiter
                 
                 # Generate rate limit key for this endpoint
                 rate_key = f"auth2:{request.endpoint}"
                 
-                # Check rate limit using the advanced rate limiter
-                allowed, current_count, reset_time = RateLimiter.check_rate_limit(rate_key, limit, window)
+                # Check rate limit using the simplified rate limiter
+                limiter = get_rate_limiter()
+                allowed, current_count, reset_time = limiter.check_rate_limit(rate_key, limit, window)
                 
                 # Set rate limit headers in response context
                 g.rate_limit_headers = {
@@ -246,34 +261,50 @@ def require_https(f: Callable) -> Callable:
 
 
 
-def get_current_user_from_session() -> Optional[Dict[str, Any]]:
+def get_current_user_from_token() -> Optional[Dict[str, Any]]:
     """
-    Get current authenticated user directly from session.
+    Get current authenticated user from JWT token in Authorization header.
     
     Returns:
         User data if authenticated, None otherwise
     """
     try:
-        user = session.get("user")
-        if not user:
+        # Get JWT token from Authorization header
+        auth_header = request.headers.get('Authorization', '')
+        if not auth_header.startswith('Bearer '):
             return None
         
-        # Validate user data structure (legacy format)
-        if not isinstance(user, dict) or 'ms_object_id' not in user:
-            logger.warning("Invalid user data in session")
+        token = auth_header.split(' ')[1]
+        
+        # Validate JWT token
+        user = JWTService.validate_user_token(token)
+        if not user:
             return None
         
         return user
     except Exception as e:
-        logger.error(f"Error getting user from session: {e}")
+        logger.error(f"Error getting user from token: {e}")
         return None
+
+# Keep the old function for backward compatibility but mark as deprecated
+def get_current_user_from_session() -> Optional[Dict[str, Any]]:
+    """
+    DEPRECATED: Get current authenticated user from JWT token.
+    Use get_current_user_from_token() instead.
+    
+    Returns:
+        User data if authenticated, None otherwise
+    """
+    return get_current_user_from_token()
 
 
 def clear_session() -> None:
     """
     Clear user session securely.
     """
-    session.clear()
+    # Clear only auth-related session data
+    session.pop('user', None)
+    session.pop('token_cache', None)
     session.modified = True
 
 class SecurityHeaders:
