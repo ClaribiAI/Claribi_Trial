@@ -17,8 +17,7 @@ auth2_config = Auth2Config()
 
 logger = logging.getLogger(__name__)
 
-# Simple in-memory store for auth flows (for PKCE)
-_auth_flows = {}
+# Note: Auth flows are no longer stored in memory for Railway compatibility
 
 class MSALService:
     """
@@ -88,7 +87,8 @@ class MSALService:
         if scopes is None:
             scopes = auth2_config.MSAL_SCOPES
             
-        # Try to initiate auth flow without PKCE first
+        # For Railway deployment, we don't store auth flows in memory
+        # Instead, we use direct token acquisition in the callback
         try:
             app = MSALService.build_msal_app()
             auth_flow = app.initiate_auth_code_flow(
@@ -108,31 +108,8 @@ class MSALService:
                 logger.error(f"Fallback auth flow also failed: {fallback_e}")
                 raise
         
-        # Store the auth flow for callback processing
-        global _auth_flows
-        _auth_flows[state] = auth_flow
-        
         return auth_flow
     
-    @staticmethod
-    def acquire_token_by_auth_code(auth_flow: dict, request_args: dict) -> dict:
-        """Acquire token using authorization code with confidential client"""
-        try:
-            cache = MSALService.get_token_cache()
-            app = MSALService.build_msal_app(cache=cache)
-            result = app.acquire_token_by_auth_code_flow(
-                auth_flow, request_args
-            )
-            
-            if 'error' in result:
-                logger.error(f"Token acquisition error: {result.get('error')} - {result.get('error_description')}")
-            
-            MSALService.save_token_cache(cache)
-            return result
-            
-        except Exception as e:
-            logger.error(f"Exception during token acquisition: {e}")
-            raise
     
     @staticmethod
     def acquire_token_by_auth_code_direct(request_args: dict) -> dict:

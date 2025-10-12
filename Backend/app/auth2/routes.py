@@ -110,20 +110,9 @@ def callback():
             except Exception as e:
                 logger.warning(f"Could not parse state parameter: {e}")
         
-        # For PKCE to work, we need to retrieve the stored auth flow
-        # This ensures the code_verifier matches the code_challenge
-        from app.auth2.services import _auth_flows
-        auth_flow = _auth_flows.get(state)
-        
-        if not auth_flow:
-            logger.error("Auth flow not found for state - PKCE verification will fail")
-            return redirect(f"{redirect_uri}?error=auth_flow_not_found")
-        
-        # Acquire token using the stored auth flow (required for PKCE)
-        result = MSALService.acquire_token_by_auth_code(auth_flow, request.args)
-        
-        # Clean up the stored auth flow
-        _auth_flows.pop(state, None)
+        # For Railway deployment, use direct token acquisition instead of stored auth flow
+        # This avoids the "auth_flow_not_found" error when containers restart
+        result = MSALService.acquire_token_by_auth_code_direct(request.args)
         
         if "error" in result:
             error_msg = result.get('error_description', 'Authentication failed')
