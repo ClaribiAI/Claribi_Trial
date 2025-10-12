@@ -41,8 +41,8 @@ class Auth2Config:
     # Session Configuration
     SESSION_LIFETIME = int(os.environ.get('PERMANENT_SESSION_LIFETIME', 3600))  # 1 hour default
     SESSION_COOKIE_SECURE = os.environ.get('FLASK_ENV', 'development') == 'production'
-    # Use 'Lax' for better compatibility, 'None' requires Secure=True and HTTPS
-    SESSION_COOKIE_SAMESITE = 'Lax' if os.environ.get('FLASK_ENV', 'development') == 'development' else 'None'
+    # Use 'Lax' for better compatibility with cross-origin requests
+    SESSION_COOKIE_SAMESITE = 'Lax'
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_DOMAIN = os.environ.get('SESSION_COOKIE_DOMAIN')
     

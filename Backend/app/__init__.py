@@ -41,20 +41,13 @@ def create_app():
     app.config['ENV'] = config.FLASK_ENV
     # Configure session handling for production
     app.secret_key = config.SECRET_KEY
-    # Use Redis for production, filesystem for development
-    if config.FLASK_ENV == 'production' and config.REDIS_HOST:
-        try:
-            app.config['SESSION_TYPE'] = 'redis'
-            app.config['SESSION_REDIS'] = redis.from_url(f"redis://{config.REDIS_HOST}:{config.REDIS_PORT}")
-        except Exception as e:
-            app.logger.warning(f"Redis not available, falling back to filesystem sessions: {e}")
-            app.config['SESSION_TYPE'] = 'filesystem'
-            app.config['SESSION_FILE_DIR'] = os.path.join(os.getcwd(), 'flask_session')
-    else:
-        app.config['SESSION_TYPE'] = 'filesystem'  # Store sessions in files for development
-        app.config['SESSION_FILE_DIR'] = os.path.join(os.getcwd(), 'flask_session')
+    # Use filesystem sessions for both development and production
+    # This is more reliable for Railway deployment
+    app.config['SESSION_TYPE'] = 'filesystem'
+    app.config['SESSION_FILE_DIR'] = os.path.join(os.getcwd(), 'flask_session')
     app.config['SESSION_PERMANENT'] = True
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(seconds=config.PERMANENT_SESSION_LIFETIME)
+    app.logger.info("Using filesystem for session storage")
     
     # Cookie security settings - production ready
     app.config['SESSION_COOKIE_SECURE'] = config.SECURE_COOKIES
