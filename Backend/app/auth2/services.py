@@ -4,6 +4,7 @@ Auth2 Services Module
 Core service classes for authentication, user management, and security.
 """
 import logging
+import os
 import msal
 import requests
 from typing import Optional, Dict, Any, Tuple, List
@@ -56,9 +57,19 @@ class MSALService:
         if 'localhost:5173' in origin or 'localhost:5173' in referer:
             return f"https://localhost:5173{auth2_config.MSAL_REDIRECT_PATH}"
         else:
-            # Fallback to direct backend URL
-            base_url = request.url_root.rstrip('/')
-            return f"{base_url}{auth2_config.MSAL_REDIRECT_PATH}"
+            # Use environment variable for production redirect URI
+            backend_url = os.environ.get('BACKEND_URL')
+            if backend_url:
+                # Ensure HTTPS for production
+                if backend_url.startswith('http://') and 'localhost' not in backend_url:
+                    backend_url = backend_url.replace('http://', 'https://')
+                return f"{backend_url.rstrip('/')}{auth2_config.MSAL_REDIRECT_PATH}"
+            else:
+                # Fallback to request URL but force HTTPS in production
+                base_url = request.url_root.rstrip('/')
+                if not base_url.startswith('https://') and 'localhost' not in base_url:
+                    base_url = base_url.replace('http://', 'https://')
+                return f"{base_url}{auth2_config.MSAL_REDIRECT_PATH}"
     
     @staticmethod
     def initiate_auth_flow(scopes: list = None) -> dict:
