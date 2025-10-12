@@ -119,10 +119,11 @@ class MSALService:
     
     
     @staticmethod
-    def acquire_token_by_auth_code_direct(request_args: dict) -> dict:
-        """Acquire token using authorization code directly without stored auth flow"""
+    def acquire_token_by_auth_code_direct(request_args: dict, code_verifier: str = None) -> dict:
+        """Acquire token using authorization code directly with PKCE code_verifier"""
         logger.info("=== DIRECT TOKEN ACQUISITION STARTED ===")
         logger.info(f"Request args keys: {list(request_args.keys())}")
+        logger.info(f"Code verifier provided: {'Yes' if code_verifier else 'No'}")
         
         cache = MSALService.get_token_cache()
         app = MSALService.build_msal_app(cache=cache)
@@ -141,13 +142,26 @@ class MSALService:
             return {"error": "authorization_code_missing", "error_description": "No authorization code provided"}
         
         try:
-            # Use the direct method to acquire token
-            logger.info("Calling acquire_token_by_authorization_code...")
-            result = app.acquire_token_by_authorization_code(
-                auth_code,
-                scopes=auth2_config.MSAL_SCOPES,
-                redirect_uri=MSALService.get_redirect_uri()
-            )
+            # Use the direct method to acquire token with PKCE code_verifier
+            logger.info("Calling acquire_token_by_authorization_code with PKCE...")
+            
+            if code_verifier:
+                # Use PKCE with the provided code_verifier
+                result = app.acquire_token_by_authorization_code(
+                    auth_code,
+                    scopes=auth2_config.MSAL_SCOPES,
+                    redirect_uri=MSALService.get_redirect_uri(),
+                    code_verifier=code_verifier
+                )
+            else:
+                # Fallback to standard authorization code flow
+                logger.warning("No code_verifier provided, using standard authorization code flow")
+                result = app.acquire_token_by_authorization_code(
+                    auth_code,
+                    scopes=auth2_config.MSAL_SCOPES,
+                    redirect_uri=MSALService.get_redirect_uri()
+                )
+            
             logger.info(f"Token acquisition completed. Result keys: {list(result.keys()) if result else 'None'}")
             
             if 'error' in result:

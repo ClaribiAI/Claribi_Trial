@@ -69,8 +69,22 @@ def login():
         # Initiate MSAL auth flow with state parameter
         auth_flow = MSALService.initiate_auth_flow_with_state(state_encoded)
         
-        logger.info(f"Initiated auth flow for redirect: {validated_redirect}")
+        # Store the code_verifier in a secure HttpOnly cookie for PKCE
+        if 'code_verifier' in auth_flow:
+            from flask import make_response
+            response = make_response(redirect(auth_flow["auth_uri"]))
+            response.set_cookie(
+                'pkce_code_verifier',
+                auth_flow['code_verifier'],
+                httponly=True,
+                secure=True,
+                samesite='None',
+                max_age=600  # 10 minutes expiration
+            )
+            logger.info(f"Stored code_verifier in secure cookie for PKCE")
+            return response
         
+        logger.info(f"Initiated auth flow for redirect: {validated_redirect}")
         return redirect(auth_flow["auth_uri"])
         
     except Exception as e:
@@ -110,30 +124,51 @@ def callback():
             except Exception as e:
                 logger.warning(f"Could not parse state parameter: {e}")
         
-        # For Railway deployment, use direct token acquisition instead of stored auth flow
+        # For Railway deployment, use direct token acquisition with PKCE code_verifier from cookie
         # This avoids the "auth_flow_not_found" error when containers restart
+        code_verifier = request.cookies.get('pkce_code_verifier')
         logger.info(f"Attempting direct token acquisition with args: {list(request.args.keys())}")
-        result = MSALService.acquire_token_by_auth_code_direct(request.args)
+        logger.info(f"Code verifier from cookie: {'Present' if code_verifier else 'Missing'}")
+        
+        result = MSALService.acquire_token_by_auth_code_direct(request.args, code_verifier)
         logger.info(f"Token acquisition result keys: {list(result.keys()) if result else 'None'}")
+        
+        # Clear the code_verifier cookie after token acquisition attempt
+        if code_verifier:
+            logger.info("Code verifier cookie will be cleared after processing")
         
         if "error" in result:
             error_msg = result.get('error_description', 'Authentication failed')
             error_code = result.get('error', 'unknown_error')
             logger.error(f"Authentication error: {error_code} - {error_msg}")
             logger.error(f"Full error response: {result}")
-            return redirect(f"{redirect_uri}?error=authentication_failed&details={error_code}")
+            
+            # Clear the code_verifier cookie on error
+            from flask import make_response
+            response = make_response(redirect(f"{redirect_uri}?error=authentication_failed&details={error_code}"))
+            response.set_cookie('pkce_code_verifier', '', expires=0, httponly=True, secure=True, samesite='None')
+            logger.info("Cleared code_verifier cookie after authentication error")
+            return response
         
         # Get access token for Graph API validation
         access_token = result.get("access_token")
         if not access_token:
             logger.error("No access token received")
-            return redirect(f"{redirect_uri}?error=no_access_token")
+            # Clear the code_verifier cookie on error
+            from flask import make_response
+            response = make_response(redirect(f"{redirect_uri}?error=no_access_token"))
+            response.set_cookie('pkce_code_verifier', '', expires=0, httponly=True, secure=True, samesite='None')
+            return response
         
         # Validate token using Graph API
         is_valid, user_data = validate_token(access_token)
         if not is_valid or not user_data:
             logger.error("Token validation failed")
-            return redirect(f"{redirect_uri}?error=token_validation_failed")
+            # Clear the code_verifier cookie on error
+            from flask import make_response
+            response = make_response(redirect(f"{redirect_uri}?error=token_validation_failed"))
+            response.set_cookie('pkce_code_verifier', '', expires=0, httponly=True, secure=True, samesite='None')
+            return response
         
         # Extract user information from Graph API response
         ms_object_id = user_data.get("id")
@@ -147,12 +182,20 @@ def callback():
         
         if not ms_object_id or not organization_id:
             logger.error("Missing required user identifiers")
-            return redirect(f"{redirect_uri}?error=missing_identifiers")
+            # Clear the code_verifier cookie on error
+            from flask import make_response
+            response = make_response(redirect(f"{redirect_uri}?error=missing_identifiers"))
+            response.set_cookie('pkce_code_verifier', '', expires=0, httponly=True, secure=True, samesite='None')
+            return response
         
         # Check if organization is allowed
         if not UserService.is_organization_allowed(organization_id):
             logger.warning(f"Organization {organization_id} is not allowed to access the system")
-            return redirect(f"{redirect_uri}?error=organization_not_allowed")
+            # Clear the code_verifier cookie on error
+            from flask import make_response
+            response = make_response(redirect(f"{redirect_uri}?error=organization_not_allowed"))
+            response.set_cookie('pkce_code_verifier', '', expires=0, httponly=True, secure=True, samesite='None')
+            return response
         
         # Extract app roles from ID token claims
         from app.auth2.services import SecurityService
@@ -162,7 +205,11 @@ def callback():
         # Validate that user has at least one valid app role
         if not user_app_roles:
             logger.warning(f"User {display_id} has no valid app roles assigned")
-            return redirect(f"{redirect_uri}?error=no_app_role")
+            # Clear the code_verifier cookie on error
+            from flask import make_response
+            response = make_response(redirect(f"{redirect_uri}?error=no_app_role"))
+            response.set_cookie('pkce_code_verifier', '', expires=0, httponly=True, secure=True, samesite='None')
+            return response
         
         # Use the first valid role
         user_role = user_app_roles[0]
@@ -174,7 +221,11 @@ def callback():
         )
         if not db_success:
             logger.error(f"Database error: {db_error}")
-            return redirect(f"{redirect_uri}?error=database_error")
+            # Clear the code_verifier cookie on error
+            from flask import make_response
+            response = make_response(redirect(f"{redirect_uri}?error=database_error"))
+            response.set_cookie('pkce_code_verifier', '', expires=0, httponly=True, secure=True, samesite='None')
+            return response
         
         # Create JWT token with user data
         user_data_for_token = {
@@ -186,11 +237,17 @@ def callback():
         
         jwt_token = JWTService.create_user_token(user_data_for_token)
         
-        # Redirect to frontend with JWT token
+        # Redirect to frontend with JWT token and clear the code_verifier cookie
         separator = '&' if '?' in redirect_uri else '?'
         final_redirect_url = f"{redirect_uri}{separator}token={jwt_token}&auth=success"
         
-        return redirect(final_redirect_url)
+        # Clear the code_verifier cookie after successful authentication
+        from flask import make_response
+        response = make_response(redirect(final_redirect_url))
+        response.set_cookie('pkce_code_verifier', '', expires=0, httponly=True, secure=True, samesite='None')
+        logger.info("Cleared code_verifier cookie after successful authentication")
+        
+        return response
         
     except ValueError as e:
         logger.error(f"Invalid request to callback endpoint: {e}")
