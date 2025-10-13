@@ -268,6 +268,7 @@ def process_powerbi_query_stream():
                             
                             def collect_updates(update_data: dict):
                                 """Collect updates to send via SSE."""
+                                logger.info(f"Collecting update: {update_data}")
                                 updates_to_send.append(update_data)
                             
                             # The orchestrator will call our callback function to collect updates
@@ -278,7 +279,9 @@ def process_powerbi_query_stream():
                             )
                             
                             # Send all collected updates
-                            for update in updates_to_send:
+                            logger.info(f"Sending {len(updates_to_send)} updates to frontend")
+                            for i, update in enumerate(updates_to_send):
+                                logger.info(f"Sending update {i+1}: {update}")
                                 yield f"data: {json.dumps(update)}\n\n"
                                 time.sleep(0.1)  # Small delay between updates
                             
