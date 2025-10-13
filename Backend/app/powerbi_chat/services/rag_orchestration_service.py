@@ -34,7 +34,10 @@ class RAGOrchestrationService:
                 update_payload = {"type": "update", "step": step, "message": message}
                 if details:
                     update_payload.update(details)
+                logger.info(f"Orchestration service calling update_callback with: {update_payload}")
                 update_callback(update_payload)
+            else:
+                logger.warning("No update_callback provided to orchestration service")
 
         logger.info(f"Starting orchestration for query on '{collection_name}'")
         retriever = vector_store_service.get_retriever(collection_name)
