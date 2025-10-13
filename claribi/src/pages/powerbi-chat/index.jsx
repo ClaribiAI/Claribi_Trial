@@ -801,8 +801,8 @@ const PowerBIChat = () => {
                 
                 {messages.map((message, index) => (
                     <React.Fragment key={message.id}>
-                        {/* Show thinking process before the last message (final response) */}
-                        {thinkingProcess.isVisible && index === messages.length - 1 && message.type === 'assistant' && (
+                        {/* Show thinking process before the last message (final response) - but not when waiting for clarifications */}
+                        {thinkingProcess.isVisible && index === messages.length - 1 && message.type === 'assistant' && !isWaitingForClarifications && (
                             <Box mb={2}>
                                 <ThinkingProcess
                                     isVisible={thinkingProcess.isVisible}
@@ -819,7 +819,7 @@ const PowerBIChat = () => {
                     </React.Fragment>
                 ))}
                 
-				{/* Show thinking process during processing (when no final response yet) */}
+				{/* Show thinking process during processing (when no final response yet) OR when waiting for clarifications */}
                 {thinkingProcess.isVisible && messages.length > 0 && (messages[messages.length - 1].type !== 'assistant' || isWaitingForClarifications) && (
                     <Box mb={2}>
                         <ThinkingProcess
