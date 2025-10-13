@@ -36,10 +36,12 @@ import MarkdownRenderer from '../../components/ui/MarkdownRenderer';
 import ThinkingProcess from '../../components/ui/ThinkingProcess';
 import FileSelectionDialog from '../../components/ui/FileSelectionDialog';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import { useNotification } from '../../contexts/NotificationContext';
 // Inline clarification flow replaces modal dialog
 
 const PowerBIChat = () => {
     const theme = useTheme();
+    const { showNotification } = useNotification();
     const [messages, setMessages] = useState([]);
     const [inputMessage, setInputMessage] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -91,10 +93,16 @@ const PowerBIChat = () => {
 
     // Function to add action to history
     const addActionToHistory = (action, step, status, searchQuery = null, type = 'regular', searchId = null) => {
+        // Validate action text - don't add empty or invalid actions
+        if (!action || action.trim() === '' || action.trim() === 'Search:') {
+            console.warn('Skipping empty or invalid action:', action);
+            return;
+        }
+        
         const timestamp = new Date().toLocaleTimeString();
         const newAction = {
             id: searchId || Date.now() + Math.random(), // Use searchId if provided, otherwise generate unique ID
-            action,
+            action: action.trim(), // Ensure action is trimmed
             timestamp,
             step,
             status,
@@ -167,8 +175,9 @@ const PowerBIChat = () => {
                 // Handle search step updates
                 if (updateData.step === 'search_generated') {
                     console.log('Processing search_generated update:', updateData);
-                    // Add search step to action history
-                    addActionToHistory(`Search: ${updateData.search_query}`, 0, 'in_progress', updateData.search_query, 'search', updateData.search_id);
+                    // Add search step to action history - ensure search_query is not empty
+                    const searchQuery = updateData.search_query || 'Unknown query';
+                    addActionToHistory(`Search: ${searchQuery}`, 0, 'in_progress', searchQuery, 'search', updateData.search_id);
                 } else if (updateData.step === 'search_completed') {
                     console.log('Processing search_completed update:', updateData);
                     // Update existing search step to completed status
@@ -177,7 +186,7 @@ const PowerBIChat = () => {
                             ? { 
                                 ...action, 
                                 status: 'completed', 
-                                action: `Search: ${action.searchQuery} (${updateData.result_count} results)`,
+                                action: `Search: ${action.searchQuery || 'Unknown query'} (${updateData.result_count || 0} results)`,
                                 resultCount: updateData.result_count
                             }
                             : action
@@ -374,8 +383,10 @@ const PowerBIChat = () => {
             try {
                 await deletePowerBISession(pbixFile.sessionId);
                 console.log('Session deleted successfully');
+                showNotification(`File "${pbixFile.name}" removed successfully!`, 'success');
             } catch (error) {
                 console.error('Error deleting session:', error);
+                showNotification(`Failed to remove file "${pbixFile.name}". ${error.message || 'Please try again.'}`, 'error');
                 // Continue with file removal even if session deletion fails
             }
         }
@@ -743,7 +754,7 @@ const PowerBIChat = () => {
                             color: theme.palette.text.primary,
                             fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif"
                         }}>
-                            Welcome to Power BI Assistant
+                            Welcome to Claribi Power BI Assistant
                         </Typography>
                         <Typography variant="h6" sx={{ 
                             color: theme.palette.text.secondary, 
@@ -752,7 +763,7 @@ const PowerBIChat = () => {
                             lineHeight: 1.6,
                             fontWeight: 400
                         }}>
-                            Upload a Power BI (.pbix) file to get started. I'll analyze your data model and provide expert assistance with measures, troubleshooting, and best practices.
+                            Upload a Power BI (.pbix) file to get started. I'll analyze your data model and provide expert assistance with your dataset.
                         </Typography>
                         
                         {/* Upload and Select Buttons */}

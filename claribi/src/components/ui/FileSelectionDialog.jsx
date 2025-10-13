@@ -32,12 +32,15 @@ import {
     Code,
     Trash,
     CloudArrowUp,
-    X
+    X,
+    CheckCircle
 } from '@phosphor-icons/react';
 import { getUploadedFiles, deletePowerBISession } from '../../services/powerbiChatService';
+import { useNotification } from '../../contexts/NotificationContext';
 
 const FileSelectionDialog = ({ open, onClose, onFileSelect, onUploadNew }) => {
     const theme = useTheme();
+    const { showNotification } = useNotification();
     const [files, setFiles] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -85,9 +88,11 @@ const FileSelectionDialog = ({ open, onClose, onFileSelect, onUploadNew }) => {
         try {
             await deletePowerBISession(file.collection_name);
             setFiles(prev => prev.filter(f => f.collection_name !== file.collection_name));
+            showNotification(`File "${file.filename}" deleted successfully!`, 'success');
         } catch (err) {
             console.error('Error deleting file:', err);
             setError(err.message || 'Failed to delete file');
+            showNotification(`Failed to delete "${file.filename}". ${err.message || 'Please try again.'}`, 'error');
         } finally {
             setDeletingFile(null);
         }

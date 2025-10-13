@@ -165,3 +165,29 @@ def list_uploaded_files():
     except Exception as e:
         logger.error(f"Error retrieving list of uploaded files: {e}", exc_info=True)
         return jsonify({'error': 'Failed to retrieve uploaded files.'}), 500
+
+
+@powerbi_chat_bp.route('/powerbi-chat/delete-session', methods=['DELETE', 'OPTIONS'])
+@cross_origin()
+def delete_powerbi_session():
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 'ok'})
+    
+    data = request.get_json()
+    session_id = data.get('session_id')
+    
+    if not session_id:
+        return jsonify({'error': 'Session ID is required'}), 400
+    
+    try:
+        success = vector_store_service.delete_collection(session_id)
+        if success:
+            return jsonify({
+                'message': 'Session deleted successfully',
+                'status': 'success'
+            })
+        else:
+            return jsonify({'error': 'Failed to delete session'}), 500
+    except Exception as e:
+        logger.error(f"Error deleting Power BI session {session_id}: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to delete session'}), 500

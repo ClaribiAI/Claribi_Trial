@@ -63,6 +63,11 @@ class RAGOrchestrationService:
             
             # Send individual search generation updates
             for i, follow_up_query in enumerate(follow_up):
+                # Skip empty queries
+                if not follow_up_query or not follow_up_query.strip():
+                    logger.warning(f"Skipping empty follow-up query at index {i}")
+                    continue
+                    
                 search_id = f"search_{i}_{hash(follow_up_query) % 10000}"
                 logger.info(f"Sending search_generated update for query: {follow_up_query} with ID: {search_id}")
                 send_update("search_generated", f"Search: {follow_up_query}", {
@@ -77,6 +82,11 @@ class RAGOrchestrationService:
             
             # Count results per query by running individual retrievals
             for i, follow_up_query in enumerate(follow_up):
+                # Skip empty queries
+                if not follow_up_query or not follow_up_query.strip():
+                    logger.warning(f"Skipping empty follow-up query at index {i} in completion loop")
+                    continue
+                    
                 search_id = f"search_{i}_{hash(follow_up_query) % 10000}"
                 # Get documents for this specific query
                 query_docs = retriever.invoke(follow_up_query)
@@ -135,6 +145,10 @@ class RAGOrchestrationService:
             sufficient = data.get("sufficient", True)
             follow_up_queries = data.get("follow_up_queries", [])
             user_clarifications = data.get("user_clarifications", [])
+            
+            # Filter out empty or invalid follow-up queries
+            follow_up_queries = [q.strip() for q in follow_up_queries if q and q.strip()]
+            user_clarifications = [c.strip() for c in user_clarifications if c and c.strip()]
             
             logger.info(f"Context sufficient: {sufficient}, follow_up_queries: {follow_up_queries}, user_clarifications: {user_clarifications}")
             
