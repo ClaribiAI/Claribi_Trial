@@ -1,13 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
     Box,
     Typography,
     Paper,
-    LinearProgress,
     Chip,
     useTheme,
     alpha,
-    Fade,
     Collapse,
     IconButton
 } from '@mui/material';
@@ -15,19 +13,14 @@ import {
     Brain,
     CheckCircle,
     CaretDown,
-    CaretRight,
-    Database,
-    MagnifyingGlass
+    CaretRight
 } from '@phosphor-icons/react';
 
 const ThinkingProcess = React.memo(({ 
     isVisible = false, 
     currentAction = '',
-    followUpQueries = [],
-    clearHistory = false,
     onToggle = null,
     isCompleted = false,
-    ragDetails = null,
     actionHistory = []
 }) => {
     const theme = useTheme();
@@ -38,7 +31,6 @@ const ThinkingProcess = React.memo(({
         if (onToggle) onToggle(!expanded);
     };
 
-
     if (!isVisible) return null;
 
     return (
@@ -46,18 +38,16 @@ const ThinkingProcess = React.memo(({
             elevation={0}
             sx={{
                 mt: 1,
-                border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+                border: `1px solid ${alpha(theme.palette.divider, 0.12)}`,
                 borderRadius: 2,
                 overflow: 'hidden',
-                bgcolor: alpha(theme.palette.primary.main, 0.02)
+                bgcolor: alpha(theme.palette.background.paper, 0.5)
             }}
         >
             {/* Header */}
             <Box
                 sx={{
                     p: 1.5,
-                    bgcolor: alpha(theme.palette.primary.main, 0.05),
-                    borderBottom: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
@@ -82,152 +72,98 @@ const ThinkingProcess = React.memo(({
                 </IconButton>
             </Box>
 
-
             {/* Expanded Content */}
             <Collapse in={expanded}>
-                <Box sx={{ p: 1.5 }}>
-                    {/* Context Retrieval Details */}
-                    {ragDetails && (
-                        <Box mb={2}>
-                            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                                Context Retrieval Details
-                            </Typography>
-                            <Box display="flex" flexWrap="wrap" gap={1}>
-                                <Chip
-                                    icon={<Database size={14} />}
-                                    label={`${ragDetails.context_used?.initial_docs_count || 0} initial docs`}
-                                    size="small"
-                                    variant="outlined"
-                                />
-                                <Chip
-                                    icon={<MagnifyingGlass size={14} />}
-                                    label={`${ragDetails.follow_up_queries?.length || 0} follow-up queries`}
-                                    size="small"
-                                    variant="outlined"
-                                />
-                                <Chip
-                                    icon={<Brain size={14} />}
-                                    label={`${ragDetails.context_used?.total_context_length || 0} chars context`}
-                                    size="small"
-                                    variant="outlined"
-                                />
-                            </Box>
-                        </Box>
-                    )}
-
+                <Box sx={{ p: 1.5, pt: 0 }}>
                     {/* Current Action */}
                     {currentAction && (
                         <Box sx={{ mb: 2 }}>
-                            <Typography variant="caption" color="text.secondary">
+                            <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
                                 Current Action:
                             </Typography>
-                            <Typography variant="body2" sx={{ mt: 0.5, fontStyle: 'italic' }}>
+                            <Typography variant="body2" sx={{ fontStyle: 'italic' }}>
                                 {currentAction}
                             </Typography>
                         </Box>
                     )}
 
-
-
-                    {/* Action History - Always show if there's history */}
+                    {/* Action History */}
                     {actionHistory.length > 0 && (
-                        <Box sx={{ mb: 2 }}>
-                            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                        <Box>
+                            <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
                                 Processing Steps:
                             </Typography>
-                            {console.log('Rendering action history in ThinkingProcess:', actionHistory)}
                             <Box display="flex" flexDirection="column" gap={0.5}>
-                                {actionHistory.map((action, index) => (
-                                    <Fade key={action.id} in={true} timeout={300}>
+                                {actionHistory.map((action, index) => {
+                                    // Check if action is completed - handle different status values
+                                    // For regular steps, consider them completed if:
+                                    // 1. They have status 'completed', 'done', or 'finished'
+                                    // 2. They are search steps with resultCount (completed search)
+                                    // 3. They are regular steps that are not the current action (meaning they're done)
+                                    // 4. They are regular steps that are not the last action in the list (meaning they're done)
+                                    const isCompleted = action.status === 'completed' || 
+                                                       action.status === 'done' || 
+                                                       action.status === 'finished' ||
+                                                       (action.type === 'search' && action.resultCount !== undefined) ||
+                                                       (action.type === 'regular' && action.action !== currentAction) ||
+                                                       (action.type === 'regular' && index < actionHistory.length - 1);
+                                    
+                                    return (
                                         <Box
+                                            key={action.id}
                                             sx={{
                                                 display: 'flex',
                                                 alignItems: 'flex-start',
                                                 gap: 1,
                                                 p: 1,
                                                 borderRadius: 1,
-                                                bgcolor: action.status === 'completed' 
-                                                    ? alpha(theme.palette.success.main, 0.12)
+                                                bgcolor: isCompleted 
+                                                    ? alpha(theme.palette.success.main, 0.08)
                                                     : alpha(theme.palette.primary.main, 0.05),
-                                                border: `1px solid ${action.status === 'completed' 
-                                                    ? alpha(theme.palette.success.main, 0.2)
-                                                    : alpha(theme.palette.primary.main, 0.2)}`
+                                                border: `1px solid ${isCompleted 
+                                                    ? alpha(theme.palette.success.main, 0.15)
+                                                    : alpha(theme.palette.primary.main, 0.15)}`
                                             }}
                                         >
-                                            {/* Icon indicator */}
                                             <Box
                                                 sx={{
-                                                    width: 20,
-                                                    height: 20,
+                                                    width: 16,
+                                                    height: 16,
                                                     borderRadius: '50%',
-                                                    bgcolor: action.status === 'completed' 
+                                                    bgcolor: isCompleted 
                                                         ? theme.palette.success.main
                                                         : theme.palette.primary.main,
                                                     color: 'white',
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     justifyContent: 'center',
-                                                    fontSize: '0.7rem',
-                                                    fontWeight: 600,
+                                                    fontSize: '0.6rem',
                                                     flexShrink: 0,
                                                     mt: 0.25
                                                 }}
                                             >
-                                                {action.type === 'search' ? (
-                                                    <MagnifyingGlass size={12} />
-                                                ) : action.status === 'completed' ? (
-                                                    '✓'
-                                                ) : (
-                                                    <Brain size={12} />
-                                                )}
+                                                {isCompleted ? '✓' : '○'}
                                             </Box>
                                             <Box sx={{ flex: 1, minWidth: 0 }}>
                                                 <Typography 
                                                     variant="body2" 
                                                     sx={{ 
-                                                        fontSize: '0.85rem', 
-                                                        lineHeight: 1.4, 
-                                                        fontWeight: action.status === 'completed' ? 400 : 500,
-                                                        fontStyle: action.type === 'search' ? 'italic' : 'normal'
+                                                        fontSize: '0.8rem', 
+                                                        lineHeight: 1.4,
+                                                        color: 'text.primary'
                                                     }}
                                                 >
                                                     {action.action}
                                                 </Typography>
-                                                {action.type === 'search' && action.searchQuery && (
-                                                    <Typography variant="caption" color="text.secondary" sx={{ 
-                                                        fontSize: '0.7rem', 
-                                                        fontStyle: 'italic',
-                                                        display: 'block',
-                                                        mt: 0.25,
-                                                        opacity: 0.8
-                                                    }}>
-                                                        Query: "{action.searchQuery}"
-                                                    </Typography>
-                                                )}
-                                                {action.type === 'search' && action.resultCount !== undefined && (
-                                                    <Typography variant="caption" color="text.secondary" sx={{ 
-                                                        fontSize: '0.7rem', 
-                                                        display: 'block',
-                                                        mt: 0.25,
-                                                        opacity: 0.9,
-                                                        fontWeight: 500
-                                                    }}>
-                                                        {action.resultCount} result{action.resultCount !== 1 ? 's' : ''} found
-                                                    </Typography>
-                                                )}
-                                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-                                                    {action.timestamp}
-                                                </Typography>
                                             </Box>
                                         </Box>
-                                    </Fade>
-                                ))}
+                                    );
+                                })}
                             </Box>
                         </Box>
                     )}
                 </Box>
             </Collapse>
-
         </Paper>
     );
 });

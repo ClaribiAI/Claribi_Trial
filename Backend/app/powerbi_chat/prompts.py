@@ -12,8 +12,8 @@ Respond with a JSON object in this exact format:
 {{
     "sufficient": true/false,
     "reasoning": "Explain why the context is or isn't sufficient.",
-    "follow_up_queries": ["List 2-3 searches for the AI to find missing technical details in the PBIX file."],
-    "user_clarifications": ["List questions for the user about business logic or requirements that the PBIX file cannot answer."]
+    "follow_up_queries": ["List max 3 searches for the AI to find missing technical details in the PBIX file."],
+    "user_clarifications": ["List max 3 questions for the user about business logic or requirements that the PBIX file cannot answer."]
 }}
 
 IMPORTANT GUIDELINES FOR YOUR ANALYSIS:
@@ -22,7 +22,8 @@ IMPORTANT GUIDELINES FOR YOUR ANALYSIS:
 3. Check if you have specific table names, column names, measure names, and relationships
 4. Ensure you can provide exact DAX code examples using their actual data model
 5. If the context is missing critical Power BI elements, generate targeted follow-up queries
-6. "user_clarifications" should only be alist of questions for the user about business logic or requirements that the PBIX file cannot answer.
+6. "user_clarifications" should only be a list of questions for the user about business logic or requirements that the PBIX file cannot answer. Do not include any questions about Power BI technical implementation - those go in follow_up_queries.
+
 
 IMPORTANT FORMATTING FOR CLARIFICATION QUESTIONS:
 - When asking clarification questions, format table names and column names as **TableName** (bold text)
