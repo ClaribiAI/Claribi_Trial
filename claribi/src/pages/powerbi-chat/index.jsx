@@ -378,8 +378,9 @@ const PowerBIChat = () => {
     };
 
     const handleRemoveFile = async () => {
-        // Delete the session from the backend if it exists
-        if (pbixFile?.sessionId) {
+        // Only delete the session from the backend if it's a newly uploaded file
+        // Previously uploaded files should not be deleted when going back to welcome screen
+        if (pbixFile?.sessionId && isNewlyUploaded) {
             try {
                 await deletePowerBISession(pbixFile.sessionId);
                 console.log('Session deleted successfully');
@@ -389,6 +390,9 @@ const PowerBIChat = () => {
                 showNotification(`Failed to remove file "${pbixFile.name}". ${error.message || 'Please try again.'}`, 'error');
                 // Continue with file removal even if session deletion fails
             }
+        } else if (pbixFile?.sessionId && !isNewlyUploaded) {
+            // For previously uploaded files, just show a message that we're going back to welcome screen
+            showNotification(`Returning to home screen. File "${pbixFile.name}" is still available for selection.`, 'info');
         }
         
         setPbixFile(null);
@@ -676,27 +680,29 @@ const PowerBIChat = () => {
                         </Box>
                         
                         {/* File Status Display */}
-                        <Chip
-                            icon={<FileText size={16} />}
-                            label={`${pbixFile.name} (${(pbixFile.size / 1024 / 1024).toFixed(1)} MB)`}
-                            onDelete={handleRemoveFile}
-                            color="primary"
-                            variant="outlined"
-                            sx={{
-                                maxWidth: 280,
-                                height: 32,
-                                fontSize: '0.8rem',
-                                fontWeight: 500,
-                                '& .MuiChip-label': {
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    px: 1.5
-                                },
-                                '& .MuiChip-deleteIcon': {
-                                    fontSize: '1rem'
-                                }
-                            }}
-                        />
+                        <Tooltip title={isNewlyUploaded ? "Remove file and delete from server" : "Return to home screen (file remains available)"}>
+                            <Chip
+                                icon={<FileText size={16} />}
+                                label={`${pbixFile.name} (${(pbixFile.size / 1024 / 1024).toFixed(1)} MB)`}
+                                onDelete={handleRemoveFile}
+                                color="primary"
+                                variant="outlined"
+                                sx={{
+                                    maxWidth: 280,
+                                    height: 32,
+                                    fontSize: '0.8rem',
+                                    fontWeight: 500,
+                                    '& .MuiChip-label': {
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        px: 1.5
+                                    },
+                                    '& .MuiChip-deleteIcon': {
+                                        fontSize: '1rem'
+                                    }
+                                }}
+                            />
+                        </Tooltip>
                     </Box>
                 </Box>
             )}
