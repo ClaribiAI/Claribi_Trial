@@ -53,11 +53,7 @@ class RAGOrchestrationService:
         send_update("context_analysis", "Analyzing context to see if more information is needed...")
         sufficient, follow_up, clarifications = self._analyze_context(query, initial_context)
         
-        if clarifications:
-            send_update("clarification_required", "User input is needed to provide the best answer.", {"follow_up_queries": follow_up})
-            pre_fetched_context = self._format_docs(self._retrieve_parallel(retriever, follow_up))
-            return RAGResult("NEEDS_CLARIFICATION", {"user_clarifications": clarifications, "context_for_continuation": {"collection_name": collection_name, "original_query": query, "initial_context": initial_context, "pre_fetched_context": pre_fetched_context}})
-        
+        # Handle search steps first, even if clarifications are needed
         if not sufficient and follow_up:
             logger.info(f"Generated {len(follow_up)} follow-up queries: {follow_up}")
             send_update("follow_up_retrieval", "Retrieving additional context...", {"follow_up_queries": follow_up})
@@ -90,6 +86,13 @@ class RAGOrchestrationService:
             final_context = initial_context + "\n\n--- Additional Context ---\n\n" + self._format_docs(additional_docs)
         else:
             final_context = initial_context
+        
+        # After search steps, check if clarifications are still needed
+        if clarifications:
+            logger.info(f"After search steps, clarifications still needed: {clarifications}")
+            send_update("clarification_required", "User input is needed to provide the best answer.", {"follow_up_queries": follow_up})
+            pre_fetched_context = self._format_docs(self._retrieve_parallel(retriever, follow_up)) if follow_up else ""
+            return RAGResult("NEEDS_CLARIFICATION", {"user_clarifications": clarifications, "context_for_continuation": {"collection_name": collection_name, "original_query": query, "initial_context": final_context, "pre_fetched_context": pre_fetched_context}})
         
         send_update("final_generation", "Generating the final answer...")
         return RAGResult("COMPLETE", {"answer": self._generate_final_response(query, final_context)})
