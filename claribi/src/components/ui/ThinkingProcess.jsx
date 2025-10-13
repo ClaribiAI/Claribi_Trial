@@ -153,6 +153,7 @@ const ThinkingProcess = React.memo(({
                                                     : alpha(theme.palette.primary.main, 0.2)}`
                                             }}
                                         >
+                                            {/* Icon or number indicator */}
                                             <Box
                                                 sx={{
                                                     width: 20,
@@ -171,13 +172,27 @@ const ThinkingProcess = React.memo(({
                                                     mt: 0.25
                                                 }}
                                             >
-                                                {action.status === 'completed' ? '✓' : index + 1}
+                                                {action.type === 'search' ? (
+                                                    <MagnifyingGlass size={12} />
+                                                ) : action.status === 'completed' ? (
+                                                    '✓'
+                                                ) : (
+                                                    index + 1
+                                                )}
                                             </Box>
                                             <Box sx={{ flex: 1, minWidth: 0 }}>
-                                                <Typography variant="body2" sx={{ fontSize: '0.85rem', lineHeight: 1.4, fontWeight: action.status === 'completed' ? 400 : 500 }}>
+                                                <Typography 
+                                                    variant="body2" 
+                                                    sx={{ 
+                                                        fontSize: '0.85rem', 
+                                                        lineHeight: 1.4, 
+                                                        fontWeight: action.status === 'completed' ? 400 : 500,
+                                                        fontStyle: action.type === 'search' ? 'italic' : 'normal'
+                                                    }}
+                                                >
                                                     {action.action}
                                                 </Typography>
-                                                {action.searchQuery && (
+                                                {action.type === 'search' && action.searchQuery && (
                                                     <Typography variant="caption" color="text.secondary" sx={{ 
                                                         fontSize: '0.7rem', 
                                                         fontStyle: 'italic',
@@ -185,7 +200,18 @@ const ThinkingProcess = React.memo(({
                                                         mt: 0.25,
                                                         opacity: 0.8
                                                     }}>
-                                                        "{action.searchQuery}"
+                                                        Query: "{action.searchQuery}"
+                                                    </Typography>
+                                                )}
+                                                {action.type === 'search' && action.resultCount !== undefined && (
+                                                    <Typography variant="caption" color="text.secondary" sx={{ 
+                                                        fontSize: '0.7rem', 
+                                                        display: 'block',
+                                                        mt: 0.25,
+                                                        opacity: 0.9,
+                                                        fontWeight: 500
+                                                    }}>
+                                                        {action.resultCount} result{action.resultCount !== 1 ? 's' : ''} found
                                                     </Typography>
                                                 )}
                                                 <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>

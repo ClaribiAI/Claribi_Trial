@@ -60,8 +60,30 @@ class RAGOrchestrationService:
         
         if follow_up:
             send_update("follow_up_retrieval", "Retrieving additional context...", {"follow_up_queries": follow_up})
-        
-        final_context = initial_context + "\n\n--- Additional Context ---\n\n" + self._format_docs(self._retrieve_parallel(retriever, follow_up))
+            
+            # Send individual search generation updates
+            for i, query in enumerate(follow_up):
+                search_id = f"search_{i}_{hash(query) % 10000}"
+                send_update("search_generated", f"Search: {query}", {
+                    "search_query": query,
+                    "search_id": search_id
+                })
+            
+            # Execute searches and send completion updates
+            additional_docs = self._retrieve_parallel(retriever, follow_up)
+            for i, query in enumerate(follow_up):
+                search_id = f"search_{i}_{hash(query) % 10000}"
+                # Count documents that match this specific query
+                query_docs = [doc for doc in additional_docs if query.lower() in doc.page_content.lower()]
+                result_count = len(query_docs) if query_docs else 0
+                send_update("search_completed", f"Search completed: {query}", {
+                    "search_id": search_id,
+                    "result_count": result_count
+                })
+            
+            final_context = initial_context + "\n\n--- Additional Context ---\n\n" + self._format_docs(additional_docs)
+        else:
+            final_context = initial_context
         
         send_update("final_generation", "Generating the final answer...")
         return RAGResult("COMPLETE", {"answer": self._generate_final_response(query, final_context)})

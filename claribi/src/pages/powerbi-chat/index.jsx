@@ -80,15 +80,17 @@ const PowerBIChat = () => {
     };
 
     // Function to add action to history
-    const addActionToHistory = (action, step, status, searchQuery = null) => {
+    const addActionToHistory = (action, step, status, searchQuery = null, type = 'regular', searchId = null) => {
         const timestamp = new Date().toLocaleTimeString();
         setActionHistory(prev => [...prev, {
-            id: Date.now() + Math.random(), // Ensure unique ID
+            id: searchId || Date.now() + Math.random(), // Use searchId if provided, otherwise generate unique ID
             action,
             timestamp,
             step,
             status,
-            searchQuery
+            searchQuery,
+            type,
+            searchId
         }]);
     };
 
@@ -145,20 +147,38 @@ const PowerBIChat = () => {
             const handleRealTimeUpdate = (updateData) => {
                 console.log('Real-time update received:', updateData);
                 
-                // Update the thinking process state based on the backend step
-                setThinkingProcess(prev => ({
-                    ...prev,
-                    currentAction: updateData.message,
-                    // Add any follow-up queries sent in the update
-                    followUpQueries: updateData.follow_up_queries ? 
-                        [...new Set([...prev.followUpQueries, ...updateData.follow_up_queries])] : 
-                        prev.followUpQueries,
-                }));
-    
-                // Also add to the detailed action history timeline
-                addActionToHistory(updateData.message, 0, 'in_progress');
-                if (updateData.follow_up_queries) {
-                    updateData.follow_up_queries.forEach(q => addActionToHistory(`- ${q}`, 0, 'in_progress'));
+                // Handle search step updates
+                if (updateData.step === 'search_generated') {
+                    // Add search step to action history
+                    addActionToHistory(`Search: ${updateData.search_query}`, 0, 'in_progress', updateData.search_query, 'search', updateData.search_id);
+                } else if (updateData.step === 'search_completed') {
+                    // Update existing search step to completed status
+                    setActionHistory(prev => prev.map(action => 
+                        action.searchId === updateData.search_id 
+                            ? { 
+                                ...action, 
+                                status: 'completed', 
+                                action: `Search: ${action.searchQuery} (${updateData.result_count} results)`,
+                                resultCount: updateData.result_count
+                            }
+                            : action
+                    ));
+                } else {
+                    // Handle regular updates
+                    setThinkingProcess(prev => ({
+                        ...prev,
+                        currentAction: updateData.message,
+                        // Add any follow-up queries sent in the update
+                        followUpQueries: updateData.follow_up_queries ? 
+                            [...new Set([...prev.followUpQueries, ...updateData.follow_up_queries])] : 
+                            prev.followUpQueries,
+                    }));
+        
+                    // Also add to the detailed action history timeline
+                    addActionToHistory(updateData.message, 0, 'in_progress');
+                    if (updateData.follow_up_queries) {
+                        updateData.follow_up_queries.forEach(q => addActionToHistory(`- ${q}`, 0, 'in_progress'));
+                    }
                 }
             };
     
