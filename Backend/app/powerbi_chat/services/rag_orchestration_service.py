@@ -62,11 +62,11 @@ class RAGOrchestrationService:
             send_update("follow_up_retrieval", "Retrieving additional context...", {"follow_up_queries": follow_up})
             
             # Send individual search generation updates
-            for i, query in enumerate(follow_up):
-                search_id = f"search_{i}_{hash(query) % 10000}"
-                logger.info(f"Sending search_generated update for query: {query} with ID: {search_id}")
-                send_update("search_generated", f"Search: {query}", {
-                    "search_query": query,
+            for i, follow_up_query in enumerate(follow_up):
+                search_id = f"search_{i}_{hash(follow_up_query) % 10000}"
+                logger.info(f"Sending search_generated update for query: {follow_up_query} with ID: {search_id}")
+                send_update("search_generated", f"Search: {follow_up_query}", {
+                    "search_query": follow_up_query,
                     "search_id": search_id
                 })
             
@@ -75,13 +75,13 @@ class RAGOrchestrationService:
             additional_docs = self._retrieve_parallel(retriever, follow_up)
             logger.info(f"Retrieved {len(additional_docs)} additional documents")
             
-            for i, query in enumerate(follow_up):
-                search_id = f"search_{i}_{hash(query) % 10000}"
+            for i, follow_up_query in enumerate(follow_up):
+                search_id = f"search_{i}_{hash(follow_up_query) % 10000}"
                 # Count documents that match this specific query
-                query_docs = [doc for doc in additional_docs if query.lower() in doc.page_content.lower()]
+                query_docs = [doc for doc in additional_docs if follow_up_query.lower() in doc.page_content.lower()]
                 result_count = len(query_docs) if query_docs else 0
-                logger.info(f"Sending search_completed update for query: {query} with {result_count} results")
-                send_update("search_completed", f"Search completed: {query}", {
+                logger.info(f"Sending search_completed update for query: {follow_up_query} with {result_count} results")
+                send_update("search_completed", f"Search completed: {follow_up_query}", {
                     "search_id": search_id,
                     "result_count": result_count
                 })

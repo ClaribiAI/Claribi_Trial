@@ -4,6 +4,9 @@ import logging
 import tempfile
 import json
 from flask import Blueprint, request, jsonify, Response,  current_app
+from threading import Thread
+from queue import Queue, Empty
+import time
 from flask_cors import cross_origin
 import os
 from app.powerbi_chat.services.pbix_parsing_service import PBIXParsingService
@@ -23,25 +26,60 @@ def process_powerbi_query_stream():
     if not query or not session_id: return jsonify({'error': 'Query and session_id are required'}), 400
 
     def generate_updates():
-        # Define the callback function that the orchestrator will use
-        def send_update_to_frontend(update_data: dict):
-            """Formats and yields an update to the frontend via SSE."""
-            try:
-                yield f"data: {json.dumps(update_data)}\n\n"
-            except Exception as e:
-                logger.error(f"Error sending update to frontend: {e}")
-
         try:
-            # The orchestrator will call our callback function to send live updates
-            result: RAGResult = rag_orchestration_service.start_query(
-                session_id, 
-                query, 
-                update_callback=lambda update: next(send_update_to_frontend(update))
-            )
+            # Stream a small initial update to open the SSE channel
+            yield f"data: {json.dumps({'type': 'update', 'step': 'initial_retrieval', 'current_action': 'Retrieving initial context from your Power BI file...'})}\n\n"
+
+            # Queue to receive updates from orchestrator thread
+            updates_queue: Queue = Queue()
+            result_container = {'result': None}
+
+            def update_callback(update_data: dict):
+                # Push each update into the queue to be streamed to client
+                updates_queue.put(update_data)
+
+            def run_orchestrator():
+                try:
+                    result: RAGResult = rag_orchestration_service.start_query(
+                        session_id,
+                        query,
+                        update_callback=update_callback
+                    )
+                    result_container['result'] = result
+                finally:
+                    # Signal completion to the streaming loop
+                    updates_queue.put({'__final__': True})
+
+            # Start orchestrator on a background thread
+            worker = Thread(target=run_orchestrator, daemon=True)
+            worker.start()
+
+            # Stream updates as they arrive
+            while True:
+                try:
+                    update = updates_queue.get(timeout=0.1)
+                except Empty:
+                    time.sleep(0.05)
+                    continue
+
+                if '__final__' in update:
+                    break
+
+                yield f"data: {json.dumps(update)}\n\n"
+
+            # Send final payload depending on result status
+            result = result_container['result']
+            if not result:
+                yield f"data: {json.dumps({'type': 'error', 'message': 'No result generated.'})}\n\n"
+                return
 
             if result.status == "NEEDS_CLARIFICATION":
                 context_key = cache_manager.set(result.data['context_for_continuation'])
-                final_data = {'type': 'clarification_needed', 'user_clarifications': result.data['user_clarifications'], 'clarification_session_key': context_key}
+                final_data = {
+                    'type': 'clarification_needed',
+                    'user_clarifications': result.data['user_clarifications'],
+                    'clarification_session_key': context_key
+                }
                 yield f"data: {json.dumps(final_data)}\n\n"
             elif result.status == "COMPLETE":
                 yield f"data: {json.dumps({'type': 'final', 'answer': result.data['answer']})}\n\n"

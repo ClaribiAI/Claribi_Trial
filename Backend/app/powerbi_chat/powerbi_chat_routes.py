@@ -13,6 +13,8 @@ from datetime import datetime
 import google.generativeai as genai
 import json
 import time
+from threading import Thread
+from queue import Queue, Empty
 
 # PGVector deprecation warnings are resolved by using langchain_postgres
 from app.config.settings import config
@@ -262,49 +264,68 @@ def process_powerbi_query_stream():
                         # Use the new orchestration service with streaming updates
                         try:
                             from app.powerbi_chat.services.rag_orchestration_service import rag_orchestration_service
-                            
-                            # Store updates to send them via SSE
-                            updates_to_send = []
-                            
-                            def collect_updates(update_data: dict):
-                                """Collect updates to send via SSE."""
-                                logger.info(f"Collecting update: {update_data}")
-                                updates_to_send.append(update_data)
-                            
-                            # The orchestrator will call our callback function to collect updates
-                            rag_result = rag_orchestration_service.start_query(
-                                session_id, 
-                                query, 
-                                update_callback=collect_updates
-                            )
-                            
-                            # Send all collected updates
-                            logger.info(f"Sending {len(updates_to_send)} updates to frontend")
-                            for i, update in enumerate(updates_to_send):
-                                logger.info(f"Sending update {i+1}: {update}")
+
+                            # Queue to stream updates from orchestrator thread to SSE
+                            updates_queue: Queue = Queue()
+                            rag_result_container = {'result': None}
+
+                            def update_callback(update_data: dict):
+                                logger.info(f"Queueing update: {update_data}")
+                                updates_queue.put(update_data)
+
+                            def run_orchestrator():
+                                try:
+                                    result = rag_orchestration_service.start_query(
+                                        session_id,
+                                        query,
+                                        update_callback=update_callback
+                                    )
+                                    rag_result_container['result'] = result
+                                finally:
+                                    # Signal completion
+                                    updates_queue.put({'__final__': True})
+
+                            # Start orchestrator in background to allow live streaming of updates
+                            worker = Thread(target=run_orchestrator, daemon=True)
+                            worker.start()
+
+                            # Stream updates as they arrive
+                            while True:
+                                try:
+                                    update = updates_queue.get(timeout=0.1)
+                                except Empty:
+                                    # Keep connection alive subtly
+                                    time.sleep(0.05)
+                                    # Continue waiting for updates
+                                    continue
+
+                                if '__final__' in update:
+                                    break
+
+                                logger.info(f"Streaming update: {update}")
                                 yield f"data: {json.dumps(update)}\n\n"
-                                time.sleep(0.1)  # Small delay between updates
-                            
+
+                            # Orchestrator finished; get final result
+                            rag_result_obj = rag_result_container['result']
+
                             # Convert RAGResult to the expected format
-                            if rag_result.status == "NEEDS_CLARIFICATION":
-                                rag_result_dict = {
+                            if rag_result_obj.status == "NEEDS_CLARIFICATION":
+                                rag_result = {
                                     'needs_clarification': True,
-                                    'user_clarifications': rag_result.data['user_clarifications'],
-                                    'pre_fetched_context': rag_result.data['context_for_continuation'].get('pre_fetched_context', ''),
-                                    'initial_context': rag_result.data['context_for_continuation'].get('initial_context', ''),
-                                    'collection_name': rag_result.data['context_for_continuation'].get('collection_name', session_id),
-                                    'original_query': rag_result.data['context_for_continuation'].get('original_query', query),
+                                    'user_clarifications': rag_result_obj.data['user_clarifications'],
+                                    'pre_fetched_context': rag_result_obj.data['context_for_continuation'].get('pre_fetched_context', ''),
+                                    'initial_context': rag_result_obj.data['context_for_continuation'].get('initial_context', ''),
+                                    'collection_name': rag_result_obj.data['context_for_continuation'].get('collection_name', session_id),
+                                    'original_query': rag_result_obj.data['context_for_continuation'].get('original_query', query),
                                     'follow_up_queries': []
                                 }
                             else:
-                                rag_result_dict = {
+                                rag_result = {
                                     'needs_clarification': False,
-                                    'response': rag_result.data['answer'],
+                                    'response': rag_result_obj.data['answer'],
                                     'follow_up_queries': []
                                 }
-                            
-                            rag_result = rag_result_dict
-                            
+
                         except ValueError as val_error:
                             logger.error(f"Validation error in RAG orchestration: {str(val_error)}")
                             raise
