@@ -259,14 +259,54 @@ def process_powerbi_query_stream():
                         logger.info(f"Using iterative RAG pipeline with streaming for session_id: {session_id}")
                         logger.info(f"Query length: {len(query)} characters, max_iterations: {max_iterations}")
                         
-                        # Call the working RAG pipeline method with error handling
+                        # Use the new orchestration service with streaming updates
                         try:
-                            rag_result = rag_pipeline.query_collection_iterative(session_id, query, max_iterations)
+                            from app.powerbi_chat.services.rag_orchestration_service import rag_orchestration_service
+                            
+                            # Store updates to send them via SSE
+                            updates_to_send = []
+                            
+                            def collect_updates(update_data: dict):
+                                """Collect updates to send via SSE."""
+                                updates_to_send.append(update_data)
+                            
+                            # The orchestrator will call our callback function to collect updates
+                            rag_result = rag_orchestration_service.start_query(
+                                session_id, 
+                                query, 
+                                update_callback=collect_updates
+                            )
+                            
+                            # Send all collected updates
+                            for update in updates_to_send:
+                                yield f"data: {json.dumps(update)}\n\n"
+                                time.sleep(0.1)  # Small delay between updates
+                            
+                            # Convert RAGResult to the expected format
+                            if rag_result.status == "NEEDS_CLARIFICATION":
+                                rag_result_dict = {
+                                    'needs_clarification': True,
+                                    'user_clarifications': rag_result.data['user_clarifications'],
+                                    'pre_fetched_context': rag_result.data['context_for_continuation'].get('pre_fetched_context', ''),
+                                    'initial_context': rag_result.data['context_for_continuation'].get('initial_context', ''),
+                                    'collection_name': rag_result.data['context_for_continuation'].get('collection_name', session_id),
+                                    'original_query': rag_result.data['context_for_continuation'].get('original_query', query),
+                                    'follow_up_queries': []
+                                }
+                            else:
+                                rag_result_dict = {
+                                    'needs_clarification': False,
+                                    'response': rag_result.data['answer'],
+                                    'follow_up_queries': []
+                                }
+                            
+                            rag_result = rag_result_dict
+                            
                         except ValueError as val_error:
-                            logger.error(f"Validation error in RAG pipeline: {str(val_error)}")
+                            logger.error(f"Validation error in RAG orchestration: {str(val_error)}")
                             raise
                         except Exception as rag_exec_error:
-                            logger.error(f"Execution error in RAG pipeline: {str(rag_exec_error)}")
+                            logger.error(f"Execution error in RAG orchestration: {str(rag_exec_error)}")
                             logger.error(traceback.format_exc())
                             raise
                         

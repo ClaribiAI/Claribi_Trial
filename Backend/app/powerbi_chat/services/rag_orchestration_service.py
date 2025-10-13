@@ -58,24 +58,30 @@ class RAGOrchestrationService:
             pre_fetched_context = self._format_docs(self._retrieve_parallel(retriever, follow_up))
             return RAGResult("NEEDS_CLARIFICATION", {"user_clarifications": clarifications, "context_for_continuation": {"collection_name": collection_name, "original_query": query, "initial_context": initial_context, "pre_fetched_context": pre_fetched_context}})
         
-        if follow_up:
+        if not sufficient and follow_up:
+            logger.info(f"Generated {len(follow_up)} follow-up queries: {follow_up}")
             send_update("follow_up_retrieval", "Retrieving additional context...", {"follow_up_queries": follow_up})
             
             # Send individual search generation updates
             for i, query in enumerate(follow_up):
                 search_id = f"search_{i}_{hash(query) % 10000}"
+                logger.info(f"Sending search_generated update for query: {query} with ID: {search_id}")
                 send_update("search_generated", f"Search: {query}", {
                     "search_query": query,
                     "search_id": search_id
                 })
             
             # Execute searches and send completion updates
+            logger.info("Executing parallel search retrieval...")
             additional_docs = self._retrieve_parallel(retriever, follow_up)
+            logger.info(f"Retrieved {len(additional_docs)} additional documents")
+            
             for i, query in enumerate(follow_up):
                 search_id = f"search_{i}_{hash(query) % 10000}"
                 # Count documents that match this specific query
                 query_docs = [doc for doc in additional_docs if query.lower() in doc.page_content.lower()]
                 result_count = len(query_docs) if query_docs else 0
+                logger.info(f"Sending search_completed update for query: {query} with {result_count} results")
                 send_update("search_completed", f"Search completed: {query}", {
                     "search_id": search_id,
                     "result_count": result_count
@@ -116,9 +122,19 @@ class RAGOrchestrationService:
         response = chain.invoke({"question": q, "context": ctx})
         try:
             data = json.loads(re.search(r'\{.*\}', response, re.DOTALL).group())
-            return not bool(data.get("user_clarifications")), data.get("follow_up_queries", []), data.get("user_clarifications", [])
-        except (json.JSONDecodeError, AttributeError):
-            logger.warning("Failed to parse JSON from context analysis, assuming context is sufficient.")
+            logger.info(f"Context analysis result: {data}")
+            
+            # Check if context is sufficient based on the 'sufficient' field
+            sufficient = data.get("sufficient", True)
+            follow_up_queries = data.get("follow_up_queries", [])
+            user_clarifications = data.get("user_clarifications", [])
+            
+            logger.info(f"Context sufficient: {sufficient}, follow_up_queries: {follow_up_queries}, user_clarifications: {user_clarifications}")
+            
+            return sufficient, follow_up_queries, user_clarifications
+        except (json.JSONDecodeError, AttributeError) as e:
+            logger.warning(f"Failed to parse JSON from context analysis: {e}")
+            logger.warning(f"Raw response: {response}")
             return True, [], []
 
     def _generate_final_response(self, query: str, context: str) -> str:
