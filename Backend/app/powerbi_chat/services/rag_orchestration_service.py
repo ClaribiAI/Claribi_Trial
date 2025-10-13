@@ -75,10 +75,11 @@ class RAGOrchestrationService:
             additional_docs = self._retrieve_parallel(retriever, follow_up)
             logger.info(f"Retrieved {len(additional_docs)} additional documents")
             
+            # Count results per query by running individual retrievals
             for i, follow_up_query in enumerate(follow_up):
                 search_id = f"search_{i}_{hash(follow_up_query) % 10000}"
-                # Count documents that match this specific query
-                query_docs = [doc for doc in additional_docs if follow_up_query.lower() in doc.page_content.lower()]
+                # Get documents for this specific query
+                query_docs = retriever.invoke(follow_up_query)
                 result_count = len(query_docs) if query_docs else 0
                 logger.info(f"Sending search_completed update for query: {follow_up_query} with {result_count} results")
                 send_update("search_completed", f"Search completed: {follow_up_query}", {
