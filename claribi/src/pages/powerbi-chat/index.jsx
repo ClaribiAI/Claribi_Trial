@@ -82,7 +82,7 @@ const PowerBIChat = () => {
     // Function to add action to history
     const addActionToHistory = (action, step, status, searchQuery = null, type = 'regular', searchId = null) => {
         const timestamp = new Date().toLocaleTimeString();
-        setActionHistory(prev => [...prev, {
+        const newAction = {
             id: searchId || Date.now() + Math.random(), // Use searchId if provided, otherwise generate unique ID
             action,
             timestamp,
@@ -91,7 +91,13 @@ const PowerBIChat = () => {
             searchQuery,
             type,
             searchId
-        }]);
+        };
+        console.log('Adding action to history:', newAction);
+        setActionHistory(prev => {
+            const updated = [...prev, newAction];
+            console.log('Updated action history:', updated);
+            return updated;
+        });
     };
 
     // Track the previous message count to only scroll when new messages are added
@@ -146,12 +152,16 @@ const PowerBIChat = () => {
         try {
             const handleRealTimeUpdate = (updateData) => {
                 console.log('Real-time update received:', updateData);
+                console.log('Update step:', updateData.step);
+                console.log('Update type:', updateData.type);
                 
                 // Handle search step updates
                 if (updateData.step === 'search_generated') {
+                    console.log('Processing search_generated update:', updateData);
                     // Add search step to action history
                     addActionToHistory(`Search: ${updateData.search_query}`, 0, 'in_progress', updateData.search_query, 'search', updateData.search_id);
                 } else if (updateData.step === 'search_completed') {
+                    console.log('Processing search_completed update:', updateData);
                     // Update existing search step to completed status
                     setActionHistory(prev => prev.map(action => 
                         action.searchId === updateData.search_id 
@@ -164,6 +174,7 @@ const PowerBIChat = () => {
                             : action
                     ));
                 } else {
+                    console.log('Processing regular update:', updateData);
                     // Handle regular updates
                     setThinkingProcess(prev => ({
                         ...prev,
@@ -808,7 +819,7 @@ const PowerBIChat = () => {
                 ))}
                 
 				{/* Show thinking process during processing (when no final response yet) */}
-                {thinkingProcess.isVisible && messages.length > 0 && messages[messages.length - 1].type !== 'assistant' && (
+                {thinkingProcess.isVisible && messages.length > 0 && (messages[messages.length - 1].type !== 'assistant' || isWaitingForClarifications) && (
                     <Box mb={2}>
                         <ThinkingProcess
                             isVisible={thinkingProcess.isVisible}

@@ -135,6 +135,7 @@ const ThinkingProcess = React.memo(({
                             <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
                                 Processing Steps:
                             </Typography>
+                            {console.log('Rendering action history in ThinkingProcess:', actionHistory)}
                             <Box display="flex" flexDirection="column" gap={0.5}>
                                 {actionHistory.map((action, index) => (
                                     <Fade key={action.id} in={true} timeout={300}>
