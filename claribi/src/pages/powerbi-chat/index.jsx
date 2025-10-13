@@ -152,8 +152,6 @@ const PowerBIChat = () => {
         try {
             const handleRealTimeUpdate = (updateData) => {
                 console.log('Real-time update received:', updateData);
-                console.log('Update step:', updateData.step);
-                console.log('Update type:', updateData.type);
                 
                 // Handle search step updates
                 if (updateData.step === 'search_generated') {
@@ -179,17 +177,20 @@ const PowerBIChat = () => {
                     setThinkingProcess(prev => ({
                         ...prev,
                         currentAction: updateData.message,
-                        // Add any follow-up queries sent in the update
+                        // Add any follow-up queries sent in the update for context, but don't add to history here
                         followUpQueries: updateData.follow_up_queries ? 
                             [...new Set([...prev.followUpQueries, ...updateData.follow_up_queries])] : 
                             prev.followUpQueries,
                     }));
         
-                    // Also add to the detailed action history timeline
+                    // ✅ CORRECT: Only add the main message for this step to the history timeline.
+                    // The individual searches are handled by their own 'search_generated' step.
                     addActionToHistory(updateData.message, 0, 'in_progress');
-                    if (updateData.follow_up_queries) {
-                        updateData.follow_up_queries.forEach(q => addActionToHistory(`- ${q}`, 0, 'in_progress'));
-                    }
+                    
+                    // ❌ REMOVED: Do not iterate and add follow_up_queries here.
+                    // if (updateData.follow_up_queries) {
+                    //     updateData.follow_up_queries.forEach(q => addActionToHistory(`- ${q}`, 0, 'in_progress'));
+                    // }
                 }
             };
     
