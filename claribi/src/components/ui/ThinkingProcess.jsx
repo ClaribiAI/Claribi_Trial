@@ -147,14 +147,14 @@ const ThinkingProcess = React.memo(({
                                                 p: 1,
                                                 borderRadius: 1,
                                                 bgcolor: action.status === 'completed' 
-                                                    ? alpha(theme.palette.success.main, 0.05)
+                                                    ? alpha(theme.palette.success.main, 0.12)
                                                     : alpha(theme.palette.primary.main, 0.05),
                                                 border: `1px solid ${action.status === 'completed' 
                                                     ? alpha(theme.palette.success.main, 0.2)
                                                     : alpha(theme.palette.primary.main, 0.2)}`
                                             }}
                                         >
-                                            {/* Icon or number indicator */}
+                                            {/* Icon indicator */}
                                             <Box
                                                 sx={{
                                                     width: 20,
@@ -178,7 +178,7 @@ const ThinkingProcess = React.memo(({
                                                 ) : action.status === 'completed' ? (
                                                     '✓'
                                                 ) : (
-                                                    index + 1
+                                                    <Brain size={12} />
                                                 )}
                                             </Box>
                                             <Box sx={{ flex: 1, minWidth: 0 }}>

@@ -58,6 +58,7 @@ const PowerBIChat = () => {
         isCompleted: false
     });
     const [actionHistory, setActionHistory] = useState([]);
+    const [lastRegularActionId, setLastRegularActionId] = useState(null);
 	// Inline clarification state
 	const [clarificationFlow, setClarificationFlow] = useState({
 		active: false,
@@ -70,6 +71,15 @@ const PowerBIChat = () => {
 	const [currentClarificationAnswer, setCurrentClarificationAnswer] = useState('');
 	const [isProcessingClarifications, setIsProcessingClarifications] = useState(false);
 	const [isWaitingForClarifications, setIsWaitingForClarifications] = useState(false);
+
+	// Handle Enter key for clarification answers
+	const handleClarificationKeyDown = (e) => {
+		if (e.key === 'Enter' && !e.shiftKey) {
+			e.preventDefault();
+			e.stopPropagation();
+			submitCurrentClarificationAnswer();
+		}
+	};
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
     const fileInputRef = useRef(null);
@@ -142,6 +152,7 @@ const PowerBIChat = () => {
         setIsLoading(true);
         setError(null);
         setActionHistory([]); // Clear previous history
+        setLastRegularActionId(null); // Reset regular action tracking
         setThinkingProcess({
             isVisible: true,
             currentAction: 'Starting analysis...',
@@ -185,7 +196,20 @@ const PowerBIChat = () => {
         
                     // ✅ CORRECT: Only add the main message for this step to the history timeline.
                     // The individual searches are handled by their own 'search_generated' step.
-                    addActionToHistory(updateData.message, 0, 'in_progress');
+                    
+                    // Mark previous regular action as completed if it exists
+                    if (lastRegularActionId) {
+                        setActionHistory(prev => prev.map(action => 
+                            action.id === lastRegularActionId && action.type !== 'search'
+                                ? { ...action, status: 'completed' }
+                                : action
+                        ));
+                    }
+                    
+                    // Add new regular action
+                    const newActionId = Date.now() + Math.random();
+                    addActionToHistory(updateData.message, 0, 'in_progress', null, 'regular', newActionId);
+                    setLastRegularActionId(newActionId);
                     
                     // ❌ REMOVED: Do not iterate and add follow_up_queries here.
                     // if (updateData.follow_up_queries) {
@@ -223,6 +247,15 @@ const PowerBIChat = () => {
             }
     
             if (response.answer) {
+                // Mark the last regular action as completed
+                if (lastRegularActionId) {
+                    setActionHistory(prev => prev.map(action => 
+                        action.id === lastRegularActionId && action.type !== 'search'
+                            ? { ...action, status: 'completed' }
+                            : action
+                    ));
+                }
+                
                 const assistantMessage = {
                     id: Date.now() + 1,
                     type: 'assistant',
@@ -799,28 +832,49 @@ const PowerBIChat = () => {
                     </Box>
                 )}
                 
-                {messages.map((message, index) => (
-                    <React.Fragment key={message.id}>
-                        {/* Show thinking process before the last message (final response) - but not when waiting for clarifications */}
-                        {thinkingProcess.isVisible && index === messages.length - 1 && message.type === 'assistant' && !isWaitingForClarifications && (
-                            <Box mb={2}>
-                                <ThinkingProcess
-                                    isVisible={thinkingProcess.isVisible}
-                                    currentAction={thinkingProcess.currentAction}
-                                    followUpQueries={thinkingProcess.followUpQueries}
-                                    clearHistory={CLEAR_HISTORY_FALSE}
-                                    isCompleted={thinkingProcess.isCompleted || false}
-                                    ragDetails={message.ragDetails}
-                                    actionHistory={actionHistory}
-                                />
-                            </Box>
-                        )}
-                        <MessageBubble message={message} />
-                    </React.Fragment>
-                ))}
+                {messages.map((message, index) => {
+                    const isLastMessage = index === messages.length - 1;
+                    const isClarificationQuestion = isWaitingForClarifications && message.type === 'assistant' && isLastMessage;
+                    
+                    return (
+                        <React.Fragment key={message.id}>
+                            {/* Show thinking process before clarification questions */}
+                            {isClarificationQuestion && thinkingProcess.isVisible && (
+                                <Box mb={2}>
+                                    <ThinkingProcess
+                                        isVisible={thinkingProcess.isVisible}
+                                        currentAction={thinkingProcess.currentAction}
+                                        followUpQueries={thinkingProcess.followUpQueries}
+                                        clearHistory={false}
+                                        isCompleted={thinkingProcess.isCompleted || false}
+                                        ragDetails={null}
+                                        actionHistory={actionHistory}
+                                    />
+                                </Box>
+                            )}
+                            
+                            {/* Show thinking process before the last message (final response) - but not when waiting for clarifications */}
+                            {thinkingProcess.isVisible && isLastMessage && message.type === 'assistant' && !isWaitingForClarifications && (
+                                <Box mb={2}>
+                                    <ThinkingProcess
+                                        isVisible={thinkingProcess.isVisible}
+                                        currentAction={thinkingProcess.currentAction}
+                                        followUpQueries={thinkingProcess.followUpQueries}
+                                        clearHistory={CLEAR_HISTORY_FALSE}
+                                        isCompleted={thinkingProcess.isCompleted || false}
+                                        ragDetails={message.ragDetails}
+                                        actionHistory={actionHistory}
+                                    />
+                                </Box>
+                            )}
+                            
+                            <MessageBubble message={message} />
+                        </React.Fragment>
+                    );
+                })}
                 
-				{/* Show thinking process during processing (when no final response yet) OR when waiting for clarifications */}
-                {thinkingProcess.isVisible && messages.length > 0 && (messages[messages.length - 1].type !== 'assistant' || isWaitingForClarifications) && (
+				{/* Show thinking process during processing (when no final response yet) - but not when waiting for clarifications */}
+                {thinkingProcess.isVisible && messages.length > 0 && messages[messages.length - 1].type !== 'assistant' && !isWaitingForClarifications && (
                     <Box mb={2}>
                         <ThinkingProcess
                             isVisible={thinkingProcess.isVisible}
@@ -869,6 +923,7 @@ const PowerBIChat = () => {
 							maxRows={4}
 							value={currentClarificationAnswer}
 							onChange={(e) => setCurrentClarificationAnswer(e.target.value)}
+							onKeyDown={handleClarificationKeyDown}
 							placeholder={`Answer: Question ${clarificationFlow.currentIndex + 1}/${clarificationFlow.questions.length}`}
 							variant="outlined"
 							disabled={isProcessingClarifications}
