@@ -205,6 +205,8 @@ const PowerBIChat = () => {
                     content: `I have a quick question to help me answer accurately: ${firstQuestion}`,
                     timestamp: new Date()
                 }]);
+                // Keep thinking process visible to show search steps
+                setThinkingProcess(prev => ({ ...prev, isCompleted: true }));
                 return; // Stop here and wait for user clarification
             }
     
