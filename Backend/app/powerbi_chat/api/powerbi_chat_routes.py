@@ -23,6 +23,7 @@ def process_powerbi_query_stream():
     if request.method == 'OPTIONS': return jsonify({'status': 'ok'})
     data = request.get_json()
     query, session_id = data.get('query'), data.get('session_id')
+    conversation_history = data.get('conversation_history', [])
     if not query or not session_id: return jsonify({'error': 'Query and session_id are required'}), 400
 
     def generate_updates():
@@ -43,7 +44,8 @@ def process_powerbi_query_stream():
                     result: RAGResult = rag_orchestration_service.start_query(
                         session_id,
                         query,
-                        update_callback=update_callback
+                        update_callback=update_callback,
+                        conversation_history=conversation_history
                     )
                     result_container['result'] = result
                 finally:

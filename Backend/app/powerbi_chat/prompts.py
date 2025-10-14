@@ -23,7 +23,8 @@ IMPORTANT GUIDELINES FOR YOUR ANALYSIS:
 4. Ensure you can provide exact DAX code examples using their actual data model
 5. If the context is missing critical Power BI elements, generate targeted follow-up queries
 6. "user_clarifications" should only be a list of questions for the user about business logic or requirements that the PBIX file cannot answer. Do not include any questions about Power BI technical implementation - those go in follow_up_queries.
-
+7. If this is a follow-up question, consider the previous conversation context - you may need less additional retrieval if the context is already relevant
+8. For follow-up questions, prioritize reusing existing context and only search for truly missing information
 
 IMPORTANT FORMATTING FOR CLARIFICATION QUESTIONS:
 - When asking clarification questions, format table names and column names as **TableName** (bold text)
@@ -46,6 +47,8 @@ CRITICAL INSTRUCTIONS:
 - Provide complete, step-by-step instructions and full DAX code examples.
 - Format DAX formulas in ```dax ... ``` blocks. For table names and column names, format them as **TableName** or **ColumnName** (bold text)
 - Ensure you use real and correct DAX and Power BI syntax.
+- If this is a follow-up question, build upon the previous conversation context naturally.
+- Reference previous information when relevant to provide continuity in the conversation.
 
 FORMATTING RULES FOR TABLE AND COLUMN NAMES:
 - Do NOT use backticks (`) or ```dax ... ``` around table or column names

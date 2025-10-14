@@ -118,7 +118,6 @@ class PBIXParsingService:
                 data = getattr(pbix_model, prop)
                 if not is_empty(data):
                     extracted_data[prop] = safe_to_list(data)
-                    logger.info(f"Extracted {prop}: {len(extracted_data[prop])} items")
                 else:
                     extracted_data[prop] = []
             else:
@@ -174,7 +173,6 @@ class PBIXParsingService:
         for name in all_table_names:
             tables.append({"name": name, "columns": [], "measures": []})
         
-        logger.info(f"Discovered {len(tables)} unique tables from all sources.")
 
         # Create a quick lookup map for tables for faster linking (like old implementation)
         table_map = {table['name']: table for table in tables}
@@ -205,8 +203,6 @@ class PBIXParsingService:
             if isinstance(meta_data, dict) and (meta_data.get('Type') == 'Column' or 'Column' in str(meta_data.get('Type', ''))):
                 raw_columns.append(meta_data)
 
-        logger.info(f"Processing {len(raw_columns)} columns from all sources.")
-        logger.info(f"Column sources: {len(raw_data.get('dax_columns', []))} from dax_columns, {len(raw_data.get('table_columns', []))} from table data, {len([c for c in raw_data.get('schema', []) if isinstance(c, dict) and any(key in c for key in ['ColumnName', 'Name', 'DataType', 'Data Type'])])} from schema, {len([c for c in raw_data.get('statistics', []) if isinstance(c, dict) and any(key in c for key in ['ColumnName', 'Name', 'DataType', 'Data Type'])])} from statistics")
         
         # Process all columns with robust fallbacks (like old implementation)
         for col_data in raw_columns:
@@ -234,19 +230,11 @@ class PBIXParsingService:
                         data_type = col_data.get('DataType', col_data.get('Data Type', 'Unknown'))
                         is_hidden = col_data.get('IsHidden', col_data.get('Is Hidden', False))
                         
-                        # Debug: Track data type source
-                        if data_type != 'Unknown':
-                            source = col_data.get('Source', 'unknown')
-                            logger.debug(f"Column '{col_name}' data type '{data_type}' from source: {source}")
-                        
                         if existing_column:
                             # Update existing column with better data type if available
                             if existing_column['dataType'] == 'Unknown' and data_type != 'Unknown':
                                 existing_column['dataType'] = data_type
                                 existing_column['isHidden'] = is_hidden
-                                logger.debug(f"Updated column '{col_name}' in table '{found_table}' with data type '{data_type}'")
-                            else:
-                                logger.debug(f"Column '{col_name}' already exists in table '{found_table}' with data type '{existing_column['dataType']}'")
                         else:
                             # Add new column
                             column_info = {
@@ -256,9 +244,8 @@ class PBIXParsingService:
                                 'table': found_table
                             }
                             table_map[found_table]['columns'].append(column_info)
-                            logger.debug(f"Successfully linked column '{col_name}' to table '{found_table}' with data type '{data_type}'")
                     else:
-                        logger.warning(f"Could not link column '{col_name}' to table '{table_name}'. Available tables: {list(table_map.keys())}")
+                        pass
                 else:
                     logger.warning(f"Column data missing table or name: {col_data}")
             else:
@@ -272,7 +259,6 @@ class PBIXParsingService:
             if isinstance(meta_data, dict) and (meta_data.get('Type') == 'Measure' or 'Measure' in str(meta_data.get('Type', ''))):
                 raw_measures.append(meta_data)
 
-        logger.info(f"Processing {len(raw_measures)} measures from all sources.")
         
         for measure_data in raw_measures:
             if isinstance(measure_data, dict):
@@ -313,7 +299,6 @@ class PBIXParsingService:
 
         # 4. Process relationships with comprehensive fallbacks (like old implementation)
         relationships = []
-        logger.info(f"Processing {len(raw_data.get('relationships', []))} relationships from pbixray.")
         
         
         for rel_data in raw_data.get("relationships", []):
@@ -372,9 +357,6 @@ class PBIXParsingService:
                     }
                 )
 
-        logger.info(f"Final metadata: {len(tables)} tables, {sum(len(t['measures']) for t in tables)} measures, "
-                   f"{len(relationships)} relationships, {sum(len(t['columns']) for t in tables)} columns, "
-                   f"{len(power_query_scripts)} Power Query scripts")
 
         return {
             "tables": tables,

@@ -73,6 +73,10 @@ const PowerBIChat = () => {
 	const [currentClarificationAnswer, setCurrentClarificationAnswer] = useState('');
 	const [isProcessingClarifications, setIsProcessingClarifications] = useState(false);
 	const [isWaitingForClarifications, setIsWaitingForClarifications] = useState(false);
+	
+	// Conversation history state for follow-up questions
+	const [conversationHistory, setConversationHistory] = useState([]);
+	const MAX_CONVERSATION_TOKENS = 8000; // Token limit for conversation history
 
 	// Handle Enter key for clarification answers
 	const handleClarificationKeyDown = (e) => {
@@ -89,6 +93,45 @@ const PowerBIChat = () => {
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    };
+
+    // Token estimation utility (rough: ~4 chars per token)
+    const estimateTokens = (text) => {
+        if (!text) return 0;
+        return Math.ceil(text.length / 4);
+    };
+
+    // Summarize conversation history when it exceeds token limit
+    const summarizeConversationHistory = (history) => {
+        if (history.length <= 2) return history; // Keep at least 2 exchanges
+        
+        let totalTokens = 0;
+        let keepFromIndex = 0;
+        
+        // Calculate tokens from the end backwards
+        for (let i = history.length - 1; i >= 0; i--) {
+            const messageTokens = estimateTokens(history[i].content);
+            if (totalTokens + messageTokens > MAX_CONVERSATION_TOKENS) {
+                keepFromIndex = i + 1;
+                break;
+            }
+            totalTokens += messageTokens;
+        }
+        
+        if (keepFromIndex === 0) return history; // No summarization needed
+        
+        // Keep recent messages and summarize older ones
+        const recentMessages = history.slice(keepFromIndex);
+        const olderMessages = history.slice(0, keepFromIndex);
+        
+        // Create a summary of older messages
+        const summary = {
+            role: 'system',
+            content: `[Previous conversation summary: ${olderMessages.length} exchanges about Power BI topics]`,
+            timestamp: new Date()
+        };
+        
+        return [summary, ...recentMessages];
     };
 
     // Function to add action to history
@@ -155,6 +198,18 @@ const PowerBIChat = () => {
     
         const userMessage = { id: Date.now(), type: 'user', content: inputMessage.trim(), timestamp: new Date() };
         setMessages(prev => [...prev, userMessage]);
+        
+        // Add user message to conversation history
+        const newConversationHistory = [...conversationHistory, {
+            role: 'user',
+            content: inputMessage.trim(),
+            timestamp: new Date()
+        }];
+        
+        // Summarize conversation history if needed
+        const summarizedHistory = summarizeConversationHistory(newConversationHistory);
+        setConversationHistory(summarizedHistory);
+        
         const originalQuery = inputMessage.trim();
         setInputMessage('');
         setIsLoading(true);
@@ -230,7 +285,8 @@ const PowerBIChat = () => {
             const response = await sendPowerBIQueryWithUpdates(
                 originalQuery, 
                 pbixFile, 
-                handleRealTimeUpdate
+                handleRealTimeUpdate,
+                summarizedHistory
             );
     
             if (response.type === 'clarification_needed') {
@@ -272,6 +328,15 @@ const PowerBIChat = () => {
                     timestamp: new Date()
                 };
                 setMessages(prev => [...prev, assistantMessage]);
+                
+                // Add assistant response to conversation history with RAG context key
+                setConversationHistory(prev => [...prev, {
+                    role: 'assistant',
+                    content: response.answer,
+                    ragContextKey: response.rag_context_key || null,
+                    timestamp: new Date()
+                }]);
+                
                 setThinkingProcess(prev => ({ ...prev, isCompleted: true }));
             } else {
                 throw new Error("Received an empty final response from the server.");
@@ -401,6 +466,9 @@ const PowerBIChat = () => {
         
         // Clear messages to return to welcome screen
         setMessages([]);
+        
+        // Clear conversation history
+        setConversationHistory([]);
         
         // Clear any ongoing processes
         setThinkingProcess({

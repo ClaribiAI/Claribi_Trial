@@ -33,11 +33,8 @@ class VectorStoreService:
         if not docs:
             raise ValueError("No documents provided for vector store creation.")
         
-        logger.info(f"Creating vector store for collection: {collection_name} with {len(docs)} documents.")
-        
         # Create the vector store with metadata if provided
         if metadata:
-            logger.info(f"Creating collection with metadata: {list(metadata.keys())}")
             PGVector.from_documents(
                 documents=docs,
                 embedding=self.embedding_model,
@@ -52,7 +49,7 @@ class VectorStoreService:
                 collection_name=collection_name,
                 connection=self.connection_string,
             )
-        logger.info(f"Successfully created vector store for collection: {collection_name}")
+        logger.info(f"Created vector store for collection: {collection_name} with {len(docs)} documents")
 
     def get_retriever(self, collection_name: str):
         """Gets a retriever for an existing collection."""
@@ -66,17 +63,20 @@ class VectorStoreService:
             search_kwargs={"k": config.MAX_RETRIEVAL_DOCS, "score_threshold": 0.5}
         )
 
+    def log_retrieval_operation(self, query: str, results_count: int, operation: str = "retrieval"):
+        """Log retrieval operation details for monitoring."""
+        logger.info(f"🔍 {operation}: {results_count} results")
+
     def delete_collection(self, collection_name: str) -> bool:
         """Deletes a collection."""
         try:
-            logger.info(f"Attempting to delete collection: {collection_name}")
             store = PGVector(
                 collection_name=collection_name,
                 connection=self.connection_string,
                 embeddings=self.embedding_model,
             )
             store.delete_collection()
-            logger.info(f"Successfully deleted collection: {collection_name}")
+            logger.info(f"Deleted collection: {collection_name}")
             return True
         except Exception as e:
             logger.error(f"Error deleting collection {collection_name}: {e}")

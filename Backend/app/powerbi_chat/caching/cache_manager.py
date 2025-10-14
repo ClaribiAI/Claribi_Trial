@@ -35,16 +35,20 @@ class CacheManager:
         logger.info(f"Stored data in cache with key: {key}. Cache size: {len(self._cache)}")
         return key
 
-    def get(self, key: str) -> dict | None:
-        """Retrieves data from the cache and deletes it (one-time use)."""
+    def get(self, key: str, delete_after_retrieval: bool = True) -> dict | None:
+        """Retrieves data from the cache. Optionally deletes it after retrieval."""
         self._cleanup_old_entries()
         entry = self._cache.get(key)
         if not entry:
             logger.warning(f"Cache key not found: {key}")
             return None
         
-        del self._cache[key]
-        logger.info(f"Retrieved and removed cache entry for key: {key}. Cache size: {len(self._cache)}")
+        if delete_after_retrieval:
+            del self._cache[key]
+            logger.info(f"Retrieved and removed cache entry for key: {key}. Cache size: {len(self._cache)}")
+        else:
+            logger.info(f"Retrieved cache entry for key: {key} (kept in cache). Cache size: {len(self._cache)}")
+        
         return entry.get('data')
 
 # Singleton instance to be used across the application
