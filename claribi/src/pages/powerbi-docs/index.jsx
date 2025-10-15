@@ -1039,26 +1039,26 @@ const PowerBIDocumentation = () => {
     );
 
     return (
-        <Box sx={{ width: '100%', height: '100%' }}>
-            {/* Compact Professional Header */}
-            <Box 
-                sx={{ 
-                    bgcolor: 'transparent',
-                    py: 2,
-                    px: 0,
-                    borderBottom: `1px solid ${alpha(theme.palette.divider, 0.08)}`
-                }}
-            >
-                <Box width="100%" display="flex" alignItems="center" justifyContent="space-between">
-                    <Box>
-                        <Typography variant="h5" component="h1" sx={{ fontWeight: 600, mb: 0.5, color: '#333' }}>
-                            ClaribiDocs
-                        </Typography>
-                        <Typography variant="body2" sx={{ color: '#666' }}>
-                            AI-powered PowerBI analysis and documentation
-                        </Typography>
-                    </Box>
-                    {pbixFile && (
+        <Box sx={{ width: '100%', height: '100vh', display: 'flex', flexDirection: 'column' }}>
+            {/* Compact Professional Header - Only show when file is uploaded */}
+            {pbixFile && (
+                <Box 
+                    sx={{ 
+                        bgcolor: 'transparent',
+                        py: 2,
+                        px: 0,
+                        borderBottom: `1px solid ${alpha(theme.palette.divider, 0.08)}`
+                    }}
+                >
+                    <Box width="100%" display="flex" alignItems="center" justifyContent="space-between">
+                        <Box>
+                            <Typography variant="h5" component="h1" sx={{ fontWeight: 600, mb: 0.5, color: '#333' }}>
+                                ClaribiDocs
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: '#666' }}>
+                                AI-powered PowerBI analysis and documentation
+                            </Typography>
+                        </Box>
                         <Box display="flex" gap={1}>
                             <Button
                                 onClick={handleGenerateAll}
@@ -1118,9 +1118,9 @@ const PowerBIDocumentation = () => {
                                 Upload New File
                             </Button>
                         </Box>
-                    )}
+                    </Box>
                 </Box>
-            </Box>
+            )}
 
             {/* Hidden file input for "Upload New File" button */}
             <input
@@ -1137,68 +1137,91 @@ const PowerBIDocumentation = () => {
                 sx={{
                     width: '100%',
                     flexGrow: 1,
-                    mt: 3,
+                    mt: pbixFile ? 3 : 0,
                     px: 0,
-                    py: 0
+                    py: 0,
+                    display: 'flex',
+                    flexDirection: 'column'
                 }}
             >
-                {/* File Upload Section - Show only when no file is uploaded */}
+                {/* Welcome Section - Show only when no file is uploaded */}
                 {!pbixFile && (
-                    <Card 
+                    <Box 
                         sx={{ 
-                            mb: 4, 
-                            borderRadius: 3,
-                            boxShadow: theme.shadows[3],
-                            border: `1px solid ${alpha(theme.palette.divider, 0.12)}`
+                            display: 'flex', 
+                            flexDirection: 'column', 
+                            alignItems: 'center', 
+                            justifyContent: 'center', 
+                            flexGrow: 1,
+                            textAlign: 'center',
+                            py: 8,
+                            px: 4
                         }}
                     >
-                        <CardContent sx={{ p: 4 }}>
-                            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, mb: 3 }}>
-                                Upload Power BI File
-                            </Typography>
-                            
-                            <Box 
+                        <Box 
+                            sx={{ 
+                                p: 4, 
+                                borderRadius: 4, 
+                                bgcolor: alpha(theme.palette.primary.main, 0.08),
+                                color: theme.palette.primary.main,
+                                mb: 4,
+                                border: `2px solid ${alpha(theme.palette.primary.main, 0.15)}`,
+                                boxShadow: '0 8px 32px rgba(0,0,0,0.08)'
+                            }}
+                        >
+                            <FileTextIcon size={64} />
+                        </Box>
+                        <Typography variant="h3" sx={{ 
+                            fontWeight: 700, 
+                            mb: 2, 
+                            color: theme.palette.text.primary,
+                            fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif"
+                        }}>
+                            Welcome to ClaribiDocs
+                        </Typography>
+                        <Typography variant="h6" sx={{ 
+                            color: theme.palette.text.secondary, 
+                            mb: 6, 
+                            maxWidth: 600,
+                            lineHeight: 1.6,
+                            fontWeight: 400
+                        }}>
+                            Upload a Power BI (.pbix) file to generate comprehensive documentation and analysis of your data model.
+                        </Typography>
+                        
+                        {/* Upload Button */}
+                        <Box display="flex" gap={3} mt={2}>
+                            <Button
+                                variant="contained"
+                                startIcon={<CloudArrowUpIcon size={20} />}
                                 onClick={handleFileSelect}
                                 sx={{
-                                    border: `2px dashed ${theme.palette.divider}`,
                                     borderRadius: 3,
-                                    p: 4,
-                                    textAlign: 'center',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s ease-in-out',
-                                    bgcolor: alpha(theme.palette.grey[50], 0.5),
-                                    '&:hover': {
-                                        borderColor: theme.palette.primary.main,
-                                        bgcolor: alpha(theme.palette.primary.main, 0.05)
-                                    }
+                                    px: 4,
+                                    py: 1.5,
+                                    fontSize: '1rem',
+                                    fontWeight: 600,
+                                    height: 48,
+                                    bgcolor: theme.palette.primary.main,
+                                    '&:hover': { 
+                                        bgcolor: theme.palette.primary.dark,
+                                        transform: 'translateY(-2px)',
+                                        boxShadow: '0 6px 20px rgba(0,0,0,0.15)'
+                                    },
+                                    transition: 'all 0.2s ease'
                                 }}
                             >
-                                <Box display="flex" flexDirection="column" alignItems="center" gap={2}>
-                                    <CloudArrowUpIcon 
-                                        size={48}
-                                        color="currentColor"
-                                        style={{ color: theme.palette.text.disabled }}
-                                    />
-                                    
-                                    <Box>
-                                        <Typography variant="h6" gutterBottom>
-                                            Choose Power BI File (.pbix)
-                                        </Typography>
-                                        <Typography variant="body2" color="text.secondary">
-                                            Click here to browse and select your .pbix file
-                                        </Typography>
-                                    </Box>
-                                </Box>
-                            </Box>
+                                Upload Power BI File
+                            </Button>
+                        </Box>
 
-                            {error && (
-                                <Alert severity="error" sx={{ mt: 3, borderRadius: 2 }}>
-                                    <AlertTitle>Error</AlertTitle>
-                                    {error}
-                                </Alert>
-                            )}
-                        </CardContent>
-                    </Card>
+                        {error && (
+                            <Alert severity="error" sx={{ mt: 4, borderRadius: 2, maxWidth: 500 }}>
+                                <AlertTitle>Error</AlertTitle>
+                                {error}
+                            </Alert>
+                        )}
+                    </Box>
                 )}
 
 
