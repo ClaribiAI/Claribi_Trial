@@ -16,7 +16,8 @@ import {
   Chip,
   Menu,
   MenuItem,
-  Avatar
+  Avatar,
+  Badge
 } from '@mui/material';
 import { 
   House, 
@@ -28,7 +29,10 @@ import {
   Eye,
   Gear,
   User,
-  ChatCircle
+  ChatCircle,
+  Bell,
+  Plus,
+  Files
 } from '@phosphor-icons/react';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -41,9 +45,8 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
   const [userMenuAnchorEl, setUserMenuAnchorEl] = useState(null);
 
   const menuItems = [
-    { text: 'Home', icon: <House size={20} />, path: '/powerbi' },
-    { text: 'Power BI Chat', icon: <ChatCircle size={20} />, path: '/powerbi-chat' },
-    { text: 'Settings', icon: <Gear size={20} />, path: '/settings' },
+    { text: 'Docs', icon: <Files size={20} />, path: '/powerbi' },
+    { text: 'Chat', icon: <ChatCircle size={20} />, path: '/powerbi-chat' },
   ];
 
   // Filter menu items based on user role
@@ -70,6 +73,11 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
     if (path === '/') {
       return location.pathname === path;
     }
+    // For exact matches, use exact equality
+    if (path === '/powerbi' || path === '/powerbi-chat') {
+      return location.pathname === path;
+    }
+    // For other paths, use startsWith
     return location.pathname.startsWith(path);
   };
 
@@ -77,7 +85,7 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
     <Box
       className="sidebar-container"
       sx={{
-        width: { xs: '100%', sm: 60 },
+        width: { xs: '100%', sm: 80 },
         height: '100vh',
         display: 'flex',
         flexDirection: 'column',
@@ -86,11 +94,15 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
         position: { xs: 'fixed', sm: 'static' },
         zIndex: { xs: 1200, sm: 1 },
         transform: { xs: open ? 'translateX(0)' : 'translateX(-100%)', sm: 'none' },
-        transition: 'transform 0.3s ease-in-out',
-        color: '#333',
-        backgroundColor: '#ffffff',
-        borderRight: '1px solid #e0e0e0',
-        boxShadow: { xs: '2px 0 10px rgba(0,0,0,0.1)', sm: 'none' },
+        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        color: '#1a1a1a',
+        backgroundColor: '#f8f9fa',
+        borderRight: '1px solid #e9ecef',
+        boxShadow: { 
+          xs: '0 8px 32px rgba(0,0,0,0.12)', 
+          sm: '0 0 0 1px rgba(0,0,0,0.05)' 
+        },
+        backdropFilter: { xs: 'blur(20px)', sm: 'none' },
       }}
     >
       <Box 
@@ -100,22 +112,41 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
           display: 'flex', 
           flexDirection: 'column', 
           alignItems: 'center', 
-          textDecoration: 'none'
+          textDecoration: 'none',
+          mb: 4,
+          p: 2,
+          borderRadius: 3,
+          transition: 'all 0.2s ease',
+          '&:hover': {
+            backgroundColor: 'rgba(0, 0, 0, 0.04)',
+            transform: 'translateY(-2px)',
+          }
         }}
       >
         <Box
           component="img"
           src="/claribi-logo.svg"
           alt="Claribi Logo"
-          sx={{ width: 26, height: 26, mb: 0.5 }}
+          sx={{ 
+            width: 36, 
+            height: 36, 
+            mb: 1,
+            filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.12))',
+            transition: 'transform 0.2s ease',
+            '&:hover': {
+              transform: 'scale(1.08)'
+            }
+          }}
         />
         <Typography 
           variant="subtitle2" 
           sx={{ 
-            fontFamily: "'Nunito Sans', sans-serif", 
+            fontFamily: "'Inter', sans-serif", 
             fontWeight: 600,
-            fontSize: '0.65rem',
-            color: '#000000'
+            fontSize: '0.75rem',
+            color: '#1a1a1a',
+            letterSpacing: '0.3px',
+            textTransform: 'uppercase'
           }}
         >
           claribi
@@ -132,19 +163,40 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
           width: '100%',
         }}
       >
-        <Box sx={{ mt: 5 }} />
+        <Box sx={{ mt: 2 }} />
         <Box 
           sx={{
             display: 'flex', 
             flexDirection: 'column', 
             alignItems: 'center',
-            gap: 3,
+            gap: 0.5,
             width: '100%',
+            px: 1.5,
           }}
         >
           {filteredMenuItems.map((item) => (
-          <Box 
-              key={item.text} 
+            <Tooltip 
+              key={item.text}
+              title={item.text}
+              placement="right"
+              arrow
+              slotProps={{
+                tooltip: {
+                  sx: {
+                    backgroundColor: '#1a1a1a',
+                    color: '#ffffff',
+                    fontSize: '0.75rem',
+                    fontFamily: "'Inter', sans-serif",
+                    fontWeight: 500,
+                    borderRadius: 2,
+                    px: 1.5,
+                    py: 0.75,
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+                  }
+                }
+              }}
+            >
+              <Box 
             component={Link}
                 to={item.path}
                 onClick={() => toggleSidebar && toggleSidebar()}
@@ -156,58 +208,105 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
               width: '100%',
               color: 'inherit',
               cursor: 'pointer',
+                  p: 1,
+                  borderRadius: 3,
+                  position: 'relative',
+                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                   '&:hover': {
-                '& .menuIcon, & .menuText': {
-                  color: '#FCC000'
-                }
+                    backgroundColor: 'rgba(0, 0, 0, 0.06)',
+                    transform: 'translateY(-1px)',
+                    '& .menuIcon': {
+                      color: '#374151',
+                      transform: 'scale(1.05)',
+                    },
+                  },
+                  '&:active': {
+                    transform: 'translateY(0)',
               }
             }}
           >
             <Box 
               className="menuIcon"
               sx={{
-                width: 38,
-                height: 38,
+                    width: 44,
+                    height: 44,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                borderRadius: '50%',
-                backgroundColor: isActive(item.path) ? 'rgba(255, 255, 255, 0.7)' : 'transparent',
-                color: isActive(item.path) ? '#555555' : 'inherit',
-                mb: 0.5,
-                transition: 'color 0.2s ease, background-color 0.2s ease'
+                    borderRadius: 3,
+                    backgroundColor: isActive(item.path) ? '#374151' : 'rgba(0, 0, 0, 0.04)',
+                    color: isActive(item.path) ? '#FFFFFF' : '#6b7280',
+                    mb: 0,
+                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                    boxShadow: isActive(item.path) ? '0 4px 16px rgba(55, 65, 81, 0.25)' : '0 2px 8px rgba(0,0,0,0.08)',
+                    '&:hover': {
+                      boxShadow: isActive(item.path) ? '0 6px 20px rgba(55, 65, 81, 0.3)' : '0 4px 12px rgba(0,0,0,0.12)',
+                    }
               }}
             >
                   {item.icon}
                 </Box>
-                <Typography 
-              className="menuText"
-                  variant="caption" 
-                  sx={{ 
-                fontFamily: "'Nunito Sans', sans-serif", 
-                fontSize: '0.75rem',
-                fontWeight: isActive(item.path) ? 600 : 400,
-                color: isActive(item.path) ? '#555555' : 'inherit',
-                transition: 'color 0.2s ease'
-                  }}
-                >
-                  {item.text}
-                </Typography>
+                {isActive(item.path) && (
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      left: 0,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      width: 4,
+                      height: 32,
+                      backgroundColor: '#374151',
+                      borderRadius: '0 4px 4px 0',
+                      boxShadow: '0 4px 8px rgba(55, 65, 81, 0.25)',
+                    }}
+                  />
+                )}
               </Box>
+            </Tooltip>
           ))}
         </Box>
       </Box>
 
-      <Divider sx={{ my: 1, width: '60%' }} />
+      <Divider 
+        sx={{ 
+          my: 3, 
+          width: '60%',
+          borderColor: '#e9ecef',
+          '&::before, &::after': {
+            borderColor: '#e9ecef',
+          }
+        }} 
+      />
 
       <List 
         sx={{ 
           display: 'flex', 
           flexDirection: 'column',
           alignItems: 'center',
-          gap: 2.5,
+          gap: 0.5,
           padding: 0,
           width: '100%',
+          px: 1.5,
+        }}
+      >
+        <Tooltip 
+          title="Help & Support"
+          placement="right"
+          arrow
+          slotProps={{
+            tooltip: {
+              sx: {
+                backgroundColor: '#1a1a1a',
+                color: '#ffffff',
+                fontSize: '0.75rem',
+                fontFamily: "'Inter', sans-serif",
+                fontWeight: 500,
+                borderRadius: 2,
+                px: 1.5,
+                py: 0.75,
+                boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+              }
+            }
               }}
             >
               <Box
@@ -220,46 +319,83 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
                   alignItems: 'center',
             width: '100%',
             color: 'inherit',
+              p: 1.5,
+              borderRadius: 3,
+              position: 'relative',
+              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                   '&:hover': {
-              '& .icon, & .text': {
-                color: '#FCC000'
-              }
+                backgroundColor: 'rgba(0, 0, 0, 0.06)',
+                transform: 'translateY(-1px)',
+                '& .icon': {
+                  color: '#374151',
+                  transform: 'scale(1.05)',
+                },
+              },
+              '&:active': {
+                transform: 'translateY(0)',
             }
           }}
         >
           <Box 
             className="icon"
             sx={{
-              width: 36,
-              height: 36,
+                width: 44,
+                height: 44,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              borderRadius: '50%',
-              backgroundColor: isActive('/help') ? 'rgba(255, 255, 255, 0.7)' : 'transparent',
-              color: isActive('/help') ? '#555555' : 'inherit',
-              mb: 0.5,
-              transition: 'color 0.2s ease, background-color 0.2s ease'
+                borderRadius: 3,
+                backgroundColor: isActive('/help') ? '#374151' : 'rgba(0, 0, 0, 0.04)',
+                color: isActive('/help') ? '#FFFFFF' : '#6b7280',
+                mb: 1,
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                boxShadow: isActive('/help') ? '0 4px 16px rgba(55, 65, 81, 0.25)' : '0 2px 8px rgba(0,0,0,0.08)',
+                '&:hover': {
+                  boxShadow: isActive('/help') ? '0 6px 20px rgba(55, 65, 81, 0.3)' : '0 4px 12px rgba(0,0,0,0.12)',
+                }
             }}
           >
             <Question size={20} />
                 </Box>
-                <Typography 
-            className="text"
-                  variant="caption" 
-                  sx={{ 
-              fontFamily: "'Nunito Sans', sans-serif", 
-              fontSize: '0.7rem',
-              fontWeight: isActive('/help') ? 600 : 400,
-              color: isActive('/help') ? '#555555' : 'inherit',
-              transition: 'color 0.2s ease'
-                  }}
-                >
-            Help
-                </Typography>
+            {isActive('/help') && (
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: 0,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  width: 4,
+                  height: 32,
+                  backgroundColor: '#374151',
+                  borderRadius: '0 4px 4px 0',
+                  boxShadow: '0 4px 8px rgba(55, 65, 81, 0.25)',
+                }}
+              />
+            )}
               </Box>
+        </Tooltip>
 
         {onOpenFeedback && (
+          <Tooltip 
+            title="Send Feedback"
+            placement="right"
+            arrow
+            slotProps={{
+              tooltip: {
+                sx: {
+                  backgroundColor: '#1a1a1a',
+                  color: '#ffffff',
+                  fontSize: '0.75rem',
+                  fontFamily: "'Inter', sans-serif",
+                  fontWeight: 500,
+                  borderRadius: 2,
+                  px: 1.5,
+                  py: 0.75,
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+                }
+              }
+            }}
+          >
           <Box 
             component="button" 
             onClick={(e) => {
@@ -277,47 +413,67 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
               border: 'none',
               background: 'none',
               cursor: 'pointer',
-              padding: 0,
+              p: 1.5,
+              borderRadius: 3,
+              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
               '&:hover': {
-                backgroundColor: 'transparent',
-                '& .icon, & .text': {
-                  color: '#FCC000'
-                }
+                backgroundColor: 'rgba(0, 0, 0, 0.06)',
+                transform: 'translateY(-1px)',
+                '& .icon': {
+                  color: '#374151',
+                  transform: 'scale(1.05)',
+                },
+              },
+              '&:active': {
+                transform: 'translateY(0)',
               }
             }}
           >
             <Box
               className="icon"
               sx={{
-                width: 36,
-                height: 36,
+                  width: 44,
+                  height: 44,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                borderRadius: '50%',
-                color: 'inherit',
-                mb: 0.5,
-                transition: 'color 0.2s ease'
+                borderRadius: 3,
+                color: '#6b7280',
+                mb: 1,
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                '&:hover': {
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+                }
               }}
             >
               <Question size={20} />
               </Box>
-              <Typography 
-              className="text"
-                variant="caption" 
-                sx={{ 
-                fontFamily: "'Nunito Sans', sans-serif", 
-                fontSize: '0.7rem',
-                fontWeight: 400,
-                color: 'inherit',
-                transition: 'color 0.2s ease'
-                }}
-              >
-              Feedback
-              </Typography>
             </Box>
+          </Tooltip>
         )}
 
+        <Tooltip 
+          title={currentUser?.email || "User Menu"}
+          placement="right"
+          arrow
+          slotProps={{
+            tooltip: {
+              sx: {
+                backgroundColor: '#1a1a1a',
+                color: '#ffffff',
+                fontSize: '0.75rem',
+                fontFamily: "'Inter', sans-serif",
+                fontWeight: 500,
+                borderRadius: 2,
+                px: 1.5,
+                py: 0.75,
+                boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+              }
+            }
+          }}
+        >
         <Box 
           component="button" 
           onClick={handleUserMenuOpen}
@@ -330,45 +486,45 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
             border: 'none',
             background: 'none',
             cursor: 'pointer',
-            padding: 0,
+              p: 1.5,
+              borderRadius: 3,
+              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
             '&:hover': {
-              backgroundColor: 'transparent',
-              '& .icon, & .text': {
-                color: '#FCC000'
-              }
+                backgroundColor: 'rgba(0, 0, 0, 0.06)',
+                transform: 'translateY(-1px)',
+                '& .icon': {
+                  color: '#374151',
+                  transform: 'scale(1.05)',
+                },
+              },
+              '&:active': {
+                transform: 'translateY(0)',
             }
           }}
         >
           <Box 
             className="icon"
             sx={{
-              width: 36,
-              height: 36,
+                width: 44,
+                height: 44,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              borderRadius: '50%',
-              color: 'inherit',
-              mb: 0.5,
-              transition: 'color 0.2s ease'
+                borderRadius: 3,
+                color: '#6b7280',
+                mb: 1,
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                '&:hover': {
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+                }
             }}
           >
             <User size={20} />
           </Box>
-          <Typography 
-            className="text"
-            variant="caption" 
-            sx={{ 
-              fontFamily: "'Nunito Sans', sans-serif", 
-              fontSize: '0.7rem',
-              fontWeight: 400,
-              color: 'inherit',
-              transition: 'color 0.2s ease'
-            }}
-          >
-            User
-          </Typography>
         </Box>
+        </Tooltip>
         
         <Menu
           anchorEl={userMenuAnchorEl}
@@ -380,21 +536,28 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
               elevation: 0,
               sx: {
                 overflow: 'visible',
-                filter: 'drop-shadow(0px 2px 8px rgba(0,0,0,0.1))',
+                filter: 'drop-shadow(0px 8px 24px rgba(0,0,0,0.12))',
                 mt: 1.5,
+                borderRadius: 3,
+                minWidth: 180,
+                border: '1px solid #e9ecef',
                 '&:before': {
                   content: '""',
                   display: 'block',
                   position: 'absolute',
                   top: '50%',
                   left: 0,
-                  width: 10,
-                  height: 10,
+                  width: 12,
+                  height: 12,
                   bgcolor: 'background.paper',
+                  border: '1px solid #e9ecef',
+                  borderRight: 'none',
+                  borderBottom: 'none',
                   transform: 'translateY(-50%) translateX(-50%) rotate(45deg)',
                   zIndex: 0,
                 },
-                fontFamily: "'Inter', sans-serif"
+                fontFamily: "'Inter', sans-serif",
+                backgroundColor: '#ffffff',
               },
             }
           }}
@@ -407,21 +570,29 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
               handleUserMenuClose();
             }}
             sx={{
+              py: 1.5,
+              px: 2,
+              borderRadius: 2,
+              mx: 1,
+              my: 0.5,
+              transition: 'all 0.2s ease',
               '&:hover': { 
                 backgroundColor: 'rgba(0, 0, 0, 0.04)',
-                '& .MuiListItemIcon-root': { color: '#FCC000' },
-                '& .MuiTypography-root': { color: '#FCC000' }
+                '& .MuiListItemIcon-root': { color: '#374151' },
+                '& .MuiTypography-root': { color: '#374151' }
               }
             }}
           >
-            <ListItemIcon sx={{ color: 'inherit' }}>
-              <Gear size={16} />
+            <ListItemIcon sx={{ color: '#6b7280', minWidth: 36 }}>
+              <Gear size={18} />
             </ListItemIcon>
             <ListItemText 
               primary="Settings"
               primaryTypographyProps={{
                 fontFamily: "'Inter', sans-serif",
-                fontWeight: 500
+                fontWeight: 500,
+                fontSize: '0.875rem',
+                color: '#374151'
               }}
             />
           </MenuItem>
@@ -429,21 +600,29 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
           <MenuItem 
             onClick={handleLogout}
             sx={{
+              py: 1.5,
+              px: 2,
+              borderRadius: 2,
+              mx: 1,
+              my: 0.5,
+              transition: 'all 0.2s ease',
               '&:hover': { 
                 backgroundColor: 'rgba(0, 0, 0, 0.04)',
-                '& .MuiListItemIcon-root': { color: '#FCC000' },
-                '& .MuiListItemText-root': { color: '#FCC000' }
+                '& .MuiListItemIcon-root': { color: '#374151' },
+                '& .MuiTypography-root': { color: '#374151' }
               }
             }}
           >
-            <ListItemIcon sx={{ color: 'inherit' }}>
-              <SignOut size={16} />
+            <ListItemIcon sx={{ color: '#6b7280', minWidth: 36 }}>
+              <SignOut size={18} />
             </ListItemIcon>
             <ListItemText 
               primary="Logout"
               primaryTypographyProps={{
                 fontFamily: "'Inter', sans-serif",
-                fontWeight: 500
+                fontWeight: 500,
+                fontSize: '0.875rem',
+                color: '#374151'
               }}
             />
           </MenuItem>
