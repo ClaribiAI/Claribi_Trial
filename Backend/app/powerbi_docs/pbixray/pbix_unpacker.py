@@ -1,5 +1,6 @@
 import zipfile
 import concurrent.futures
+import json
 from .abf import parser
 from .abf.data_model import DataModel
 from xpress9 import Xpress9
@@ -15,7 +16,7 @@ class PbixUnpacker:
         self.file_path = file_path
 
         # Attributes populated during unpacking
-        self._data_model = DataModel(file_log=[], decompressed_data=b'')
+        self._data_model = DataModel(file_log=[], decompressed_data=b'', report_layout=None)
         
         # Detect file type and unpack accordingly
         self.__unpack()
@@ -43,8 +44,40 @@ class PbixUnpacker:
         
         return "unknown"
 
+    def __extract_report_layout(self, zip_ref):
+        """Extract and parse the Report/Layout file from the PBIX ZIP archive."""
+        try:
+            if 'Report/Layout' in zip_ref.namelist():
+                with zip_ref.open('Report/Layout') as layout_file:
+                    # Read the UTF-16LE encoded content
+                    content = layout_file.read()
+                    # Decode from UTF-16LE and parse JSON
+                    layout_json = content.decode('utf-16le')
+                    layout_data = json.loads(layout_json)
+                    # Store in data model
+                    self._data_model.report_layout = layout_data
+            else:
+                # No Report/Layout file found, set empty structure
+                self._data_model.report_layout = {
+                    "sections": [],
+                    "resourcePackages": [],
+                    "id": None,
+                    "reportId": None
+                }
+        except Exception as e:
+            # If extraction fails, set empty structure and continue
+            self._data_model.report_layout = {
+                "sections": [],
+                "resourcePackages": [],
+                "id": None,
+                "reportId": None
+            }
+
     def __unpack(self):
         with zipfile.ZipFile(self.file_path, 'r') as zip_ref:
+            # Extract Report/Layout file if it exists
+            self.__extract_report_layout(zip_ref)
+            
             # Open the DataModel file within the ZIP
             with zip_ref.open('DataModel') as data_model_in_pbix:
                 file_type = self.__detect_file_type(data_model_in_pbix)

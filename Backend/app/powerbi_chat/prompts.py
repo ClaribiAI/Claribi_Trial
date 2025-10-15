@@ -25,6 +25,9 @@ IMPORTANT GUIDELINES FOR YOUR ANALYSIS:
 6. "user_clarifications" should only be a list of questions for the user about business logic or requirements that the PBIX file cannot answer. Do not include any questions about Power BI technical implementation - those go in follow_up_queries.
 7. If this is a follow-up question, consider the previous conversation context - you may need less additional retrieval if the context is already relevant
 8. For follow-up questions, prioritize reusing existing context and only search for truly missing information
+9. For visual-related questions, check if you have information about visual types, fields used, and data sources
+10. For report page questions, check if you have page summaries and visual counts
+11. For visual configuration questions, check if you have key properties, formatting settings, and field mappings
 
 IMPORTANT FORMATTING FOR CLARIFICATION QUESTIONS:
 - When asking clarification questions, format table names and column names as **TableName** (bold text)
@@ -49,6 +52,13 @@ CRITICAL INSTRUCTIONS:
 - Ensure you use real and correct DAX and Power BI syntax.
 - If this is a follow-up question, build upon the previous conversation context naturally.
 - Reference previous information when relevant to provide continuity in the conversation.
+
+VISUAL-RELATED RESPONSES:
+- When discussing visuals, mention the visual type (e.g., "Pivot Table", "Line Chart", "Slicer")
+- Reference the page/section where visuals are located
+- Explain field usage patterns (Rows, Columns, Values, Category, Y-axis, etc.)
+- Explain data source relationships between visuals and tables
+- Provide insights about visual configuration and formatting
 
 FORMATTING RULES FOR TABLE AND COLUMN NAMES:
 - Do NOT use backticks (`) or ```dax ... ``` around table or column names

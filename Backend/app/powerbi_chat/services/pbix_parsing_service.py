@@ -1,6 +1,7 @@
 # app/powerbi_chat/services/pbix_parsing_service.py
 
 import logging
+import json
 from typing import Dict, List, Any
 from langchain_core.documents import Document
 from app.powerbi_docs.pbixray import PBIXRay
@@ -43,6 +44,8 @@ class PBIXParsingService:
         total_columns = sum(len(t.get('columns', [])) for t in tables)
         relationships = structured_metadata.get('relationships', [])
         power_query_scripts = structured_metadata.get('power_query_scripts', [])
+        visuals = structured_metadata.get('visuals', [])
+        pages = structured_metadata.get('pages', [])
         
         collection_metadata = {
             'filename': filename,
@@ -55,11 +58,113 @@ class PBIXParsingService:
                 'columns_count': total_columns,
                 'relationships_count': len(relationships),
                 'power_query_scripts_count': len(power_query_scripts),
+                'pages_count': len(pages),
+                'visuals_count': len(visuals),
                 'document_count': len(documents)
             }
         }
         
         return documents, collection_metadata
+
+    @staticmethod
+    def _parse_visual_config(config_json: str) -> Dict[str, Any]:
+        """
+        Parse visual configuration JSON to extract key metadata.
+        
+        Args:
+            config_json: JSON string containing visual configuration
+            
+        Returns:
+            Dictionary with parsed visual metadata
+        """
+        try:
+            config = json.loads(config_json)
+            visual_info = {
+                'name': config.get('name', ''),
+                'visual_type': 'unknown',
+                'fields_used': {},
+                'data_sources': [],
+                'key_properties': {}
+            }
+            
+            # Extract single visual information
+            single_visual = config.get('singleVisual', {})
+            if single_visual:
+                visual_info['visual_type'] = single_visual.get('visualType', 'unknown')
+                
+                # Extract projections (fields used)
+                projections = single_visual.get('projections', {})
+                for role, fields in projections.items():
+                    if isinstance(fields, list):
+                        field_names = []
+                        for field in fields:
+                            if isinstance(field, dict) and 'queryRef' in field:
+                                field_names.append(field['queryRef'])
+                        visual_info['fields_used'][role] = field_names
+                
+                # Extract prototype query for data sources
+                prototype_query = single_visual.get('prototypeQuery', {})
+                if prototype_query:
+                    from_clause = prototype_query.get('From', [])
+                    for table_ref in from_clause:
+                        if isinstance(table_ref, dict) and 'Entity' in table_ref:
+                            visual_info['data_sources'].append(table_ref['Entity'])
+                    
+                    # Extract select clause for detailed field info
+                    select_clause = prototype_query.get('Select', [])
+                    for select_item in select_clause:
+                        if isinstance(select_item, dict):
+                            name = select_item.get('Name', '')
+                            if name and name not in visual_info['data_sources']:
+                                # Extract table name from field name (e.g., "Table.Column" -> "Table")
+                                if '.' in name:
+                                    table_name = name.split('.')[0]
+                                    if table_name not in visual_info['data_sources']:
+                                        visual_info['data_sources'].append(table_name)
+                
+                # Extract key formatting properties
+                objects = single_visual.get('objects', {})
+                if objects:
+                    # Extract general properties
+                    general = objects.get('general', [])
+                    if general and isinstance(general, list) and len(general) > 0:
+                        general_props = general[0].get('properties', {})
+                        if general_props:
+                            visual_info['key_properties']['general'] = general_props
+                    
+                    # Extract title information
+                    title = objects.get('title', [])
+                    if title and isinstance(title, list) and len(title) > 0:
+                        title_props = title[0].get('properties', {})
+                        if title_props:
+                            visual_info['key_properties']['title'] = title_props
+                    
+                    # Extract axis properties for charts
+                    if 'valueAxis' in objects:
+                        value_axis = objects.get('valueAxis', [])
+                        if value_axis and isinstance(value_axis, list) and len(value_axis) > 0:
+                            axis_props = value_axis[0].get('properties', {})
+                            if axis_props:
+                                visual_info['key_properties']['valueAxis'] = axis_props
+                    
+                    if 'categoryAxis' in objects:
+                        category_axis = objects.get('categoryAxis', [])
+                        if category_axis and isinstance(category_axis, list) and len(category_axis) > 0:
+                            axis_props = category_axis[0].get('properties', {})
+                            if axis_props:
+                                visual_info['key_properties']['categoryAxis'] = axis_props
+            
+            return visual_info
+            
+        except (json.JSONDecodeError, KeyError, TypeError) as e:
+            logger.warning(f"Error parsing visual config: {e}")
+            return {
+                'name': '',
+                'visual_type': 'unknown',
+                'fields_used': {},
+                'data_sources': [],
+                'key_properties': {}
+            }
 
     @staticmethod
     def _extract_raw_data(filepath: str) -> Dict[str, Any]:
@@ -125,6 +230,14 @@ class PBIXParsingService:
 
         # Add table columns from actual table data
         extracted_data['table_columns'] = table_columns
+
+        # Extract visuals from report layout
+        try:
+            visuals = pbix_model.visuals
+            extracted_data['visuals'] = visuals
+        except Exception as e:
+            logger.warning(f"Could not extract visuals: {str(e)}")
+            extracted_data['visuals'] = []
 
         return extracted_data
 
@@ -358,10 +471,61 @@ class PBIXParsingService:
                 )
 
 
+        # 6. Process visuals from report layout
+        visuals = []
+        pages = []
+        
+        raw_visuals = raw_data.get("visuals", [])
+        for visual_data in raw_visuals:
+            try:
+                # Parse the visual configuration
+                config_json = visual_data.get('config', '{}')
+                parsed_config = PBIXParsingService._parse_visual_config(config_json)
+                
+                # Skip image visuals
+                visual_type = parsed_config.get('visual_type', 'unknown')
+                if visual_type == 'image':
+                    continue
+                
+                # Create structured visual metadata (without ID, name, and filters)
+                visual_metadata = {
+                    'visual_type': visual_type,
+                    'section_name': visual_data.get('section_name', ''),
+                    'section_id': visual_data.get('section_id'),
+                    'fields_used': parsed_config.get('fields_used', {}),
+                    'data_sources': parsed_config.get('data_sources', []),
+                    'key_properties': parsed_config.get('key_properties', {}),
+                    'x': visual_data.get('x'),
+                    'y': visual_data.get('y'),
+                    'z': visual_data.get('z'),
+                    'width': visual_data.get('width'),
+                    'height': visual_data.get('height')
+                }
+                visuals.append(visual_metadata)
+                
+                # Track pages/sections
+                section_name = visual_data.get('section_name', '')
+                if section_name and not any(p['name'] == section_name for p in pages):
+                    pages.append({
+                        'name': section_name,
+                        'id': visual_data.get('section_id'),
+                        'visual_count': 0  # Will be updated below
+                    })
+                
+            except Exception as e:
+                logger.warning(f"Error processing visual {visual_data.get('id', 'unknown')}: {e}")
+                continue
+        
+        # Update page visual counts
+        for page in pages:
+            page['visual_count'] = sum(1 for v in visuals if v['section_name'] == page['name'])
+
         return {
             "tables": tables,
             "relationships": relationships,
             "power_query_scripts": power_query_scripts,
+            "visuals": visuals,
+            "pages": pages
         }
 
     @staticmethod
@@ -376,6 +540,8 @@ class PBIXParsingService:
         measures = metadata.get("measures", [])
         relationships = metadata.get("relationships", [])
         power_query_scripts = metadata.get("power_query_scripts", [])
+        visuals = metadata.get("visuals", [])
+        pages = metadata.get("pages", [])
 
         # 1. Create comprehensive table documents with all details (like old implementation)
         for table in tables:
@@ -541,6 +707,112 @@ class PBIXParsingService:
                     "line_count": line_count,
                     "key_transformations": key_transformations,
                     "type": "power_query"
+                }
+            ))
+
+        # 6. Create individual visual documents with comprehensive details
+        for i, visual in enumerate(visuals, 1):
+            visual_type = visual.get('visual_type', 'unknown')
+            section_name = visual.get('section_name', 'Unknown')
+            fields_used = visual.get('fields_used', {})
+            data_sources = visual.get('data_sources', [])
+            key_properties = visual.get('key_properties', {})
+            
+            # Create detailed visual document
+            visual_doc = f"Visual {i}: {visual_type}\n"
+            visual_doc += f"Page: {section_name}\n"
+            
+            if fields_used:
+                visual_doc += "Fields Used:\n"
+                for role, fields in fields_used.items():
+                    if fields:
+                        visual_doc += f"  - {role}: {', '.join(fields)}\n"
+            
+            if data_sources:
+                visual_doc += f"Tables Referenced: {', '.join(data_sources)}\n"
+            
+            if key_properties:
+                visual_doc += "Key Configuration:\n"
+                if 'title' in key_properties:
+                    title_text = key_properties['title'].get('text', {}).get('expr', {}).get('Literal', {}).get('Value', '')
+                    if title_text:
+                        visual_doc += f"  - Title: {title_text}\n"
+                if 'general' in key_properties:
+                    visual_doc += f"  - General properties configured\n"
+                if 'valueAxis' in key_properties:
+                    visual_doc += f"  - Value axis configured\n"
+                if 'categoryAxis' in key_properties:
+                    visual_doc += f"  - Category axis configured\n"
+            
+            documents.append(Document(
+                page_content=visual_doc,
+                metadata={
+                    "source": "visual_schema",
+                    "visual_type": visual_type,
+                    "page_name": section_name,
+                    "data_sources": data_sources,
+                    "type": "visual"
+                }
+            ))
+
+        # 7. Create page summary documents
+        for page in pages:
+            page_name = page.get('name', 'Unknown')
+            visual_count = page.get('visual_count', 0)
+            
+            # Get all visuals for this page
+            page_visuals = [v for v in visuals if v.get('section_name') == page_name]
+            visual_types = list(set(v.get('visual_type', 'unknown') for v in page_visuals))
+            all_data_sources = []
+            for visual in page_visuals:
+                all_data_sources.extend(visual.get('data_sources', []))
+            unique_data_sources = list(set(all_data_sources))
+            
+            page_doc = f"Report Page: {page_name}\n"
+            page_doc += f"Visuals: {visual_count}\n"
+            page_doc += f"Visual Types: {', '.join(visual_types)}\n"
+            if unique_data_sources:
+                page_doc += f"Data Sources: {', '.join(unique_data_sources)}\n"
+            
+            documents.append(Document(
+                page_content=page_doc,
+                metadata={
+                    "source": "page_summary",
+                    "page_name": page_name,
+                    "visual_count": visual_count,
+                    "visual_types": visual_types,
+                    "type": "page"
+                }
+            ))
+
+        # 8. Create cross-reference documents linking tables to visuals
+        table_visual_map = {}
+        for i, visual in enumerate(visuals, 1):
+            data_sources = visual.get('data_sources', [])
+            visual_type = visual.get('visual_type', 'unknown')
+            page_name = visual.get('section_name', 'Unknown')
+            
+            for table in data_sources:
+                if table not in table_visual_map:
+                    table_visual_map[table] = []
+                table_visual_map[table].append({
+                    'index': i,
+                    'type': visual_type,
+                    'page': page_name
+                })
+        
+        for table_name, visual_refs in table_visual_map.items():
+            cross_ref_doc = f"Table {table_name} is used in visuals:\n"
+            for ref in visual_refs:
+                cross_ref_doc += f"- Visual {ref['index']} ({ref['type']}) on page {ref['page']}\n"
+            
+            documents.append(Document(
+                page_content=cross_ref_doc,
+                metadata={
+                    "source": "table_visual_cross_reference",
+                    "table_name": table_name,
+                    "visual_count": len(visual_refs),
+                    "type": "cross_reference"
                 }
             ))
 

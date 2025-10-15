@@ -33,7 +33,8 @@ import {
     Trash,
     CloudArrowUp,
     X,
-    CheckCircle
+    CheckCircle,
+    Eye
 } from '@phosphor-icons/react';
 import { getUploadedFiles, deletePowerBISession } from '../../services/powerbiChatService';
 import { useNotification } from '../../contexts/NotificationContext';
@@ -251,6 +252,13 @@ const FileSelectionDialog = ({ open, onClose, onFileSelect, onUploadNew }) => {
                                                             <Chip
                                                                 icon={<ChartBar size={14} />}
                                                                 label={`${file.metadata.measures_count} measures`}
+                                                                size="small"
+                                                                variant="outlined"
+                                                                color="default"
+                                                            />
+                                                            <Chip
+                                                                icon={<Eye size={14} />}
+                                                                label={`${file.metadata.visuals_count || 0} visuals`}
                                                                 size="small"
                                                                 variant="outlined"
                                                                 color="default"

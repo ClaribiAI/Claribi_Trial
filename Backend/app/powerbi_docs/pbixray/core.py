@@ -69,3 +69,7 @@ class PBIXRay:
     @property
     def relationships(self):
         return self._metadata_handler.metadata.relationships_df
+    
+    @property
+    def visuals(self):
+        return self._metadata_handler.visuals

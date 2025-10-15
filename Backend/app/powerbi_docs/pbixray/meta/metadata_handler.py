@@ -60,3 +60,33 @@ class MetadataHandler:
     @property   
     def tables(self):
         return self._meta.schema_df['TableName'].unique()
+    
+    @property
+    def visuals(self):
+        """Extract and return visual metadata from the report layout."""
+        if not self._data_model.report_layout:
+            return []
+        
+        visuals = []
+        sections = self._data_model.report_layout.get('sections', [])
+        
+        for section in sections:
+            section_name = section.get('displayName', section.get('name', 'Unknown Section'))
+            visual_containers = section.get('visualContainers', [])
+            
+            for container in visual_containers:
+                visual_data = {
+                    'id': container.get('id'),
+                    'section_name': section_name,
+                    'section_id': section.get('id'),
+                    'x': container.get('x'),
+                    'y': container.get('y'),
+                    'z': container.get('z'),
+                    'width': container.get('width'),
+                    'height': container.get('height'),
+                    'config': container.get('config', '{}'),
+                    'filters': container.get('filters', '[]')
+                }
+                visuals.append(visual_data)
+        
+        return visuals

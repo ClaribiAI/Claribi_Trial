@@ -411,7 +411,7 @@ const PowerBIChat = () => {
             const systemMessage = {
                 id: Date.now(),
                 type: 'assistant',
-                content: `Great! I've analyzed your Power BI file "${file.name}". I found ${metadata.tables_count || 0} tables, ${metadata.measures_count || 0} measures, ${metadata.relationships_count || 0} relationships, and ${metadata.power_query_scripts_count || 0} Power Query scripts. I can now provide specific insights about your data model and help with any questions about your dataset.`,
+                content: `Great! I've analyzed your Power BI file "${file.name}". I found ${metadata.tables_count || 0} tables, ${metadata.measures_count || 0} measures, ${metadata.visuals_count || 0} visuals, ${metadata.relationships_count || 0} relationships, and ${metadata.power_query_scripts_count || 0} Power Query scripts. I can now provide specific insights about your data model and help with any questions about your dataset.`,
                 timestamp: new Date()
             };
             setMessages(prev => [...prev, systemMessage]);
@@ -492,7 +492,7 @@ const PowerBIChat = () => {
         const systemMessage = {
             id: Date.now(),
             type: 'assistant',
-            content: `Great! I've loaded your previously uploaded Power BI file "${selectedFile.name}". I found ${metadata.tables_count || 0} tables, ${metadata.measures_count || 0} measures, ${metadata.relationships_count || 0} relationships, and ${metadata.power_query_scripts_count || 0} Power Query scripts. I can now provide specific insights about your data model and help with any questions about your dataset.`,
+            content: `Great! I've loaded your previously uploaded Power BI file "${selectedFile.name}". I found ${metadata.tables_count || 0} tables, ${metadata.measures_count || 0} measures, ${metadata.visuals_count || 0} visuals, ${metadata.relationships_count || 0} relationships, and ${metadata.power_query_scripts_count || 0} Power Query scripts. I can now provide specific insights about your data model and help with any questions about your dataset.`,
             timestamp: new Date()
         };
         setMessages(prev => [...prev, systemMessage]);
