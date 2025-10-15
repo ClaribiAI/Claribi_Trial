@@ -45,7 +45,8 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
   const [userMenuAnchorEl, setUserMenuAnchorEl] = useState(null);
 
   const menuItems = [
-    { text: 'Docs', icon: <Files size={20} />, path: '/powerbi' },
+    { text: 'Home', icon: <House size={20} />, path: '/' },
+    { text: 'Docs', icon: <Files size={20} />, path: '/powerbi-docs' },
     { text: 'Chat', icon: <ChatCircle size={20} />, path: '/powerbi-chat' },
   ];
 
@@ -74,7 +75,7 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
       return location.pathname === path;
     }
     // For exact matches, use exact equality
-    if (path === '/powerbi' || path === '/powerbi-chat') {
+    if (path === '/powerbi-docs' || path === '/powerbi-chat') {
       return location.pathname === path;
     }
     // For other paths, use startsWith
@@ -216,7 +217,7 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
                     backgroundColor: 'rgba(0, 0, 0, 0.06)',
                     transform: 'translateY(-1px)',
                     '& .menuIcon': {
-                      color: '#374151',
+                      color: isActive(item.path) ? '#FFFFFF' : '#374151',
                       transform: 'scale(1.05)',
                     },
                   },
@@ -234,13 +235,13 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
                 alignItems: 'center',
                 justifyContent: 'center',
                     borderRadius: 3,
-                    backgroundColor: isActive(item.path) ? '#374151' : 'rgba(0, 0, 0, 0.04)',
+                    backgroundColor: isActive(item.path) ? '#000000' : 'rgba(0, 0, 0, 0.04)',
                     color: isActive(item.path) ? '#FFFFFF' : '#6b7280',
                     mb: 0,
                     transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                    boxShadow: isActive(item.path) ? '0 4px 16px rgba(55, 65, 81, 0.25)' : '0 2px 8px rgba(0,0,0,0.08)',
+                    boxShadow: isActive(item.path) ? '0 4px 16px rgba(0, 0, 0, 0.25)' : '0 2px 8px rgba(0,0,0,0.08)',
                     '&:hover': {
-                      boxShadow: isActive(item.path) ? '0 6px 20px rgba(55, 65, 81, 0.3)' : '0 4px 12px rgba(0,0,0,0.12)',
+                      boxShadow: isActive(item.path) ? '0 6px 20px rgba(0, 0, 0, 0.3)' : '0 4px 12px rgba(0,0,0,0.12)',
                     }
               }}
             >
@@ -255,9 +256,9 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
                       transform: 'translateY(-50%)',
                       width: 4,
                       height: 32,
-                      backgroundColor: '#374151',
+                      backgroundColor: '#000000',
                       borderRadius: '0 4px 4px 0',
-                      boxShadow: '0 4px 8px rgba(55, 65, 81, 0.25)',
+                      boxShadow: '0 4px 8px rgba(0, 0, 0, 0.25)',
                     }}
                   />
                 )}
@@ -327,7 +328,7 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
                 backgroundColor: 'rgba(0, 0, 0, 0.06)',
                 transform: 'translateY(-1px)',
                 '& .icon': {
-                  color: '#374151',
+                  color: isActive('/help') ? '#FFFFFF' : '#000000',
                   transform: 'scale(1.05)',
                 },
               },
@@ -345,13 +346,13 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
               alignItems: 'center',
               justifyContent: 'center',
                 borderRadius: 3,
-                backgroundColor: isActive('/help') ? '#374151' : 'rgba(0, 0, 0, 0.04)',
+                backgroundColor: isActive('/help') ? '#000000' : 'rgba(0, 0, 0, 0.04)',
                 color: isActive('/help') ? '#FFFFFF' : '#6b7280',
                 mb: 1,
                 transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                boxShadow: isActive('/help') ? '0 4px 16px rgba(55, 65, 81, 0.25)' : '0 2px 8px rgba(0,0,0,0.08)',
+                boxShadow: isActive('/help') ? '0 4px 16px rgba(0, 0, 0, 0.25)' : '0 2px 8px rgba(0,0,0,0.08)',
                 '&:hover': {
-                  boxShadow: isActive('/help') ? '0 6px 20px rgba(55, 65, 81, 0.3)' : '0 4px 12px rgba(0,0,0,0.12)',
+                  boxShadow: isActive('/help') ? '0 6px 20px rgba(0, 0, 0, 0.3)' : '0 4px 12px rgba(0,0,0,0.12)',
                 }
             }}
           >
@@ -366,9 +367,9 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
                   transform: 'translateY(-50%)',
                   width: 4,
                   height: 32,
-                  backgroundColor: '#374151',
+                  backgroundColor: '#000000',
                   borderRadius: '0 4px 4px 0',
-                  boxShadow: '0 4px 8px rgba(55, 65, 81, 0.25)',
+                  boxShadow: '0 4px 8px rgba(0, 0, 0, 0.25)',
                 }}
               />
             )}
@@ -420,7 +421,7 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
                 backgroundColor: 'rgba(0, 0, 0, 0.06)',
                 transform: 'translateY(-1px)',
                 '& .icon': {
-                  color: '#374151',
+                  color: '#000000',
                   transform: 'scale(1.05)',
                 },
               },

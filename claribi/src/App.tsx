@@ -9,6 +9,7 @@ import { NotificationProvider } from './contexts/NotificationContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import PowerBIDocumentation from './pages/powerbi-docs';
 import PowerBIChat from './pages/powerbi-chat';
+import Home from './pages/home';
 import './App.css';
 
 const App: FC = () => {
@@ -21,11 +22,11 @@ const App: FC = () => {
             <Route path="/" element={
               <ProtectedRoute requiredRole={null} requiredMicrosoftRole={null}>
                 <Layout>
-                  <PowerBIDocumentation />
+                  <Home />
                 </Layout>
               </ProtectedRoute>
             } />
-            <Route path="/powerbi" element={
+            <Route path="/powerbi-docs" element={
               <ProtectedRoute requiredRole={null} requiredMicrosoftRole={null}>
                 <Layout>
                   <PowerBIDocumentation />
