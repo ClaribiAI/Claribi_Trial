@@ -32,14 +32,18 @@ import {
   ChatCircle,
   Bell,
   Plus,
-  Files
+  Files,
+  Sun,
+  Moon
 } from '@phosphor-icons/react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 
 const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { currentUser, logout } = useAuth();
+  const { isDarkMode, toggleTheme } = useTheme();
   
   // State for user menu
   const [userMenuAnchorEl, setUserMenuAnchorEl] = useState(null);
@@ -96,9 +100,9 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
         zIndex: { xs: 1200, sm: 1 },
         transform: { xs: open ? 'translateX(0)' : 'translateX(-100%)', sm: 'none' },
         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        color: '#1a1a1a',
-        backgroundColor: '#f8f9fa',
-        borderRight: '1px solid #e9ecef',
+        color: isDarkMode ? '#FFFFFF' : '#1a1a1a',
+        backgroundColor: isDarkMode ? '#1E1E1E' : '#f8f9fa',
+        borderRight: isDarkMode ? '1px solid rgba(255, 255, 255, 0.12)' : '1px solid #e9ecef',
         boxShadow: { 
           xs: '0 8px 32px rgba(0,0,0,0.12)', 
           sm: '0 0 0 1px rgba(0,0,0,0.05)' 
@@ -145,7 +149,7 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
             fontFamily: "'Inter', sans-serif", 
             fontWeight: 600,
             fontSize: '0.75rem',
-            color: '#1a1a1a',
+            color: isDarkMode ? '#FFFFFF' : '#1a1a1a',
             letterSpacing: '0.3px',
             textTransform: 'uppercase'
           }}
@@ -235,8 +239,8 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
                 alignItems: 'center',
                 justifyContent: 'center',
                     borderRadius: 3,
-                    backgroundColor: isActive(item.path) ? '#000000' : 'rgba(0, 0, 0, 0.04)',
-                    color: isActive(item.path) ? '#FFFFFF' : '#6b7280',
+                    backgroundColor: isActive(item.path) ? (isDarkMode ? '#FCC000' : '#000000') : (isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)'),
+                    color: isActive(item.path) ? (isDarkMode ? '#000000' : '#FFFFFF') : (isDarkMode ? '#B0B0B0' : '#6b7280'),
                     mb: 0,
                     transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                     boxShadow: isActive(item.path) ? '0 4px 16px rgba(0, 0, 0, 0.25)' : '0 2px 8px rgba(0,0,0,0.08)',
@@ -256,7 +260,7 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
                       transform: 'translateY(-50%)',
                       width: 4,
                       height: 32,
-                      backgroundColor: '#000000',
+                      backgroundColor: isDarkMode ? '#FCC000' : '#000000',
                       borderRadius: '0 4px 4px 0',
                       boxShadow: '0 4px 8px rgba(0, 0, 0, 0.25)',
                     }}
@@ -272,9 +276,9 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
         sx={{ 
           my: 3, 
           width: '60%',
-          borderColor: '#e9ecef',
+          borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.12)' : '#e9ecef',
           '&::before, &::after': {
-            borderColor: '#e9ecef',
+            borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.12)' : '#e9ecef',
           }
         }} 
       />
@@ -290,6 +294,78 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
           px: 1.5,
         }}
       >
+        {/* Theme Toggle Button */}
+        <Tooltip 
+          title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+          placement="right"
+          arrow
+          slotProps={{
+            tooltip: {
+              sx: {
+                backgroundColor: '#1a1a1a',
+                color: '#ffffff',
+                fontSize: '0.75rem',
+                fontFamily: "'Inter', sans-serif",
+                fontWeight: 500,
+                borderRadius: 2,
+                px: 1.5,
+                py: 0.75,
+                boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+              }
+            }
+          }}
+        >
+          <Box 
+            onClick={toggleTheme}
+            sx={{ 
+              textDecoration: 'none', 
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              width: '100%',
+              color: 'inherit',
+              cursor: 'pointer',
+              p: 1,
+              borderRadius: 3,
+              position: 'relative',
+              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+              '&:hover': {
+                backgroundColor: 'rgba(0, 0, 0, 0.06)',
+                transform: 'translateY(-1px)',
+                '& .themeIcon': {
+                  color: '#FCC000',
+                  transform: 'scale(1.05)',
+                },
+              },
+              '&:active': {
+                transform: 'translateY(0)',
+              }
+            }}
+          >
+            <Box 
+              className="themeIcon"
+              sx={{
+                width: 44,
+                height: 44,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 3,
+                color: isDarkMode ? '#B0B0B0' : '#6b7280',
+                mb: 0,
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                '&:hover': {
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+                }
+              }}
+            >
+              {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+            </Box>
+          </Box>
+        </Tooltip>
+
         <Tooltip 
           title="Help & Support"
           placement="right"
@@ -308,8 +384,8 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
                 boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
               }
             }
-              }}
-            >
+          }}
+        >
               <Box
           component={Link} 
           to="/help"

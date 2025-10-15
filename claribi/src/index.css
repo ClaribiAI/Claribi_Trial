@@ -22,6 +22,17 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Dark mode variables */
+.dark {
+  color-scheme: dark;
+  color: #FFFFFF;
+  background-color: #121212;
+}
+
+.dark body {
+  background-color: #121212;
+}
+
 a {
   font-weight: 500;
   color: #555555;
@@ -168,6 +179,11 @@ button:hover,
   background-color: rgba(238, 238, 238, 0.7) !important;
 }
 
+/* Dark mode table row hover styles */
+.dark .MuiTableRow-root.MuiTableRow-hover:hover {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
 /* Override Checkbox colors */
 .MuiCheckbox-root {
   color: #555555 !important;
@@ -177,6 +193,15 @@ button:hover,
   color: #555555 !important;
 }
 
+/* Dark mode checkbox colors */
+.dark .MuiCheckbox-root {
+  color: #FCC000 !important;
+}
+
+.dark .MuiCheckbox-root.Mui-checked {
+  color: #FCC000 !important;
+}
+
 /* Style for edit and delete buttons in report list */
 .report-action-icon {
   color: #555555;
@@ -184,5 +209,77 @@ button:hover,
 
 .report-action-icon:hover {
   color: #FCC000 !important;
+}
+
+/* Dark mode report action icons */
+.dark .report-action-icon {
+  color: #FCC000;
+}
+
+.dark .report-action-icon:hover {
+  color: #FFD700 !important;
+}
+
+/* Dark mode text overrides */
+.dark .MuiTypography-root {
+  color: inherit !important;
+}
+
+.dark .MuiTypography-h1,
+.dark .MuiTypography-h2,
+.dark .MuiTypography-h3,
+.dark .MuiTypography-h4,
+.dark .MuiTypography-h5,
+.dark .MuiTypography-h6 {
+  color: #FFFFFF !important;
+}
+
+.dark .MuiTypography-body1,
+.dark .MuiTypography-body2 {
+  color: #E0E0E0 !important;
+}
+
+/* Ensure proper text colors in dark mode for all components */
+.dark {
+  color: #FFFFFF;
+}
+
+.dark * {
+  color: inherit;
+}
+
+/* Dark mode overrides for ReactMarkdown content */
+.dark .MuiBox-root h1,
+.dark .MuiBox-root h2,
+.dark .MuiBox-root h3,
+.dark .MuiBox-root h4,
+.dark .MuiBox-root h5,
+.dark .MuiBox-root h6 {
+  color: #FFFFFF !important;
+}
+
+.dark .MuiBox-root p,
+.dark .MuiBox-root li,
+.dark .MuiBox-root span {
+  color: #E0E0E0 !important;
+}
+
+.dark .MuiBox-root strong {
+  color: #FFFFFF !important;
+}
+
+.dark .MuiBox-root code {
+  color: #FCC000 !important;
+  background-color: rgba(252, 192, 0, 0.2) !important;
+}
+
+.dark .MuiBox-root pre {
+  color: #E0E0E0 !important;
+  background-color: #1A1A1A !important;
+}
+
+.dark .MuiBox-root blockquote {
+  color: #E0E0E0 !important;
+  background-color: rgba(252, 192, 0, 0.05) !important;
 }
 

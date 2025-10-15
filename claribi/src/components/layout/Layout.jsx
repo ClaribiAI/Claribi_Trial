@@ -4,6 +4,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import SendIcon from '@mui/icons-material/Send';
 import { List } from '@phosphor-icons/react';
 import Sidebar from './Sidebar';
+import { useTheme as useCustomTheme } from '../../contexts/ThemeContext';
 
 const FeedbackModal = ({ open, onClose }) => {
   const [rating, setRating] = useState(5);
@@ -145,6 +146,7 @@ const FeedbackModal = ({ open, onClose }) => {
 
 const Layout = ({ children, fullWidth = false }) => {
   const theme = useTheme();
+  const { isDarkMode } = useCustomTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
   const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
@@ -168,7 +170,7 @@ const Layout = ({ children, fullWidth = false }) => {
       width: '100%', 
       overflow: 'hidden', 
       position: 'relative',
-      bgcolor: '#ffffff'
+      bgcolor: isDarkMode ? '#121212' : '#ffffff'
     }}>
 
       <Box 
@@ -208,15 +210,15 @@ const Layout = ({ children, fullWidth = false }) => {
               aria-label="menu"
               onClick={toggleSidebar}
               sx={{ 
-                color: '#333',
-                backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                color: isDarkMode ? '#FFFFFF' : '#333',
+                backgroundColor: isDarkMode ? 'rgba(30, 30, 30, 0.95)' : 'rgba(255, 255, 255, 0.95)',
                 backdropFilter: 'blur(8px)',
-                border: '1px solid rgba(0, 0, 0, 0.08)',
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
+                border: isDarkMode ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(0, 0, 0, 0.08)',
+                boxShadow: isDarkMode ? '0 2px 8px rgba(0, 0, 0, 0.3)' : '0 2px 8px rgba(0, 0, 0, 0.06)',
                 '&:hover': {
                   color: '#FCC000',
-                  backgroundColor: 'rgba(255, 255, 255, 1)',
-                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+                  backgroundColor: isDarkMode ? 'rgba(30, 30, 30, 1)' : 'rgba(255, 255, 255, 1)',
+                  boxShadow: isDarkMode ? '0 4px 12px rgba(0, 0, 0, 0.4)' : '0 4px 12px rgba(0, 0, 0, 0.1)',
                 }
               }}
             >
@@ -231,7 +233,7 @@ const Layout = ({ children, fullWidth = false }) => {
             overflow: 'auto',
             width: '100%',
             height: '100%',
-            background: '#ffffff',
+            background: isDarkMode ? '#121212' : '#ffffff',
             display: 'flex',
             flexDirection: 'column',
             margin: 0,
@@ -246,7 +248,8 @@ const Layout = ({ children, fullWidth = false }) => {
               display: 'flex',
               flexDirection: 'column',
               margin: 0,
-              padding: 0
+              padding: 0,
+              bgcolor: isDarkMode ? '#121212' : '#ffffff'
             }}>
               {children}
             </Box>
@@ -261,7 +264,8 @@ const Layout = ({ children, fullWidth = false }) => {
               alignItems: 'center',
               justifyContent: 'flex-start',
               maxWidth: '1400px',
-              mx: 'auto'
+              mx: 'auto',
+              bgcolor: isDarkMode ? '#121212' : '#ffffff'
             }}>
               {children}
             </Box>

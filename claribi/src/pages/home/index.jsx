@@ -12,9 +12,11 @@ import {
     ChatCircle,
     FileText
 } from '@phosphor-icons/react';
+import { useTheme as useCustomTheme } from '../../contexts/ThemeContext';
 
 const Home = () => {
     const theme = useTheme();
+    const { isDarkMode } = useCustomTheme();
     const navigate = useNavigate();
 
     const handleNavigateToChat = () => {
@@ -72,14 +74,14 @@ const Home = () => {
                 <Typography variant="h3" sx={{ 
                     fontWeight: 700, 
                     mb: 2, 
-                    color: theme.palette.text.primary,
+                    color: isDarkMode ? '#FFFFFF' : theme.palette.text.primary,
                     fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif"
                 }}>
                     Welcome to Claribi
                 </Typography>
                 
                 <Typography variant="h6" sx={{ 
-                    color: theme.palette.text.secondary, 
+                    color: isDarkMode ? '#E0E0E0' : theme.palette.text.secondary, 
                     mb: 8, 
                     maxWidth: 600,
                     lineHeight: 1.6,
@@ -107,11 +109,12 @@ const Home = () => {
                             maxWidth: 400,
                             cursor: 'pointer',
                             borderRadius: 4,
+                            bgcolor: isDarkMode ? '#1E1E1E' : '#ffffff',
                             border: `2px solid ${alpha(theme.palette.divider, 0.12)}`,
                             transition: 'all 0.3s ease',
                             '&:hover': {
                                 transform: 'translateY(-8px)',
-                                boxShadow: '0 12px 40px rgba(0,0,0,0.15)',
+                                boxShadow: isDarkMode ? '0 12px 40px rgba(0,0,0,0.4)' : '0 12px 40px rgba(0,0,0,0.15)',
                                 borderColor: alpha(theme.palette.primary.main, 0.3),
                                 '& .option-icon': {
                                     transform: 'scale(1.1)',
@@ -139,14 +142,14 @@ const Home = () => {
                             <Typography variant="h5" sx={{ 
                                 fontWeight: 600, 
                                 mb: 2, 
-                                color: theme.palette.text.primary,
+                                color: isDarkMode ? '#FFFFFF' : theme.palette.text.primary,
                                 fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif"
                             }}>
                                 Power BI Chat
                             </Typography>
                             
                             <Typography variant="body1" sx={{ 
-                                color: theme.palette.text.secondary, 
+                                color: isDarkMode ? '#E0E0E0' : theme.palette.text.secondary, 
                                 lineHeight: 1.6,
                                 mb: 3
                             }}>
@@ -164,7 +167,7 @@ const Home = () => {
                                     fontSize: '0.9rem'
                                 }}
                             >
-                                <Typography variant="body2">
+                                <Typography variant="body2" sx={{ color: 'inherit' }}>
                                     Start Chatting
                                 </Typography>
                                 <Box sx={{ 
@@ -187,11 +190,12 @@ const Home = () => {
                             maxWidth: 400,
                             cursor: 'pointer',
                             borderRadius: 4,
+                            bgcolor: isDarkMode ? '#1E1E1E' : '#ffffff',
                             border: `2px solid ${alpha(theme.palette.divider, 0.12)}`,
                             transition: 'all 0.3s ease',
                             '&:hover': {
                                 transform: 'translateY(-8px)',
-                                boxShadow: '0 12px 40px rgba(0,0,0,0.15)',
+                                boxShadow: isDarkMode ? '0 12px 40px rgba(0,0,0,0.4)' : '0 12px 40px rgba(0,0,0,0.15)',
                                 borderColor: alpha(theme.palette.secondary.main, 0.3),
                                 '& .option-icon': {
                                     transform: 'scale(1.1)',
@@ -219,14 +223,14 @@ const Home = () => {
                             <Typography variant="h5" sx={{ 
                                 fontWeight: 600, 
                                 mb: 2, 
-                                color: theme.palette.text.primary,
+                                color: isDarkMode ? '#FFFFFF' : theme.palette.text.primary,
                                 fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif"
                             }}>
                                 Power BI Docs
                             </Typography>
                             
                             <Typography variant="body1" sx={{ 
-                                color: theme.palette.text.secondary, 
+                                color: isDarkMode ? '#E0E0E0' : theme.palette.text.secondary, 
                                 lineHeight: 1.6,
                                 mb: 3
                             }}>
@@ -244,7 +248,7 @@ const Home = () => {
                                     fontSize: '0.9rem'
                                 }}
                             >
-                                <Typography variant="body2">
+                                <Typography variant="body2" sx={{ color: 'inherit' }}>
                                     Generate Docs
                                 </Typography>
                                 <Box sx={{ 

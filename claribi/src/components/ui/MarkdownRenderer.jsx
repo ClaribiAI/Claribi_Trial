@@ -7,6 +7,7 @@ import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism'; // Li
 
 import { Typography, Box, Paper, useTheme, alpha } from '@mui/material';
 import { Lightbulb, Warning, Info, CheckCircle } from '@phosphor-icons/react';
+import { useTheme as useCustomTheme } from '../../contexts/ThemeContext';
 
 // Custom Power BI DAX code component that applies proper syntax highlighting
 const PowerBIDAXCode = ({ code }) => {
@@ -296,12 +297,13 @@ const specialSectionsMap = {
 
 const MarkdownRenderer = ({ content, sx = {} }) => {
     const theme = useTheme();
+    const { isDarkMode } = useCustomTheme();
     const processedContent = preprocessMarkdown(content);
 
     const components = {
-        h1: ({...props}) => <Typography variant="h4" component="h1" gutterBottom {...props} />,
-        h2: ({...props}) => <Typography variant="h5" component="h2" gutterBottom {...props} />,
-        h3: ({...props}) => <Typography variant="h6" component="h3" gutterBottom {...props} />,
+        h1: ({...props}) => <Typography variant="h4" component="h1" gutterBottom sx={{ color: isDarkMode ? '#FFFFFF' : 'inherit' }} {...props} />,
+        h2: ({...props}) => <Typography variant="h5" component="h2" gutterBottom sx={{ color: isDarkMode ? '#FFFFFF' : 'inherit' }} {...props} />,
+        h3: ({...props}) => <Typography variant="h6" component="h3" gutterBottom sx={{ color: isDarkMode ? '#FFFFFF' : 'inherit' }} {...props} />,
 
         p: ({ node, ...props }) => {
             const text = node?.children[0]?.value || '';
@@ -334,12 +336,12 @@ const MarkdownRenderer = ({ content, sx = {} }) => {
                     </Paper>
                 );
             }
-            return <Typography variant="body1" sx={{ mb: 1.5, lineHeight: 1.7 }} {...props} />;
+            return <Typography variant="body1" sx={{ mb: 1.5, lineHeight: 1.7, color: isDarkMode ? '#E0E0E0' : 'inherit' }} {...props} />;
         },
         
         ul: ({...props}) => <Box component="ul" sx={{ pl: 3, my: 1.5 }} {...props} />,
         ol: ({...props}) => <Box component="ol" sx={{ pl: 3, my: 1.5 }} {...props} />,
-        li: ({...props}) => <Typography component="li" variant="body1" sx={{ mb: 0.5 }} {...props} />,
+        li: ({...props}) => <Typography component="li" variant="body1" sx={{ mb: 0.5, color: isDarkMode ? '#E0E0E0' : 'inherit' }} {...props} />,
 
         code({ node, inline, className, children, ...props }) {
             const match = /language-(\w+)/.exec(className || '');
@@ -390,8 +392,8 @@ const MarkdownRenderer = ({ content, sx = {} }) => {
                     sx={{
                         fontFamily: 'monospace',
                         fontSize: '0.875em',
-                        bgcolor: alpha(theme.palette.primary.main, 0.1),
-                        color: theme.palette.text.primary,
+                        bgcolor: isDarkMode ? alpha('#FCC000', 0.2) : alpha(theme.palette.primary.main, 0.1),
+                        color: isDarkMode ? '#FCC000' : theme.palette.text.primary,
                         px: 0.75,
                         py: 0.25,
                         borderRadius: 1,

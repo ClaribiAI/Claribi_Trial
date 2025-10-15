@@ -1,6 +1,42 @@
 import { createTheme } from '@mui/material/styles';
 
-const theme = createTheme({
+const createAppTheme = (isDarkMode = false) => createTheme({
+  palette: {
+    mode: isDarkMode ? 'dark' : 'light',
+    primary: {
+      main: isDarkMode ? '#FCC000' : '#555555',
+      light: isDarkMode ? '#FFD700' : '#777777',
+      dark: isDarkMode ? '#E6B800' : '#333333',
+      contrastText: isDarkMode ? '#000000' : '#ffffff',
+    },
+    secondary: {
+      main: isDarkMode ? '#FCC000' : '#666666',
+      light: isDarkMode ? '#FFD700' : '#999999',
+      dark: isDarkMode ? '#E6B800' : '#444444',
+      contrastText: isDarkMode ? '#000000' : '#ffffff',
+    },
+    black: {
+      main: isDarkMode ? '#FCC000' : '#000000',
+      light: isDarkMode ? '#FFD700' : '#333333',
+      dark: isDarkMode ? '#E6B800' : '#000000',
+      contrastText: isDarkMode ? '#000000' : '#ffffff',
+    },
+    background: {
+      default: isDarkMode ? '#121212' : '#EEEEEE',
+      paper: isDarkMode ? '#1E1E1E' : '#ffffff',
+      sidebar: isDarkMode ? 'rgba(18, 18, 18, 0.95)' : 'transparent',
+      content: isDarkMode ? '#1E1E1E' : 'transparent',
+    },
+    text: {
+      primary: isDarkMode ? '#FFFFFF' : '#212121',
+      secondary: isDarkMode ? '#B0B0B0' : '#616161',
+      disabled: isDarkMode ? '#666666' : '#9e9e9e',
+      hint: isDarkMode ? '#666666' : '#9e9e9e',
+    },
+    action: {
+      hover: '#FCC000'
+    }
+  },
   typography: {
     fontFamily: "'Nunito Sans', system-ui, -apple-system, sans-serif",
     h1: {
@@ -137,7 +173,9 @@ const theme = createTheme({
       styleOverrides: {
         root: {
           '&.MuiTableRow-hover:hover': {
-            backgroundColor: 'rgba(238, 238, 238, 0.7) !important',
+            backgroundColor: isDarkMode 
+              ? 'rgba(255, 255, 255, 0.08) !important' 
+              : 'rgba(238, 238, 238, 0.7) !important',
           }
         }
       }
@@ -145,9 +183,9 @@ const theme = createTheme({
     MuiCheckbox: {
       styleOverrides: {
         root: {
-          color: '#555555',
+          color: isDarkMode ? '#FCC000' : '#555555',
           '&.Mui-checked': {
-            color: '#555555',
+            color: isDarkMode ? '#FCC000' : '#555555',
           }
         }
       }
@@ -155,4 +193,6 @@ const theme = createTheme({
   },
 });
 
-export default theme;
+// Export both the function and a default theme for backward compatibility
+export { createAppTheme };
+export default createAppTheme(false);

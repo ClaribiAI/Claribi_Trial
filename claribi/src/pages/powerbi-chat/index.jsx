@@ -37,10 +37,12 @@ import ThinkingProcess from '../../components/ui/ThinkingProcess';
 import FileSelectionDialog from '../../components/ui/FileSelectionDialog';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { useNotification } from '../../contexts/NotificationContext';
+import { useTheme as useCustomTheme } from '../../contexts/ThemeContext';
 // Inline clarification flow replaces modal dialog
 
 const PowerBIChat = () => {
     const theme = useTheme();
+    const { isDarkMode } = useCustomTheme();
     const { showNotification } = useNotification();
     const [messages, setMessages] = useState([]);
     const [inputMessage, setInputMessage] = useState('');
@@ -680,7 +682,7 @@ const PowerBIChat = () => {
                             sx={{
                                 fontSize: '0.95rem',
                                 lineHeight: 1.6,
-                                color: 'text.primary'
+                                color: isDarkMode ? '#E0E0E0' : 'text.primary'
                             }}
                         />
                         
@@ -720,7 +722,7 @@ const PowerBIChat = () => {
             {pbixFile && (
                 <Box 
                     sx={{ 
-                        bgcolor: 'background.paper',
+                        bgcolor: isDarkMode ? '#1E1E1E' : 'background.paper',
                         py: 1.5,
                         px: 3,
                         borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`
@@ -740,7 +742,7 @@ const PowerBIChat = () => {
                             </Box>
                             <Typography variant="h6" component="h1" sx={{ 
                                 fontWeight: 600, 
-                                color: theme.palette.text.primary,
+                                color: isDarkMode ? '#FFFFFF' : theme.palette.text.primary,
                                 fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif"
                             }}>
                                 Power BI Assistant
@@ -813,11 +815,11 @@ const PowerBIChat = () => {
                             sx={{ 
                                 p: 4, 
                                 borderRadius: 4, 
-                                bgcolor: alpha(theme.palette.primary.main, 0.08),
-                                color: theme.palette.primary.main,
+                                bgcolor: isDarkMode ? alpha('#FCC000', 0.1) : alpha(theme.palette.primary.main, 0.08),
+                                color: isDarkMode ? '#FCC000' : theme.palette.primary.main,
                                 mb: 4,
-                                border: `2px solid ${alpha(theme.palette.primary.main, 0.15)}`,
-                                boxShadow: '0 8px 32px rgba(0,0,0,0.08)'
+                                border: `2px solid ${isDarkMode ? alpha('#FCC000', 0.2) : alpha(theme.palette.primary.main, 0.15)}`,
+                                boxShadow: isDarkMode ? '0 8px 32px rgba(0,0,0,0.3)' : '0 8px 32px rgba(0,0,0,0.08)'
                             }}
                         >
                             <ChartBar size={64} />
@@ -825,13 +827,13 @@ const PowerBIChat = () => {
                         <Typography variant="h3" sx={{ 
                             fontWeight: 700, 
                             mb: 2, 
-                            color: theme.palette.text.primary,
+                            color: isDarkMode ? '#FFFFFF' : theme.palette.text.primary,
                             fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif"
                         }}>
                             Welcome to Claribi Power BI Assistant
                         </Typography>
                         <Typography variant="h6" sx={{ 
-                            color: theme.palette.text.secondary, 
+                            color: isDarkMode ? '#E0E0E0' : theme.palette.text.secondary, 
                             mb: 6, 
                             maxWidth: 600,
                             lineHeight: 1.6,
@@ -995,9 +997,9 @@ const PowerBIChat = () => {
                 <Box 
                     sx={{ 
                         p: 4, 
-                        bgcolor: 'background.paper',
+                        bgcolor: isDarkMode ? '#1E1E1E' : 'background.paper',
                         borderTop: `1px solid ${alpha(theme.palette.divider, 0.12)}`,
-                        boxShadow: '0 -2px 8px rgba(0,0,0,0.05)'
+                        boxShadow: isDarkMode ? '0 -2px 8px rgba(0,0,0,0.3)' : '0 -2px 8px rgba(0,0,0,0.05)'
                     }}
                 >
 				{clarificationFlow.active ? (
@@ -1015,17 +1017,25 @@ const PowerBIChat = () => {
 							sx={{
 								'& .MuiOutlinedInput-root': {
 									borderRadius: 3,
-									bgcolor: alpha(theme.palette.grey[50], 0.3),
+									bgcolor: isDarkMode ? alpha('#2A2A2A', 0.8) : alpha(theme.palette.grey[50], 0.3),
 									border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+									color: isDarkMode ? '#E0E0E0' : 'inherit',
 									'&:hover': { 
-										bgcolor: alpha(theme.palette.grey[50], 0.5),
+										bgcolor: isDarkMode ? alpha('#2A2A2A', 1) : alpha(theme.palette.grey[50], 0.5),
 										borderColor: alpha(theme.palette.primary.main, 0.3)
 									},
 									'&.Mui-focused': { 
-										bgcolor: 'background.paper',
+										bgcolor: isDarkMode ? '#2A2A2A' : 'background.paper',
 										borderColor: theme.palette.primary.main,
 										boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.1)}`
 									}
+								},
+								'& .MuiInputBase-input': {
+									color: isDarkMode ? '#E0E0E0' : 'inherit'
+								},
+								'& .MuiInputBase-input::placeholder': {
+									color: isDarkMode ? '#B0B0B0' : 'inherit',
+									opacity: 1
 								}
 							}}
 						/>
@@ -1074,17 +1084,25 @@ const PowerBIChat = () => {
 							sx={{
 								'& .MuiOutlinedInput-root': {
 									borderRadius: 3,
-									bgcolor: alpha(theme.palette.grey[50], 0.3),
+									bgcolor: isDarkMode ? alpha('#2A2A2A', 0.8) : alpha(theme.palette.grey[50], 0.3),
 									border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+									color: isDarkMode ? '#E0E0E0' : 'inherit',
 									'&:hover': { 
-										bgcolor: alpha(theme.palette.grey[50], 0.5),
+										bgcolor: isDarkMode ? alpha('#2A2A2A', 1) : alpha(theme.palette.grey[50], 0.5),
 										borderColor: alpha(theme.palette.primary.main, 0.3)
 									},
 									'&.Mui-focused': { 
-										bgcolor: 'background.paper',
+										bgcolor: isDarkMode ? '#2A2A2A' : 'background.paper',
 										borderColor: theme.palette.primary.main,
 										boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.1)}`
 									}
+								},
+								'& .MuiInputBase-input': {
+									color: isDarkMode ? '#E0E0E0' : 'inherit'
+								},
+								'& .MuiInputBase-input::placeholder': {
+									color: isDarkMode ? '#B0B0B0' : 'inherit',
+									opacity: 1
 								}
 							}}
 						/>

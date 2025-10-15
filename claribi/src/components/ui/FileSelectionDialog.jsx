@@ -38,9 +38,11 @@ import {
 } from '@phosphor-icons/react';
 import { getUploadedFiles, deletePowerBISession } from '../../services/powerbiChatService';
 import { useNotification } from '../../contexts/NotificationContext';
+import { useTheme as useCustomTheme } from '../../contexts/ThemeContext';
 
 const FileSelectionDialog = ({ open, onClose, onFileSelect, onUploadNew }) => {
     const theme = useTheme();
+    const { isDarkMode } = useCustomTheme();
     const { showNotification } = useNotification();
     const [files, setFiles] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -126,7 +128,8 @@ const FileSelectionDialog = ({ open, onClose, onFileSelect, onUploadNew }) => {
             PaperProps={{
                 sx: {
                     borderRadius: 3,
-                    maxHeight: '80vh'
+                    maxHeight: '80vh',
+                    bgcolor: isDarkMode ? '#1E1E1E' : '#ffffff'
                 }
             }}
         >
@@ -134,7 +137,7 @@ const FileSelectionDialog = ({ open, onClose, onFileSelect, onUploadNew }) => {
                 <Box display="flex" alignItems="center" justifyContent="space-between">
                     <Box display="flex" alignItems="center" gap={1}>
                         <FileText size={24} color={theme.palette.primary.main} />
-                        <Typography variant="h6" component="h2">
+                        <Typography variant="h6" component="h2" sx={{ color: isDarkMode ? '#FFFFFF' : 'inherit' }}>
                             Select PBIX File
                         </Typography>
                     </Box>
@@ -142,7 +145,7 @@ const FileSelectionDialog = ({ open, onClose, onFileSelect, onUploadNew }) => {
                         <X size={20} />
                     </IconButton>
                 </Box>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                <Typography variant="body2" sx={{ mt: 1, color: isDarkMode ? '#E0E0E0' : 'text.secondary' }}>
                     Choose a previously uploaded PBIX file to start chatting with, or upload a new one.
                 </Typography>
             </DialogTitle>
@@ -163,10 +166,10 @@ const FileSelectionDialog = ({ open, onClose, onFileSelect, onUploadNew }) => {
                 {!loading && !error && files.length === 0 && (
                     <Box textAlign="center" py={4}>
                         <FileText size={48} color={theme.palette.grey[400]} />
-                        <Typography variant="h6" color="text.secondary" sx={{ mt: 2, mb: 1 }}>
+                        <Typography variant="h6" sx={{ mt: 2, mb: 1, color: isDarkMode ? '#E0E0E0' : 'text.secondary' }}>
                             No uploaded files found
                         </Typography>
-                        <Typography variant="body2" color="text.secondary">
+                        <Typography variant="body2" sx={{ color: isDarkMode ? '#B0B0B0' : 'text.secondary' }}>
                             Upload a PBIX file to get started with Power BI chat.
                         </Typography>
                     </Box>
@@ -180,7 +183,8 @@ const FileSelectionDialog = ({ open, onClose, onFileSelect, onUploadNew }) => {
                                     <Card 
                                         sx={{ 
                                             width: '100%',
-                                            cursor: 'pointer'
+                                            cursor: 'pointer',
+                                            bgcolor: isDarkMode ? '#2A2A2A' : '#ffffff'
                                         }}
                                     >
                                         <Box
@@ -189,9 +193,9 @@ const FileSelectionDialog = ({ open, onClose, onFileSelect, onUploadNew }) => {
                                                 cursor: deletingFile === file.collection_name ? 'not-allowed' : 'pointer',
                                                 opacity: deletingFile === file.collection_name ? 0.6 : 1,
                                                 '&:hover': {
-                                                    bgcolor: '#f5f5f5',
+                                                    bgcolor: isDarkMode ? '#3A3A3A' : '#f5f5f5',
                                                     '& .MuiTypography-root': {
-                                                        color: theme.palette.text.primary
+                                                        color: isDarkMode ? '#FFFFFF' : theme.palette.text.primary
                                                     },
                                                     '& .file-name': {
                                                         color: '#FCC000'
@@ -222,20 +226,21 @@ const FileSelectionDialog = ({ open, onClose, onFileSelect, onUploadNew }) => {
                                                                 mb: 0.5,
                                                                 overflow: 'hidden',
                                                                 textOverflow: 'ellipsis',
-                                                                whiteSpace: 'nowrap'
+                                                                whiteSpace: 'nowrap',
+                                                                color: isDarkMode ? '#FFFFFF' : 'inherit'
                                                             }}
                                                         >
                                                             {file.filename}
                                                         </Typography>
                                                         
                                                         <Box display="flex" alignItems="center" gap={2} mb={1}>
-                                                            <Typography variant="body2" color="text.secondary">
+                                                            <Typography variant="body2" sx={{ color: isDarkMode ? '#B0B0B0' : 'text.secondary' }}>
                                                                 {formatFileSize(file.file_size)}
                                                             </Typography>
-                                                            <Typography variant="body2" color="text.secondary">
+                                                            <Typography variant="body2" sx={{ color: isDarkMode ? '#B0B0B0' : 'text.secondary' }}>
                                                                 {formatDate(file.upload_time)}
                                                             </Typography>
-                                                            <Typography variant="body2" color="text.secondary">
+                                                            <Typography variant="body2" sx={{ color: isDarkMode ? '#B0B0B0' : 'text.secondary' }}>
                                                                 {file.document_count} documents
                                                             </Typography>
                                                         </Box>
