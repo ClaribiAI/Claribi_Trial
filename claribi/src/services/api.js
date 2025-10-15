@@ -16,6 +16,15 @@ const api = axios.create({
 // Add a request interceptor
 api.interceptors.request.use(
   async config => {
+    // Add JWT token to all requests if available
+    const token = localStorage.getItem('jwt_token');
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`;
+      console.log(`🔐 JWT token added to ${config.method.toUpperCase()} request to ${config.url}`);
+    } else {
+      console.log(`⚠️ No JWT token available for ${config.method.toUpperCase()} request to ${config.url}`);
+    }
+
     // Include CSRF token in POST, PUT, DELETE requests
     if (['post', 'put', 'delete', 'patch'].includes(config.method.toLowerCase())) {
       console.log(`🔒 Adding CSRF token to ${config.method.toUpperCase()} request to ${config.url}`);

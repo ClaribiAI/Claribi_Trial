@@ -106,22 +106,23 @@ def get_current_user() -> Optional[Dict[str, Any]]:
             logger.debug("No auth token found in headers")
             return None
             
-        # Decode and validate token
+        # Use JWT service for proper token validation
         try:
-            payload = jwt.decode(session_token, config.SECRET_KEY, algorithms=['HS256'])
-            if not payload or 'ms_object_id' not in payload:
-                logger.debug("Invalid token payload")
+            from app.auth2.jwt_service import JWTService
+            user_data = JWTService.validate_user_token(session_token)
+            if not user_data:
+                logger.debug("Invalid or expired token")
                 return None
                 
             return {
-                'id': payload.get('id'),
-                'ms_object_id': payload['ms_object_id'],
-                'organization_id': payload.get('organization_id'),
-                'display_id': payload.get('display_id'),
+                'id': user_data.get('ms_object_id'),  # Use ms_object_id as id
+                'ms_object_id': user_data['ms_object_id'],
+                'organization_id': user_data.get('organization_id'),
+                'display_id': user_data.get('display_id'),
                 'is_active': True
             }
-        except jwt.InvalidTokenError as e:
-            logger.debug(f"Invalid token: {e}")
+        except Exception as e:
+            logger.debug(f"Error validating token: {e}")
             return None
             
     except Exception as e:
