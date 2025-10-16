@@ -39,7 +39,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 
-const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
+const Sidebar = ({ open = false, toggleSidebar }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { currentUser, logout } = useAuth();
@@ -102,7 +102,6 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         color: isDarkMode ? '#FFFFFF' : '#1a1a1a',
         backgroundColor: isDarkMode ? '#1E1E1E' : '#f8f9fa',
-        borderRight: isDarkMode ? '1px solid rgba(255, 255, 255, 0.12)' : '1px solid #e9ecef',
         boxShadow: { 
           xs: '0 8px 32px rgba(0,0,0,0.12)', 
           sm: '0 0 0 1px rgba(0,0,0,0.05)' 
@@ -221,7 +220,7 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
                     backgroundColor: 'rgba(0, 0, 0, 0.06)',
                     transform: 'translateY(-1px)',
                     '& .menuIcon': {
-                      color: isActive(item.path) ? '#FFFFFF' : '#374151',
+                      color: isActive(item.path) ? '#FFFFFF' : (isDarkMode ? '#FFFFFF' : '#374151'),
                       transform: 'scale(1.05)',
                     },
                   },
@@ -251,21 +250,6 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
             >
                   {item.icon}
                 </Box>
-                {isActive(item.path) && (
-                  <Box
-                    sx={{
-                      position: 'absolute',
-                      left: 0,
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      width: 4,
-                      height: 32,
-                      backgroundColor: isDarkMode ? '#FCC000' : '#000000',
-                      borderRadius: '0 4px 4px 0',
-                      boxShadow: '0 4px 8px rgba(0, 0, 0, 0.25)',
-                    }}
-                  />
-                )}
               </Box>
             </Tooltip>
           ))}
@@ -333,7 +317,7 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
                 backgroundColor: 'rgba(0, 0, 0, 0.06)',
                 transform: 'translateY(-1px)',
                 '& .themeIcon': {
-                  color: '#FCC000',
+                  color: isDarkMode ? '#FFFFFF' : '#FCC000',
                   transform: 'scale(1.05)',
                 },
               },
@@ -404,7 +388,7 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
                 backgroundColor: 'rgba(0, 0, 0, 0.06)',
                 transform: 'translateY(-1px)',
                 '& .icon': {
-                  color: isActive('/help') ? '#FFFFFF' : '#000000',
+                  color: isActive('/help') ? '#FFFFFF' : (isDarkMode ? '#FFFFFF' : '#000000'),
                   transform: 'scale(1.05)',
                 },
               },
@@ -422,8 +406,8 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
               alignItems: 'center',
               justifyContent: 'center',
                 borderRadius: 3,
-                backgroundColor: isActive('/help') ? '#000000' : 'rgba(0, 0, 0, 0.04)',
-                color: isActive('/help') ? '#FFFFFF' : '#6b7280',
+                backgroundColor: isActive('/help') ? (isDarkMode ? '#FCC000' : '#000000') : (isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)'),
+                color: isActive('/help') ? (isDarkMode ? '#000000' : '#FFFFFF') : (isDarkMode ? '#B0B0B0' : '#6b7280'),
                 mb: 1,
                 transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                 boxShadow: isActive('/help') ? '0 4px 16px rgba(0, 0, 0, 0.25)' : '0 2px 8px rgba(0,0,0,0.08)',
@@ -434,102 +418,9 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
           >
             <Question size={20} />
                 </Box>
-            {isActive('/help') && (
-              <Box
-                sx={{
-                  position: 'absolute',
-                  left: 0,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  width: 4,
-                  height: 32,
-                  backgroundColor: '#000000',
-                  borderRadius: '0 4px 4px 0',
-                  boxShadow: '0 4px 8px rgba(0, 0, 0, 0.25)',
-                }}
-              />
-            )}
               </Box>
         </Tooltip>
 
-        {onOpenFeedback && (
-          <Tooltip 
-            title="Send Feedback"
-            placement="right"
-            arrow
-            slotProps={{
-              tooltip: {
-                sx: {
-                  backgroundColor: '#1a1a1a',
-                  color: '#ffffff',
-                  fontSize: '0.75rem',
-                  fontFamily: "'Inter', sans-serif",
-                  fontWeight: 500,
-                  borderRadius: 2,
-                  px: 1.5,
-                  py: 0.75,
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
-                }
-              }
-            }}
-          >
-          <Box 
-            component="button" 
-            onClick={(e) => {
-              e.preventDefault();
-              if (onOpenFeedback) {
-                onOpenFeedback();
-              }
-            }}
-            sx={{ 
-              display: 'flex', 
-              flexDirection: 'column', 
-              alignItems: 'center',
-              width: '100%',
-              color: 'inherit',
-              border: 'none',
-              background: 'none',
-              cursor: 'pointer',
-              p: 1.5,
-              borderRadius: 3,
-              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-              '&:hover': {
-                backgroundColor: 'rgba(0, 0, 0, 0.06)',
-                transform: 'translateY(-1px)',
-                '& .icon': {
-                  color: '#000000',
-                  transform: 'scale(1.05)',
-                },
-              },
-              '&:active': {
-                transform: 'translateY(0)',
-              }
-            }}
-          >
-            <Box
-              className="icon"
-              sx={{
-                  width: 44,
-                  height: 44,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: 3,
-                color: '#6b7280',
-                mb: 1,
-                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                backgroundColor: 'rgba(0, 0, 0, 0.04)',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-                '&:hover': {
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
-                }
-              }}
-            >
-              <Question size={20} />
-              </Box>
-            </Box>
-          </Tooltip>
-        )}
 
         <Tooltip 
           title={currentUser?.email || "User Menu"}
@@ -570,7 +461,7 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
                 backgroundColor: 'rgba(0, 0, 0, 0.06)',
                 transform: 'translateY(-1px)',
                 '& .icon': {
-                  color: '#374151',
+                  color: isDarkMode ? '#FFFFFF' : '#374151',
                   transform: 'scale(1.05)',
                 },
               },
@@ -588,10 +479,10 @@ const Sidebar = ({ open = false, toggleSidebar, onOpenFeedback }) => {
               alignItems: 'center',
               justifyContent: 'center',
                 borderRadius: 3,
-                color: '#6b7280',
+                color: isDarkMode ? '#B0B0B0' : '#6b7280',
                 mb: 1,
                 transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
                 '&:hover': {
                   boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
