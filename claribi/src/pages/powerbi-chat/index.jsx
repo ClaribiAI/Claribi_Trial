@@ -1096,12 +1096,12 @@ const PowerBIChat = () => {
 									color: 'inherit',
 									'&:hover': { 
 										bgcolor: alpha(theme.palette.grey[50], 0.5),
-										borderColor: alpha(theme.palette.primary.main, 0.3)
+										borderColor: alpha(theme.palette.input.focusBorder, 0.3)
 									},
 									'&.Mui-focused': { 
 										bgcolor: 'background.paper',
-										borderColor: theme.palette.primary.main,
-										boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.1)}`
+										borderColor: theme.palette.input.focusBorder,
+										boxShadow: `0 0 0 2px ${alpha(theme.palette.input.focusBorder, 0.1)}`
 									}
 								},
 								'& .MuiInputBase-input': {
@@ -1163,12 +1163,12 @@ const PowerBIChat = () => {
 									color: theme.palette.input.text,
 									'&:hover': { 
 										bgcolor: theme.palette.input.background,
-										borderColor: alpha(theme.palette.primary.main, 0.3)
+										borderColor: alpha(theme.palette.input.focusBorder, 0.3)
 									},
 									'&.Mui-focused': { 
 										bgcolor: theme.palette.input.background,
 										borderColor: theme.palette.input.focusBorder,
-										boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.1)}`
+										boxShadow: `0 0 0 2px ${alpha(theme.palette.input.focusBorder, 0.1)}`
 									}
 								},
 								'& .MuiInputBase-input': {

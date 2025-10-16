@@ -283,3 +283,30 @@ button:hover,
   background-color: rgba(252, 192, 0, 0.05) !important;
 }
 
+/* Override input field focus styles in dark mode - only style the notched outline */
+.dark .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
+  border-color: #B0B0B0 !important;
+  border-width: 1px !important;
+}
+
+.dark .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
+  border-color: rgba(176, 176, 176, 0.3) !important;
+  border-width: 1px !important;
+}
+
+.dark .MuiOutlinedInput-root .MuiOutlinedInput-notchedOutline {
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  border-width: 1px !important;
+}
+
+/* Remove any yellow focus outlines and ensure single border */
+.dark .MuiOutlinedInput-root.Mui-focused {
+  box-shadow: 0 0 0 2px rgba(176, 176, 176, 0.1) !important;
+}
+
+/* Ensure no yellow colors are applied to input fields */
+.dark input:focus,
+.dark textarea:focus {
+  outline: none !important;
+}
+

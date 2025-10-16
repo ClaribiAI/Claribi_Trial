@@ -66,7 +66,7 @@ const createAppTheme = (isDarkMode = false) => createTheme({
       text: isDarkMode ? '#E0E0E0' : 'inherit',
       placeholder: isDarkMode ? '#B0B0B0' : 'inherit',
       border: isDarkMode ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)',
-      focusBorder: isDarkMode ? '#FCC000' : '#555555',
+      focusBorder: isDarkMode ? '#B0B0B0' : '#555555',
     },
     code: {
       background: isDarkMode ? 'rgba(252, 192, 0, 0.2)' : 'rgba(85, 85, 85, 0.1)',
@@ -211,7 +211,7 @@ const createAppTheme = (isDarkMode = false) => createTheme({
             },
             '&.Mui-focused': {
               backgroundColor: isDarkMode ? '#2A2A2A' : '#ffffff',
-              borderColor: isDarkMode ? '#FCC000' : '#555555',
+              borderColor: isDarkMode ? '#B0B0B0' : '#555555',
             },
             '& .MuiInputBase-input::placeholder': {
               color: isDarkMode ? '#B0B0B0' : 'inherit',
