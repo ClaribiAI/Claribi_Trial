@@ -7,7 +7,6 @@ import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism'; // Li
 
 import { Typography, Box, Paper, useTheme, alpha } from '@mui/material';
 import { Lightbulb, Warning, Info, CheckCircle } from '@phosphor-icons/react';
-import { useTheme as useCustomTheme } from '../../contexts/ThemeContext';
 
 // Custom Power BI DAX code component that applies proper syntax highlighting
 const PowerBIDAXCode = ({ code }) => {
@@ -172,8 +171,8 @@ const PowerBIDAXCode = ({ code }) => {
     );
 };
 
-// Custom Power BI DAX theme that exactly matches Power BI's color scheme
-const powerBITheme = {
+// Power BI DAX light theme (matches Power BI's native editor)
+const powerBIThemeLight = {
     'pre[class*="language-"]': {
         color: '#000000',
         background: '#ffffff',
@@ -248,6 +247,84 @@ const powerBITheme = {
     '.token.parameter': { color: '#000000 !important' }, // Black parameters
     '.token.builtin': { color: '#0000ff !important', fontWeight: 'bold' }, // Dark blue built-in functions
     '.token.attr': { color: '#000000 !important' }, // Black attributes
+};
+
+// Power BI DAX dark theme (VS Code inspired)
+const powerBIThemeDark = {
+    'pre[class*="language-"]': {
+        color: '#D4D4D4',
+        background: '#1E1E1E',
+        textShadow: 'none',
+        fontFamily: 'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace',
+        fontSize: '14px',
+        lineHeight: '1.5',
+        direction: 'ltr',
+        textAlign: 'left',
+        whiteSpace: 'pre',
+        wordSpacing: 'normal',
+        wordBreak: 'normal',
+        wordWrap: 'normal',
+        MozTabSize: '4',
+        OTabSize: '4',
+        tabSize: '4',
+        WebkitHyphens: 'none',
+        MozHyphens: 'none',
+        msHyphens: 'none',
+        hyphens: 'none',
+        padding: '1em',
+        margin: '.5em 0',
+        overflow: 'auto',
+        borderRadius: '4px',
+        border: '1px solid #3C3C3C'
+    },
+    'code[class*="language-"]': {
+        color: '#D4D4D4',
+        background: '#1E1E1E',
+        textShadow: 'none',
+        fontFamily: 'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace',
+        fontSize: '14px',
+        direction: 'ltr',
+        textAlign: 'left',
+        whiteSpace: 'pre',
+        wordSpacing: 'normal',
+        wordBreak: 'normal',
+        wordWrap: 'normal',
+        lineHeight: '1.5',
+        MozTabSize: '4',
+        OTabSize: '4',
+        tabSize: '4',
+        WebkitHyphens: 'none',
+        MozHyphens: 'none',
+        msHyphens: 'none',
+        hyphens: 'none'
+    },
+    // Dark theme color scheme - VS Code inspired
+    '.token.comment': { color: '#6A9955 !important', fontStyle: 'italic' }, // Green comments
+    '.token.keyword': { color: '#569CD6 !important', fontWeight: 'bold' }, // Blue keywords
+    '.token.string': { color: '#CE9178 !important' }, // Orange strings
+    '.token.number': { color: '#B5CEA8 !important' }, // Light green numbers
+    '.token.operator': { color: '#D4D4D4 !important' }, // Light gray operators
+    '.token.punctuation': { color: '#D4D4D4 !important' }, // Light gray punctuation
+    '.token.function': { color: '#DCDCAA !important', fontWeight: 'bold' }, // Yellow functions
+    '.token.variable': { color: '#9CDCFE !important' }, // Light blue variables
+    '.token.property': { color: '#D4D4D4 !important' }, // Light gray properties
+    '.token.boolean': { color: '#569CD6 !important' }, // Blue booleans
+    '.token.constant': { color: '#4FC1FF !important' }, // Light blue constants
+    '.token.class-name': { color: '#4EC9B0 !important' }, // Teal class names
+    '.token.tag': { color: '#569CD6 !important' }, // Blue tags
+    '.token.attr-name': { color: '#92C5F !important' }, // Light blue attribute names
+    '.token.attr-value': { color: '#CE9178 !important' }, // Orange attribute values
+    '.token.selector': { color: '#D7BA7D !important' }, // Yellow selectors
+    '.token.symbol': { color: '#D4D4D4 !important' }, // Light gray symbols
+    '.token.deleted': { color: '#F44747 !important' }, // Red deleted
+    '.token.inserted': { color: '#6A9955 !important' }, // Green inserted
+    '.token.important': { color: '#F44747 !important', fontWeight: 'bold' }, // Red important
+    '.token.bold': { color: '#D4D4D4 !important', fontWeight: 'bold' }, // Light gray bold
+    '.token.italic': { color: '#D4D4D4 !important', fontStyle: 'italic' }, // Light gray italic
+    // Additional tokens for better DAX support
+    '.token.parameter': { color: '#9CDCFE !important' }, // Light blue parameters
+    '.token.builtin': { color: '#DCDCAA !important', fontWeight: 'bold' }, // Yellow built-in functions
+    '.token.attr': { color: '#D4D4D4 !important' }, // Light gray attributes
     '.token.char': { color: '#a31515 !important' }, // Red characters
     '.token.decorator': { color: '#0000ff !important' }, // Dark blue decorators
     '.token.namespace': { color: '#000000 !important' }, // Black namespaces
@@ -297,13 +374,12 @@ const specialSectionsMap = {
 
 const MarkdownRenderer = ({ content, sx = {} }) => {
     const theme = useTheme();
-    const { isDarkMode } = useCustomTheme();
     const processedContent = preprocessMarkdown(content);
 
     const components = {
-        h1: ({...props}) => <Typography variant="h4" component="h1" gutterBottom sx={{ color: isDarkMode ? '#FFFFFF' : 'inherit' }} {...props} />,
-        h2: ({...props}) => <Typography variant="h5" component="h2" gutterBottom sx={{ color: isDarkMode ? '#FFFFFF' : 'inherit' }} {...props} />,
-        h3: ({...props}) => <Typography variant="h6" component="h3" gutterBottom sx={{ color: isDarkMode ? '#FFFFFF' : 'inherit' }} {...props} />,
+        h1: ({...props}) => <Typography variant="h4" component="h1" gutterBottom sx={{ color: theme.palette.text.primary }} {...props} />,
+        h2: ({...props}) => <Typography variant="h5" component="h2" gutterBottom sx={{ color: theme.palette.text.primary }} {...props} />,
+        h3: ({...props}) => <Typography variant="h6" component="h3" gutterBottom sx={{ color: theme.palette.text.primary }} {...props} />,
 
         p: ({ node, ...props }) => {
             const text = node?.children[0]?.value || '';
@@ -336,12 +412,12 @@ const MarkdownRenderer = ({ content, sx = {} }) => {
                     </Paper>
                 );
             }
-            return <Typography variant="body1" sx={{ mb: 1.5, lineHeight: 1.7, color: isDarkMode ? '#E0E0E0' : 'inherit' }} {...props} />;
+            return <Typography variant="body1" sx={{ mb: 1.5, lineHeight: 1.7, color: 'inherit' }} {...props} />;
         },
         
         ul: ({...props}) => <Box component="ul" sx={{ pl: 3, my: 1.5 }} {...props} />,
         ol: ({...props}) => <Box component="ol" sx={{ pl: 3, my: 1.5 }} {...props} />,
-        li: ({...props}) => <Typography component="li" variant="body1" sx={{ mb: 0.5, color: isDarkMode ? '#E0E0E0' : 'inherit' }} {...props} />,
+        li: ({...props}) => <Typography component="li" variant="body1" sx={{ mb: 0.5, color: 'inherit' }} {...props} />,
 
         code({ node, inline, className, children, ...props }) {
             const match = /language-(\w+)/.exec(className || '');
@@ -354,8 +430,8 @@ const MarkdownRenderer = ({ content, sx = {} }) => {
                         <Box
                             component="pre"
                             sx={{
-                                color: '#000000',
-                                background: '#ffffff',
+                                color: theme.palette.mode === 'dark' ? '#D4D4D4' : '#000000',
+                                background: theme.palette.mode === 'dark' ? '#1E1E1E' : '#ffffff',
                                 fontFamily: 'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace',
                                 fontSize: '14px',
                                 lineHeight: '1.5',
@@ -363,7 +439,7 @@ const MarkdownRenderer = ({ content, sx = {} }) => {
                                 margin: '.5em 0',
                                 overflow: 'auto',
                                 borderRadius: '4px',
-                                border: '1px solid #e1e4e8',
+                                border: theme.palette.mode === 'dark' ? '1px solid #3C3C3C' : '1px solid #e1e4e8',
                                 whiteSpace: 'pre',
                                 wordBreak: 'normal',
                                 wordWrap: 'normal'
@@ -376,7 +452,7 @@ const MarkdownRenderer = ({ content, sx = {} }) => {
                 
                 return (
                     <SyntaxHighlighter
-                        style={powerBITheme}
+                        style={theme.palette.mode === 'dark' ? powerBIThemeDark : powerBIThemeLight}
                         language="text"
                         PreTag="div"
                         {...props}
@@ -392,8 +468,8 @@ const MarkdownRenderer = ({ content, sx = {} }) => {
                     sx={{
                         fontFamily: 'monospace',
                         fontSize: '0.875em',
-                        bgcolor: isDarkMode ? alpha('#FCC000', 0.2) : alpha(theme.palette.primary.main, 0.1),
-                        color: isDarkMode ? '#FCC000' : theme.palette.text.primary,
+                        bgcolor: theme.palette.code.background,
+                        color: theme.palette.code.text,
                         px: 0.75,
                         py: 0.25,
                         borderRadius: 1,

@@ -229,9 +229,15 @@ const LoginPage = () => {
         <Box sx={{ mb: 4 }}>
           <Box
             component="img"
-            src="/claribi-logo.svg"
+            src={theme.palette.mode === 'dark' ? '/claribi_icon_logo_dark.png' : '/claribi_icon_logo_light.png'}
             alt="Claribi Logo"
-            sx={{ width: 64, height: 64, mx: 'auto', mb: 2 }}
+            sx={{ 
+              width: 48, 
+              height: 48, 
+              mx: 'auto', 
+              mb: 2,
+              objectFit: 'contain'
+            }}
           />
           <Typography variant="h4" component="h1" fontWeight="bold" sx={{ mb: 1 }}>
             claribi

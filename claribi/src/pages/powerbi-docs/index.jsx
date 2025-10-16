@@ -1,6 +1,5 @@
 import React, { useState, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { useTheme as useCustomTheme } from '../../contexts/ThemeContext';
 import { 
     Box, 
     Typography, 
@@ -62,13 +61,13 @@ import { analyzePowerBIFiles, analyzePowerBISection, parseImprovementRecommendat
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 
 // Professional loading overlay with backdrop
-const LoadingOverlay = ({ open, isDarkMode }) => (
+const LoadingOverlay = ({ open, theme }) => (
     <Backdrop 
         open={open} 
         sx={{ 
             position: 'absolute', 
             zIndex: 20,
-            backgroundColor: isDarkMode ? alpha('#000', 0.8) : alpha('#fff', 0.8),
+            backgroundColor: theme.palette.mode === 'dark' ? alpha('#000', 0.8) : alpha('#fff', 0.8),
             backdropFilter: 'blur(4px)'
         }}
     >
@@ -294,7 +293,6 @@ const RecommendationCard = ({ recommendation, onApply, isApplying }) => {
 
 const PowerBIDocumentation = () => {
     const theme = useTheme();
-    const { isDarkMode } = useCustomTheme();
     const [pbixFile, setPbixFile] = useState(null);
     const [sectionLoading, setSectionLoading] = useState({});
     const [documentation, setDocumentation] = useState(null);
@@ -738,7 +736,7 @@ const PowerBIDocumentation = () => {
                     border: `1px solid ${alpha(theme.palette.divider, 0.12)}`,
                     position: 'relative',
                     overflow: 'visible',
-                    bgcolor: isDarkMode ? '#1E1E1E' : '#ffffff'
+                    bgcolor: theme.palette.background.paper
                 }}
             >
                 <CardHeader
@@ -755,12 +753,12 @@ const PowerBIDocumentation = () => {
                         </Box>
                     }
                     title={
-                        <Typography variant="h6" component="h3" sx={{ fontWeight: 600, color: isDarkMode ? '#FFFFFF' : 'inherit' }}>
+                        <Typography variant="h6" component="h3" sx={{ fontWeight: 600, color: 'inherit' }}>
                             {section.title}
                         </Typography>
                     }
                     subheader={
-                        <Typography variant="body2" sx={{ color: isDarkMode ? '#E0E0E0' : 'text.secondary' }}>
+                        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                             {section.description}
                         </Typography>
                     }
@@ -872,7 +870,7 @@ const PowerBIDocumentation = () => {
                 />
                 
                 <CardContent sx={{ pt: 0, position: 'relative' }}>
-                    <LoadingOverlay open={sectionLoading[section.id]} isDarkMode={isDarkMode} />
+                    <LoadingOverlay open={sectionLoading[section.id]} theme={theme} />
                     
                     {content ? (
                         <Box>
@@ -897,7 +895,7 @@ const PowerBIDocumentation = () => {
                                     
                                     {/* Show full recommendations text for improvement_recommendations */}
                                     <Box mb={2}>
-                                        <Typography variant="h6" sx={{ mb: 2, color: isDarkMode ? '#FFFFFF' : 'text.primary' }}>
+                                        <Typography variant="h6" sx={{ mb: 2, color: 'text.primary' }}>
                                             Full Recommendations Text
                                         </Typography>
                                     </Box>
@@ -908,7 +906,7 @@ const PowerBIDocumentation = () => {
                             <Paper 
                                 sx={{ 
                                     p: 3, 
-                                    bgcolor: isDarkMode ? '#2A2A2A' : alpha(theme.palette.background.paper, 0.6),
+                                    bgcolor: alpha(theme.palette.background.paper, 0.6),
                                     border: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
                                     borderRadius: 2
                                 }}
@@ -940,7 +938,7 @@ const PowerBIDocumentation = () => {
                                             '& h1': { 
                                                 fontSize: '1.5rem', 
                                                 fontWeight: 600, 
-                                                color: isDarkMode ? '#FFFFFF' : 'text.primary',
+                                                color: theme.palette.text.primary,
                                                 mt: 3,
                                                 mb: 2,
                                                 '&:first-of-type': { mt: 0 }
@@ -948,21 +946,21 @@ const PowerBIDocumentation = () => {
                                             '& h2': { 
                                                 fontSize: '1.25rem', 
                                                 fontWeight: 600, 
-                                                color: isDarkMode ? '#FFFFFF' : 'text.primary',
+                                                color: theme.palette.text.primary,
                                                 mt: 3,
                                                 mb: 2
                                             },
                                             '& h3': { 
                                                 fontSize: '1.125rem', 
                                                 fontWeight: 500, 
-                                                color: isDarkMode ? '#FFFFFF' : 'text.primary',
+                                                color: theme.palette.text.primary,
                                                 mt: 2,
                                                 mb: 1
                                             },
                                             '& p': { 
                                                 mb: 2, 
                                                 lineHeight: 1.7,
-                                                color: isDarkMode ? '#E0E0E0' : 'text.secondary'
+                                                color: 'text.secondary'
                                             },
                                             '& ul, & ol': { 
                                                 mb: 2, 
@@ -970,16 +968,16 @@ const PowerBIDocumentation = () => {
                                                 '& li': { 
                                                     mb: 0.5, 
                                                     lineHeight: 1.6,
-                                                    color: isDarkMode ? '#E0E0E0' : 'inherit'
+                                                    color: theme.palette.text.primary
                                                 }
                                             },
                                             '& strong': { 
                                                 fontWeight: 600, 
-                                                color: isDarkMode ? '#FFFFFF' : 'text.primary'
+                                                color: theme.palette.text.primary
                                             },
                                             '& code': { 
-                                                bgcolor: isDarkMode ? alpha('#FCC000', 0.2) : alpha(theme.palette.primary.main, 0.1),
-                                                color: isDarkMode ? '#FCC000' : 'primary.dark',
+                                                bgcolor: theme.palette.code.background,
+                                                color: theme.palette.code.text,
                                                 px: 1,
                                                 py: 0.25,
                                                 borderRadius: 1,
@@ -987,21 +985,21 @@ const PowerBIDocumentation = () => {
                                                 fontFamily: 'monospace'
                                             },
                                             '& pre': { 
-                                                bgcolor: isDarkMode ? '#1A1A1A' : alpha(theme.palette.grey[900], 0.05),
+                                                bgcolor: alpha(theme.palette.grey[900], 0.05),
                                                 p: 2, 
                                                 borderRadius: 2, 
                                                 overflow: 'auto',
                                                 mb: 2,
                                                 border: `1px solid ${alpha(theme.palette.divider, 0.12)}`,
-                                                color: isDarkMode ? '#E0E0E0' : 'inherit'
+                                                color: 'inherit'
                                             },
                                             '& blockquote': { 
                                                 borderLeft: `4px solid ${theme.palette.primary.main}`,
                                                 pl: 2, 
                                                 fontStyle: 'italic', 
-                                                color: isDarkMode ? '#E0E0E0' : 'text.secondary',
+                                                color: theme.palette.text.secondary,
                                                 mb: 2,
-                                                bgcolor: isDarkMode ? alpha('#FCC000', 0.05) : alpha(theme.palette.primary.main, 0.02),
+                                                bgcolor: theme.palette.mode === 'dark' ? alpha('#FCC000', 0.05) : alpha(theme.palette.primary.main, 0.02),
                                                 py: 1,
                                                 borderRadius: '0 4px 4px 0'
                                             }
@@ -1025,18 +1023,18 @@ const PowerBIDocumentation = () => {
                             justifyContent="center"
                             py={6}
                             sx={{ 
-                                bgcolor: isDarkMode ? '#2A2A2A' : alpha(theme.palette.grey[50], 0.5),
+                                bgcolor: theme.palette.background.hover,
                                 borderRadius: 2,
                                 border: `2px dashed ${alpha(theme.palette.divider, 0.3)}`
                             }}
                         >
-                            <Box sx={{ color: isDarkMode ? '#666666' : 'text.disabled', mb: 2 }}>
+                            <Box sx={{ color: theme.palette.text.disabled, mb: 2 }}>
                                 {section.icon}
                             </Box>
-                            <Typography variant="body1" align="center" sx={{ mb: 2, color: isDarkMode ? '#E0E0E0' : 'text.secondary' }}>
+                            <Typography variant="body1" align="center" sx={{ mb: 2, color: theme.palette.text.secondary }}>
                                 Click "Generate" to create the {section.title.toLowerCase()} section
                             </Typography>
-                            <Typography variant="body2" align="center" sx={{ color: isDarkMode ? '#B0B0B0' : 'text.disabled' }}>
+                            <Typography variant="body2" align="center" sx={{ color: theme.palette.text.disabled }}>
                                 {section.description}
                             </Typography>
                         </Box>
@@ -1060,10 +1058,10 @@ const PowerBIDocumentation = () => {
                 >
                     <Box width="100%" display="flex" alignItems="center" justifyContent="space-between">
                         <Box>
-                            <Typography variant="h5" component="h1" sx={{ fontWeight: 600, mb: 0.5, color: isDarkMode ? '#FFFFFF' : '#333' }}>
+                            <Typography variant="h5" component="h1" sx={{ fontWeight: 600, mb: 0.5, color: theme.palette.text.primary }}>
                                 ClaribiDocs
                             </Typography>
-                            <Typography variant="body2" sx={{ color: isDarkMode ? '#E0E0E0' : '#666' }}>
+                            <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
                                 AI-powered PowerBI analysis and documentation
                             </Typography>
                         </Box>
@@ -1182,13 +1180,13 @@ const PowerBIDocumentation = () => {
                         <Typography variant="h3" sx={{ 
                             fontWeight: 700, 
                             mb: 2, 
-                            color: isDarkMode ? '#FFFFFF' : theme.palette.text.primary,
+                            color: theme.palette.text.primary,
                             fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif"
                         }}>
                             Welcome to ClaribiDocs
                         </Typography>
                         <Typography variant="h6" sx={{ 
-                            color: isDarkMode ? '#E0E0E0' : theme.palette.text.secondary, 
+                            color: theme.palette.text.secondary, 
                             mb: 6, 
                             maxWidth: 600,
                             lineHeight: 1.6,
@@ -1245,7 +1243,7 @@ const PowerBIDocumentation = () => {
                                     borderRadius: 2,
                                     boxShadow: theme.shadows[1],
                                     overflow: 'hidden',
-                                    bgcolor: isDarkMode ? '#1E1E1E' : '#ffffff'
+                                    bgcolor: theme.palette.background.paper
                                 }}
                             >
                                 <Tabs
@@ -1263,13 +1261,13 @@ const PowerBIDocumentation = () => {
                                             minHeight: 56,
                                             px: 1.5,
                                             fontSize: '0.875rem',
-                                            color: isDarkMode ? '#B0B0B0' : 'inherit',
+                                            color: 'inherit',
                                             '&:hover': {
-                                                backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)'
+                                                backgroundColor: 'rgba(0, 0, 0, 0.04)'
                                             },
                                             '&.Mui-selected': {
                                                 fontWeight: 600,
-                                                color: isDarkMode ? '#FFFFFF' : 'inherit'
+                                                color: 'inherit'
                                             }
                                         }
                                     }}

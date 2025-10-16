@@ -12,11 +12,9 @@ import {
     ChatCircle,
     FileText
 } from '@phosphor-icons/react';
-import { useTheme as useCustomTheme } from '../../contexts/ThemeContext';
 
 const Home = () => {
     const theme = useTheme();
-    const { isDarkMode } = useCustomTheme();
     const navigate = useNavigate();
 
     const handleNavigateToChat = () => {
@@ -46,22 +44,20 @@ const Home = () => {
                 {/* Welcome Header */}
                 <Box 
                     sx={{ 
-                        p: 4, 
-                        borderRadius: 4, 
-                        bgcolor: alpha(theme.palette.primary.main, 0.08),
-                        color: theme.palette.primary.main,
-                        mb: 6,
-                        border: `2px solid ${alpha(theme.palette.primary.main, 0.15)}`,
-                        boxShadow: '0 8px 32px rgba(0,0,0,0.08)'
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        mb: 6
                     }}
                 >
                     <Box
                         component="img"
-                        src="/claribi-logo.svg"
+                        src={theme.palette.mode === 'dark' ? '/claribi_icon_logo_dark.png' : '/claribi_icon_logo_light.png'}
                         alt="Claribi Logo"
                         sx={{ 
-                            width: 64, 
-                            height: 64,
+                            width: 80, 
+                            height: 80,
+                            objectFit: 'contain',
                             filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.12))',
                             transition: 'transform 0.2s ease',
                             '&:hover': {
@@ -74,14 +70,14 @@ const Home = () => {
                 <Typography variant="h3" sx={{ 
                     fontWeight: 700, 
                     mb: 2, 
-                    color: isDarkMode ? '#FFFFFF' : theme.palette.text.primary,
+                    color: theme.palette.text.primary,
                     fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif"
                 }}>
                     Welcome to Claribi
                 </Typography>
                 
                 <Typography variant="h6" sx={{ 
-                    color: isDarkMode ? '#E0E0E0' : theme.palette.text.secondary, 
+                    color: theme.palette.text.secondary, 
                     mb: 8, 
                     maxWidth: 600,
                     lineHeight: 1.6,
@@ -109,12 +105,12 @@ const Home = () => {
                             maxWidth: 400,
                             cursor: 'pointer',
                             borderRadius: 4,
-                            bgcolor: isDarkMode ? '#1E1E1E' : '#ffffff',
+                            bgcolor: theme.palette.background.paper,
                             border: `2px solid ${alpha(theme.palette.divider, 0.12)}`,
                             transition: 'all 0.3s ease',
                             '&:hover': {
                                 transform: 'translateY(-8px)',
-                                boxShadow: isDarkMode ? '0 12px 40px rgba(0,0,0,0.4)' : '0 12px 40px rgba(0,0,0,0.15)',
+                                boxShadow: theme.palette.mode === 'dark' ? '0 12px 40px rgba(0,0,0,0.4)' : '0 12px 40px rgba(0,0,0,0.15)',
                                 borderColor: alpha(theme.palette.primary.main, 0.3),
                                 '& .option-icon': {
                                     transform: 'scale(1.1)',
@@ -142,14 +138,14 @@ const Home = () => {
                             <Typography variant="h5" sx={{ 
                                 fontWeight: 600, 
                                 mb: 2, 
-                                color: isDarkMode ? '#FFFFFF' : theme.palette.text.primary,
+                                color: theme.palette.text.primary,
                                 fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif"
                             }}>
                                 Power BI Chat
                             </Typography>
                             
                             <Typography variant="body1" sx={{ 
-                                color: isDarkMode ? '#E0E0E0' : theme.palette.text.secondary, 
+                                color: theme.palette.text.secondary, 
                                 lineHeight: 1.6,
                                 mb: 3
                             }}>
@@ -190,12 +186,12 @@ const Home = () => {
                             maxWidth: 400,
                             cursor: 'pointer',
                             borderRadius: 4,
-                            bgcolor: isDarkMode ? '#1E1E1E' : '#ffffff',
+                            bgcolor: theme.palette.background.paper,
                             border: `2px solid ${alpha(theme.palette.divider, 0.12)}`,
                             transition: 'all 0.3s ease',
                             '&:hover': {
                                 transform: 'translateY(-8px)',
-                                boxShadow: isDarkMode ? '0 12px 40px rgba(0,0,0,0.4)' : '0 12px 40px rgba(0,0,0,0.15)',
+                                boxShadow: theme.palette.mode === 'dark' ? '0 12px 40px rgba(0,0,0,0.4)' : '0 12px 40px rgba(0,0,0,0.15)',
                                 borderColor: alpha(theme.palette.secondary.main, 0.3),
                                 '& .option-icon': {
                                     transform: 'scale(1.1)',
@@ -223,14 +219,14 @@ const Home = () => {
                             <Typography variant="h5" sx={{ 
                                 fontWeight: 600, 
                                 mb: 2, 
-                                color: isDarkMode ? '#FFFFFF' : theme.palette.text.primary,
+                                color: theme.palette.text.primary,
                                 fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif"
                             }}>
                                 Power BI Docs
                             </Typography>
                             
                             <Typography variant="body1" sx={{ 
-                                color: isDarkMode ? '#E0E0E0' : theme.palette.text.secondary, 
+                                color: theme.palette.text.secondary, 
                                 lineHeight: 1.6,
                                 mb: 3
                             }}>

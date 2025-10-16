@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Container, Typography, Box, Paper, Link, Modal, TextField, Button, Rating, IconButton } from '@mui/material';
+import { Container, Typography, Box, Paper, Link, Modal, TextField, Button, Rating, IconButton, useTheme } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import SendIcon from '@mui/icons-material/Send';
 
 const FeedbackModal = ({ open, onClose }) => {
+  const theme = useTheme();
   const [rating, setRating] = useState(5);
   const [feedback, setFeedback] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -65,7 +66,7 @@ const FeedbackModal = ({ open, onClose }) => {
                   setRating(newValue);
                 }}
                 size="large"
-                sx={{ color: '#555555' }}
+                sx={{ color: theme.palette.primary.main }}
               />
             </Box>
             
@@ -95,11 +96,11 @@ const FeedbackModal = ({ open, onClose }) => {
                 sx={{ 
                   borderRadius: '24px',
                   px: 3,
-                  color: '#555555',
-                  borderColor: '#555555',
+                  color: theme.palette.primary.main,
+                  borderColor: theme.palette.primary.main,
                   '&:hover': {
-                    color: '#FCC000',
-                    borderColor: '#FCC000'
+                    color: theme.palette.action.hover,
+                    borderColor: theme.palette.action.hover
                   }
                 }}
               >
@@ -142,6 +143,7 @@ const FeedbackModal = ({ open, onClose }) => {
 };
 
 const HelpPage = () => {
+  const theme = useTheme();
   const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
 
   const handleOpenFeedback = () => {
@@ -158,7 +160,7 @@ const HelpPage = () => {
         Help Center
       </Typography>
       
-      <Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: '1px solid #e0e0e0' }}>
+      <Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: `1px solid ${theme.palette.divider}` }}>
         <Box sx={{ mb: 3 }}>
           <Typography variant="h6" gutterBottom>
             Getting Started

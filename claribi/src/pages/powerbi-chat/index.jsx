@@ -7,7 +7,6 @@ import {
     Paper,
     Card,
     CardContent,
-    IconButton,
     Chip,
     Alert,
     CircularProgress,
@@ -29,7 +28,9 @@ import {
     Question,
     CloudArrowUp,
     FileText,
-    CheckCircle
+    CheckCircle,
+    Copy,
+    ArrowLeft
 } from '@phosphor-icons/react';
 import { sendPowerBIQuery, sendPowerBIQueryWithUpdates, uploadPowerBIFile, deletePowerBISession, sendUserClarifications, getUploadedFiles } from '../../services/powerbiChatService';
 import MarkdownRenderer from '../../components/ui/MarkdownRenderer';
@@ -37,12 +38,10 @@ import ThinkingProcess from '../../components/ui/ThinkingProcess';
 import FileSelectionDialog from '../../components/ui/FileSelectionDialog';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { useNotification } from '../../contexts/NotificationContext';
-import { useTheme as useCustomTheme } from '../../contexts/ThemeContext';
 // Inline clarification flow replaces modal dialog
 
 const PowerBIChat = () => {
     const theme = useTheme();
-    const { isDarkMode } = useCustomTheme();
     const { showNotification } = useNotification();
     const [messages, setMessages] = useState([]);
     const [inputMessage, setInputMessage] = useState('');
@@ -75,17 +74,73 @@ const PowerBIChat = () => {
 	const [currentClarificationAnswer, setCurrentClarificationAnswer] = useState('');
 	const [isProcessingClarifications, setIsProcessingClarifications] = useState(false);
 	const [isWaitingForClarifications, setIsWaitingForClarifications] = useState(false);
+	const [copySuccess, setCopySuccess] = useState(false);
+	const [copyButtonHovered, setCopyButtonHovered] = useState(false);
 	
 	// Conversation history state for follow-up questions
 	const [conversationHistory, setConversationHistory] = useState([]);
 	const MAX_CONVERSATION_TOKENS = 8000; // Token limit for conversation history
 
-	// Handle Enter key for clarification answers
+    // Handle Enter key for clarification answers
 	const handleClarificationKeyDown = (e) => {
 		if (e.key === 'Enter' && !e.shiftKey) {
 			e.preventDefault();
 			e.stopPropagation();
 			submitCurrentClarificationAnswer();
+		}
+	};
+
+	// Clean text for copying - remove markdown formatting, code blocks, etc.
+	const cleanTextForCopy = (text) => {
+		if (!text) return '';
+		
+		return text
+			// Remove code blocks (```dax ... ```)
+			.replace(/```[\s\S]*?```/g, '')
+			// Remove inline code (`code`)
+			.replace(/`([^`]+)`/g, '$1')
+			// Remove bold/italic markdown
+			.replace(/\*\*([^*]+)\*\*/g, '$1')
+			.replace(/\*([^*]+)\*/g, '$1')
+			.replace(/__([^_]+)__/g, '$1')
+			.replace(/_([^_]+)_/g, '$1')
+			// Remove headers
+			.replace(/^#{1,6}\s+/gm, '')
+			// Remove links [text](url) -> text
+			.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+			// Remove horizontal rules
+			.replace(/^[-*_]{3,}$/gm, '')
+			// Remove list markers
+			.replace(/^[\s]*[-*+]\s+/gm, '• ')
+			.replace(/^[\s]*\d+\.\s+/gm, '')
+			// Remove blockquotes
+			.replace(/^>\s*/gm, '')
+			// Clean up multiple newlines
+			.replace(/\n{3,}/g, '\n\n')
+			// Trim whitespace
+			.trim();
+	};
+
+	// Copy text to clipboard
+	const handleCopyText = async (text) => {
+		const cleanText = cleanTextForCopy(text);
+		try {
+			await navigator.clipboard.writeText(cleanText);
+			setCopySuccess(true);
+			setCopyButtonHovered(false); // Reset hover state
+			setTimeout(() => setCopySuccess(false), 2000);
+		} catch (err) {
+			console.error('Failed to copy text: ', err);
+			// Fallback for older browsers
+			const textArea = document.createElement('textarea');
+			textArea.value = cleanText;
+			document.body.appendChild(textArea);
+			textArea.select();
+			document.execCommand('copy');
+			document.body.removeChild(textArea);
+			setCopySuccess(true);
+			setCopyButtonHovered(false); // Reset hover state
+			setTimeout(() => setCopySuccess(false), 2000);
 		}
 	};
     const messagesEndRef = useRef(null);
@@ -198,7 +253,13 @@ const PowerBIChat = () => {
             return;
         }
     
-        const userMessage = { id: Date.now(), type: 'user', content: inputMessage.trim(), timestamp: new Date() };
+        const userMessage = { 
+            id: Date.now(), 
+            type: 'user', 
+            content: inputMessage.trim(), 
+            timestamp: new Date(),
+            messageType: 'user_query'
+        };
         setMessages(prev => [...prev, userMessage]);
         
         // Add user message to conversation history
@@ -306,7 +367,8 @@ const PowerBIChat = () => {
                     id: Date.now() + 1,
                     type: 'assistant',
                     content: `I have a quick question to help me answer accurately: ${firstQuestion}`,
-                    timestamp: new Date()
+                    timestamp: new Date(),
+                    messageType: 'clarification_question'
                 }]);
                 // Keep thinking process visible to show search steps
                 setThinkingProcess(prev => ({ ...prev, isCompleted: true }));
@@ -327,7 +389,8 @@ const PowerBIChat = () => {
                     id: Date.now() + 1,
                     type: 'assistant',
                     content: response.answer,
-                    timestamp: new Date()
+                    timestamp: new Date(),
+                    messageType: 'final_response'
                 };
                 setMessages(prev => [...prev, assistantMessage]);
                 
@@ -351,7 +414,8 @@ const PowerBIChat = () => {
                 id: Date.now() + 1,
                 type: 'assistant',
                 content: 'I apologize, but I encountered an error. Please try again.',
-                timestamp: new Date()
+                timestamp: new Date(),
+                messageType: 'error_response'
             };
             setMessages(prev => [...prev, errorMessage]);
         } finally {
@@ -414,7 +478,8 @@ const PowerBIChat = () => {
                 id: Date.now(),
                 type: 'assistant',
                 content: `Great! I've analyzed your Power BI file "${file.name}". I found ${metadata.tables_count || 0} tables, ${metadata.measures_count || 0} measures, ${metadata.visuals_count || 0} visuals, ${metadata.relationships_count || 0} relationships, and ${metadata.power_query_scripts_count || 0} Power Query scripts. I can now provide specific insights about your data model and help with any questions about your dataset.`,
-                timestamp: new Date()
+                timestamp: new Date(),
+                messageType: 'system_welcome'
             };
             setMessages(prev => [...prev, systemMessage]);
 
@@ -457,9 +522,6 @@ const PowerBIChat = () => {
                 showNotification(`Failed to remove file "${pbixFile.name}". ${error.message || 'Please try again.'}`, 'error');
                 // Continue with file removal even if session deletion fails
             }
-        } else if (pbixFile?.sessionId && !isNewlyUploaded) {
-            // For previously uploaded files, just show a message that we're going back to welcome screen
-            showNotification(`Returning to home screen. File "${pbixFile.name}" is still available for selection.`, 'info');
         }
         
         setPbixFile(null);
@@ -495,7 +557,8 @@ const PowerBIChat = () => {
             id: Date.now(),
             type: 'assistant',
             content: `Great! I've loaded your previously uploaded Power BI file "${selectedFile.name}". I found ${metadata.tables_count || 0} tables, ${metadata.measures_count || 0} measures, ${metadata.visuals_count || 0} visuals, ${metadata.relationships_count || 0} relationships, and ${metadata.power_query_scripts_count || 0} Power Query scripts. I can now provide specific insights about your data model and help with any questions about your dataset.`,
-            timestamp: new Date()
+            timestamp: new Date(),
+            messageType: 'system_welcome'
         };
         setMessages(prev => [...prev, systemMessage]);
     };
@@ -519,7 +582,8 @@ const PowerBIChat = () => {
 			id: Date.now() + 1,
 			type: 'user',
 			content: trimmed,
-			timestamp: new Date()
+			timestamp: new Date(),
+			messageType: 'clarification_answer'
 		}]);
 		// Store answer
 		const nextAnswers = { ...clarificationFlow.answers, [clarificationFlow.currentIndex]: trimmed };
@@ -533,7 +597,8 @@ const PowerBIChat = () => {
 				id: Date.now() + 2,
 				type: 'assistant',
 				content: `Question ${nextIndex + 1}/${clarificationFlow.questions.length}: ${clarificationFlow.questions[nextIndex]}`,
-				timestamp: new Date()
+				timestamp: new Date(),
+				messageType: 'clarification_question'
 			}]);
 			addActionToHistory(`Asking clarification ${nextIndex + 1}/${totalQuestions}`, 1, 'in_progress');
 			return;
@@ -579,7 +644,8 @@ const PowerBIChat = () => {
 				id: Date.now() + 4,
 				type: 'assistant',
 				content: response.answer || 'I apologize, but I couldn\'t generate a response. Please try rephrasing your question.',
-				timestamp: new Date()
+				timestamp: new Date(),
+				messageType: 'final_response'
 			};
 			setMessages(prev => [...prev, assistantMessage]);
 			clarificationDialogOpenRef.current = false;
@@ -598,7 +664,7 @@ const PowerBIChat = () => {
     const FADE_IN_TRUE = true;
     const FADE_TIMEOUT = 300;
 
-    const MessageBubble = React.memo(({ message }) => {
+    const MessageBubble = React.memo(({ message, messageIndex, totalMessages }) => {
         const isUser = message.type === 'user';
         
         return (
@@ -619,26 +685,15 @@ const PowerBIChat = () => {
                                 alignItems: 'flex-end'
                             }}
                         >
-                            <Paper
-                                elevation={1}
+                            <Box
                                 sx={{
                                     p: 2,
-                                    borderRadius: 3,
-                                    bgcolor: theme.palette.primary.main,
-                                    color: 'white',
-                                    border: `1px solid ${alpha(theme.palette.divider, 0.12)}`,
-                                    position: 'relative',
-                                    '&::before': {
-                                        content: '""',
-                                        position: 'absolute',
-                                        top: 12,
-                                        right: -6,
-                                        width: 0,
-                                        height: 0,
-                                        borderLeft: `6px solid ${theme.palette.primary.main}`,
-                                        borderTop: '6px solid transparent',
-                                        borderBottom: '6px solid transparent'
-                                    }
+                                    bgcolor: theme.palette.mode === 'dark' ? '#2A2A2A' : '#F5F5F5',
+                                    color: theme.palette.text.primary,
+                                    borderRadius: '18px 0px 18px 18px',
+                                    maxWidth: '100%',
+                                    display: 'inline-block',
+                                    width: 'fit-content'
                                 }}
                             >
                                 <Typography
@@ -647,25 +702,16 @@ const PowerBIChat = () => {
                                         whiteSpace: 'pre-wrap',
                                         wordBreak: 'break-word',
                                         lineHeight: 1.5,
-                                        fontSize: '0.95rem'
+                                        fontSize: '0.95rem',
+                                        fontFamily: 'inherit'
                                     }}
                                 >
                                     {message.content}
                                 </Typography>
-                            </Paper>
+                            </Box>
                             
                         </Box>
                         
-                        <Avatar
-                            sx={{
-                                width: 32,
-                                height: 32,
-                                bgcolor: alpha(theme.palette.secondary.main, 0.1),
-                                color: theme.palette.secondary.main
-                            }}
-                        >
-                            <User size={16} />
-                        </Avatar>
                     </Box>
                 ) : (
                     // AI message - ChatGPT/Cursor style (no icon, no background box)
@@ -682,31 +728,63 @@ const PowerBIChat = () => {
                             sx={{
                                 fontSize: '0.95rem',
                                 lineHeight: 1.6,
-                                color: isDarkMode ? '#E0E0E0' : 'text.primary'
+                                color: theme.palette.text.primary
                             }}
                         />
                         
-                        {/* Confidence indicator for assistant messages */}
-                        {message.confidence && (
-                            <Box display="flex" alignItems="center" gap={0.5} mt={1.5}>
-                                <Chip
-                                    label={`Confidence: ${message.confidence}`}
-                                    size="small"
-                                    sx={{
-                                        fontSize: '0.7rem',
-                                        height: 20,
-                                        bgcolor: message.confidence === 'high' 
-                                            ? alpha(theme.palette.success.main, 0.1)
-                                            : message.confidence === 'medium'
-                                            ? alpha(theme.palette.warning.main, 0.1)
-                                            : alpha(theme.palette.error.main, 0.1),
-                                        color: message.confidence === 'high' 
-                                            ? theme.palette.success.main
-                                            : message.confidence === 'medium'
-                                            ? theme.palette.warning.main
-                                            : theme.palette.error.main
-                                    }}
-                                />
+                        {/* Action buttons for assistant messages - only show for final responses */}
+                        {message.messageType === 'final_response' && (
+                            <Box display="flex" alignItems="center" gap={1} mt={1.5} justifyContent="flex-end">
+                                {/* Confidence indicator */}
+                                {message.confidence && (
+                                    <Chip
+                                        label={`Confidence: ${message.confidence}`}
+                                        size="small"
+                                        sx={{
+                                            fontSize: '0.7rem',
+                                            height: 20,
+                                            bgcolor: message.confidence === 'high' 
+                                                ? alpha(theme.palette.success.main, 0.1)
+                                                : message.confidence === 'medium'
+                                                ? alpha(theme.palette.warning.main, 0.1)
+                                                : alpha(theme.palette.error.main, 0.1),
+                                            color: message.confidence === 'high' 
+                                                ? theme.palette.success.main
+                                                : message.confidence === 'medium'
+                                                ? theme.palette.warning.main
+                                                : theme.palette.error.main
+                                        }}
+                                    />
+                                )}
+                                
+                                {/* Copy button */}
+                                <Tooltip title={copySuccess ? "Copied!" : "Copy response"}>
+                                    <Button
+                                        size="small"
+                                        onClick={() => handleCopyText(message.content)}
+                                        onMouseEnter={() => setCopyButtonHovered(true)}
+                                        onMouseLeave={() => setCopyButtonHovered(false)}
+                                        sx={{
+                                            minWidth: 'auto',
+                                            width: 32,
+                                            height: 32,
+                                            borderRadius: 1.5,
+                                            bgcolor: 'transparent',
+                                            color: 'transparent',
+                                            p: 0,
+                                            '&:hover': {
+                                                bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                                transform: 'scale(1.05)'
+                                            },
+                                            transition: 'all 0.2s ease'
+                                        }}
+                                    >
+                                        <Copy 
+                                            size={16} 
+                                            color={copyButtonHovered ? theme.palette.primary.main : theme.palette.text.secondary}
+                                        />
+                                    </Button>
+                                </Tooltip>
                             </Box>
                         )}
                         
@@ -722,57 +800,49 @@ const PowerBIChat = () => {
             {pbixFile && (
                 <Box 
                     sx={{ 
-                        bgcolor: isDarkMode ? '#1E1E1E' : 'background.paper',
+                        bgcolor: theme.palette.background.paper,
                         py: 1.5,
                         px: 3,
                         borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`
                     }}
                 >
-                    <Box display="flex" alignItems="center" justifyContent="space-between" width="100%">
-                        <Box display="flex" alignItems="center" gap={2}>
-                            <Box 
-                                sx={{ 
-                                    p: 1, 
-                                    borderRadius: 1.5, 
-                                    bgcolor: alpha(theme.palette.primary.main, 0.08),
-                                    color: theme.palette.primary.main
+                    <Box display="flex" alignItems="center" gap={2}>
+                        {/* Back Button */}
+                        <Tooltip title="Back to home screen">
+                            <Button
+                                onClick={handleRemoveFile}
+                                sx={{
+                                    minWidth: 'auto',
+                                    width: 40,
+                                    height: 40,
+                                    borderRadius: 2,
+                                    bgcolor: 'transparent',
+                                    color: theme.palette.text.secondary,
+                                    p: 0,
+                                    '&:hover': {
+                                        bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                        color: theme.palette.primary.main,
+                                        transform: 'scale(1.05)'
+                                    },
+                                    transition: 'all 0.2s ease'
                                 }}
                             >
-                                <ChatCircle size={20} />
-                            </Box>
-                            <Typography variant="h6" component="h1" sx={{ 
-                                fontWeight: 600, 
-                                color: isDarkMode ? '#FFFFFF' : theme.palette.text.primary,
-                                fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif"
-                            }}>
-                                Power BI Assistant
-                            </Typography>
-                        </Box>
-                        
-                        {/* File Status Display */}
-                        <Tooltip title={isNewlyUploaded ? "Remove file and delete from server" : "Return to home screen (file remains available)"}>
-                            <Chip
-                                icon={<FileText size={16} />}
-                                label={`${pbixFile.name} (${(pbixFile.size / 1024 / 1024).toFixed(1)} MB)`}
-                                onDelete={handleRemoveFile}
-                                color="primary"
-                                variant="outlined"
-                                sx={{
-                                    maxWidth: 280,
-                                    height: 32,
-                                    fontSize: '0.8rem',
-                                    fontWeight: 500,
-                                    '& .MuiChip-label': {
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                        px: 1.5
-                                    },
-                                    '& .MuiChip-deleteIcon': {
-                                        fontSize: '1rem'
-                                    }
-                                }}
-                            />
+                                <ArrowLeft size={20} />
+                            </Button>
                         </Tooltip>
+                        
+                        {/* File Name */}
+                        <Typography variant="h6" component="h1" sx={{ 
+                            fontWeight: 600, 
+                            color: theme.palette.text.primary,
+                            fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif",
+                            flex: 1,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                        }}>
+                            {pbixFile.name}
+                        </Typography>
                     </Box>
                 </Box>
             )}
@@ -793,7 +863,7 @@ const PowerBIChat = () => {
                     overflow: 'auto', 
                     py: 4,
                     px: 4,
-                    bgcolor: alpha(theme.palette.grey[50], 0.2),
+                    bgcolor: theme.palette.background.chat,
                     position: 'relative'
                 }}
             >
@@ -815,11 +885,11 @@ const PowerBIChat = () => {
                             sx={{ 
                                 p: 4, 
                                 borderRadius: 4, 
-                                bgcolor: isDarkMode ? alpha('#FCC000', 0.1) : alpha(theme.palette.primary.main, 0.08),
-                                color: isDarkMode ? '#FCC000' : theme.palette.primary.main,
+                                bgcolor: theme.palette.mode === 'dark' ? alpha('#FCC000', 0.1) : alpha(theme.palette.primary.main, 0.08),
+                                color: theme.palette.mode === 'dark' ? '#FCC000' : theme.palette.primary.main,
                                 mb: 4,
-                                border: `2px solid ${isDarkMode ? alpha('#FCC000', 0.2) : alpha(theme.palette.primary.main, 0.15)}`,
-                                boxShadow: isDarkMode ? '0 8px 32px rgba(0,0,0,0.3)' : '0 8px 32px rgba(0,0,0,0.08)'
+                                border: `2px solid ${theme.palette.mode === 'dark' ? alpha('#FCC000', 0.2) : alpha(theme.palette.primary.main, 0.15)}`,
+                                boxShadow: theme.palette.mode === 'dark' ? '0 8px 32px rgba(0,0,0,0.3)' : '0 8px 32px rgba(0,0,0,0.08)'
                             }}
                         >
                             <ChartBar size={64} />
@@ -827,13 +897,13 @@ const PowerBIChat = () => {
                         <Typography variant="h3" sx={{ 
                             fontWeight: 700, 
                             mb: 2, 
-                            color: isDarkMode ? '#FFFFFF' : theme.palette.text.primary,
+                            color: theme.palette.text.primary,
                             fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif"
                         }}>
                             Welcome to Claribi Power BI Assistant
                         </Typography>
                         <Typography variant="h6" sx={{ 
-                            color: isDarkMode ? '#E0E0E0' : theme.palette.text.secondary, 
+                            color: theme.palette.text.secondary, 
                             mb: 6, 
                             maxWidth: 600,
                             lineHeight: 1.6,
@@ -955,7 +1025,11 @@ const PowerBIChat = () => {
                                 </Box>
                             )}
                             
-                            <MessageBubble message={message} />
+                            <MessageBubble 
+                                message={message} 
+                                messageIndex={index} 
+                                totalMessages={messages.length} 
+                            />
                         </React.Fragment>
                     );
                 })}
@@ -997,9 +1071,9 @@ const PowerBIChat = () => {
                 <Box 
                     sx={{ 
                         p: 4, 
-                        bgcolor: isDarkMode ? '#1E1E1E' : 'background.paper',
+                        bgcolor: 'background.paper',
                         borderTop: `1px solid ${alpha(theme.palette.divider, 0.12)}`,
-                        boxShadow: isDarkMode ? '0 -2px 8px rgba(0,0,0,0.3)' : '0 -2px 8px rgba(0,0,0,0.05)'
+                        boxShadow: '0 -2px 8px rgba(0,0,0,0.05)'
                     }}
                 >
 				{clarificationFlow.active ? (
@@ -1017,24 +1091,24 @@ const PowerBIChat = () => {
 							sx={{
 								'& .MuiOutlinedInput-root': {
 									borderRadius: 3,
-									bgcolor: isDarkMode ? alpha('#2A2A2A', 0.8) : alpha(theme.palette.grey[50], 0.3),
+									bgcolor: alpha(theme.palette.grey[50], 0.3),
 									border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
-									color: isDarkMode ? '#E0E0E0' : 'inherit',
+									color: 'inherit',
 									'&:hover': { 
-										bgcolor: isDarkMode ? alpha('#2A2A2A', 1) : alpha(theme.palette.grey[50], 0.5),
+										bgcolor: alpha(theme.palette.grey[50], 0.5),
 										borderColor: alpha(theme.palette.primary.main, 0.3)
 									},
 									'&.Mui-focused': { 
-										bgcolor: isDarkMode ? '#2A2A2A' : 'background.paper',
+										bgcolor: 'background.paper',
 										borderColor: theme.palette.primary.main,
 										boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.1)}`
 									}
 								},
 								'& .MuiInputBase-input': {
-									color: isDarkMode ? '#E0E0E0' : 'inherit'
+									color: 'inherit'
 								},
 								'& .MuiInputBase-input::placeholder': {
-									color: isDarkMode ? '#B0B0B0' : 'inherit',
+									color: 'inherit',
 									opacity: 1
 								}
 							}}
@@ -1084,24 +1158,24 @@ const PowerBIChat = () => {
 							sx={{
 								'& .MuiOutlinedInput-root': {
 									borderRadius: 3,
-									bgcolor: isDarkMode ? alpha('#2A2A2A', 0.8) : alpha(theme.palette.grey[50], 0.3),
-									border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
-									color: isDarkMode ? '#E0E0E0' : 'inherit',
+									bgcolor: theme.palette.input.background,
+									border: `1px solid ${theme.palette.input.border}`,
+									color: theme.palette.input.text,
 									'&:hover': { 
-										bgcolor: isDarkMode ? alpha('#2A2A2A', 1) : alpha(theme.palette.grey[50], 0.5),
+										bgcolor: theme.palette.input.background,
 										borderColor: alpha(theme.palette.primary.main, 0.3)
 									},
 									'&.Mui-focused': { 
-										bgcolor: isDarkMode ? '#2A2A2A' : 'background.paper',
-										borderColor: theme.palette.primary.main,
+										bgcolor: theme.palette.input.background,
+										borderColor: theme.palette.input.focusBorder,
 										boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.1)}`
 									}
 								},
 								'& .MuiInputBase-input': {
-									color: isDarkMode ? '#E0E0E0' : 'inherit'
+									color: theme.palette.input.text
 								},
 								'& .MuiInputBase-input::placeholder': {
-									color: isDarkMode ? '#B0B0B0' : 'inherit',
+									color: theme.palette.input.placeholder,
 									opacity: 1
 								}
 							}}

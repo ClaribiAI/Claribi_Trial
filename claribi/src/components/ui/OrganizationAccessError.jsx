@@ -128,14 +128,15 @@ const OrganizationAccessError = ({
           <Box sx={{ mb: 3 }}>
             <Box
               component="img"
-              src="/claribi-logo.svg"
+              src={theme.palette.mode === 'dark' ? '/claribi_icon_logo_dark.png' : '/claribi_icon_logo_light.png'}
               alt="Claribi Logo"
               sx={{ 
-                width: 80, 
-                height: 80, 
+                width: 60, 
+                height: 60, 
                 mx: 'auto', 
                 mb: 2,
-                opacity: 0.7
+                opacity: 0.7,
+                objectFit: 'contain'
               }}
             />
             <Typography variant="h4" component="h1" fontWeight="bold" gutterBottom>

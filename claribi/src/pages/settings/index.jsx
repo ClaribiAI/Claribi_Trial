@@ -1,14 +1,16 @@
 import React from 'react';
-import { Container, Typography, Box, Paper } from '@mui/material';
+import { Container, Typography, Box, Paper, useTheme } from '@mui/material';
 
 const SettingsPage = () => {
+  const theme = useTheme();
+  
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       <Typography variant="h4" component="h1" fontWeight="bold" sx={{ mb: 4 }}>
         Settings
       </Typography>
       
-      <Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: '1px solid #e0e0e0' }}>
+      <Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: `1px solid ${theme.palette.divider}` }}>
         <Box sx={{ mb: 3 }}>
           <Typography variant="h6" gutterBottom>
             Account Settings

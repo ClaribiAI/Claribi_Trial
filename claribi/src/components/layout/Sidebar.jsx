@@ -17,7 +17,8 @@ import {
   Menu,
   MenuItem,
   Avatar,
-  Badge
+  Badge,
+  useTheme
 } from '@mui/material';
 import { 
   House, 
@@ -37,13 +38,14 @@ import {
   Moon
 } from '@phosphor-icons/react';
 import { useAuth } from '../../contexts/AuthContext';
-import { useTheme } from '../../contexts/ThemeContext';
+import { useTheme as useCustomTheme } from '../../contexts/ThemeContext';
 
 const Sidebar = ({ open = false, toggleSidebar }) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const theme = useTheme();
   const { currentUser, logout } = useAuth();
-  const { isDarkMode, toggleTheme } = useTheme();
+  const { isDarkMode, toggleTheme } = useCustomTheme();
   
   // State for user menu
   const [userMenuAnchorEl, setUserMenuAnchorEl] = useState(null);
@@ -100,8 +102,8 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
         zIndex: { xs: 1200, sm: 1 },
         transform: { xs: open ? 'translateX(0)' : 'translateX(-100%)', sm: 'none' },
         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        color: isDarkMode ? '#FFFFFF' : '#1a1a1a',
-        backgroundColor: isDarkMode ? '#1E1E1E' : '#f8f9fa',
+        color: theme.palette.text.primary,
+        backgroundColor: theme.palette.sidebar.background,
         boxShadow: { 
           xs: '0 8px 32px rgba(0,0,0,0.12)', 
           sm: '0 0 0 1px rgba(0,0,0,0.05)' 
@@ -129,12 +131,13 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
       >
         <Box
           component="img"
-          src="/claribi-logo.svg"
+          src={isDarkMode ? '/claribi_icon_logo_dark.png' : '/claribi_icon_logo_light.png'}
           alt="Claribi Logo"
           sx={{ 
             width: 36, 
             height: 36, 
             mb: 1,
+            objectFit: 'contain',
             filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.12))',
             transition: 'transform 0.2s ease',
             '&:hover': {
@@ -148,7 +151,7 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
             fontFamily: "'Inter', sans-serif", 
             fontWeight: 600,
             fontSize: '0.75rem',
-            color: isDarkMode ? '#FFFFFF' : '#1a1a1a',
+            color: theme.palette.text.primary,
             letterSpacing: '0.3px',
             textTransform: 'uppercase'
           }}
@@ -187,8 +190,8 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
               slotProps={{
                 tooltip: {
                   sx: {
-                    backgroundColor: '#1a1a1a',
-                    color: '#ffffff',
+                    backgroundColor: theme.palette.tooltip.background,
+                    color: theme.palette.tooltip.text,
                     fontSize: '0.75rem',
                     fontFamily: "'Inter', sans-serif",
                     fontWeight: 500,
@@ -217,10 +220,10 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
                   position: 'relative',
                   transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                   '&:hover': {
-                    backgroundColor: 'rgba(0, 0, 0, 0.06)',
+                    backgroundColor: theme.palette.sidebar.hoverBackground,
                     transform: 'translateY(-1px)',
                     '& .menuIcon': {
-                      color: isActive(item.path) ? '#FFFFFF' : (isDarkMode ? '#FFFFFF' : '#374151'),
+                      color: isActive(item.path) ? theme.palette.sidebar.activeText : theme.palette.text.primary,
                       transform: 'scale(1.05)',
                     },
                   },
@@ -238,8 +241,8 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
                 alignItems: 'center',
                 justifyContent: 'center',
                     borderRadius: 3,
-                    backgroundColor: isActive(item.path) ? (isDarkMode ? '#FCC000' : '#000000') : (isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)'),
-                    color: isActive(item.path) ? (isDarkMode ? '#000000' : '#FFFFFF') : (isDarkMode ? '#B0B0B0' : '#6b7280'),
+                    backgroundColor: isActive(item.path) ? theme.palette.sidebar.activeBackground : theme.palette.sidebar.inactiveBackground,
+                    color: isActive(item.path) ? theme.palette.sidebar.activeText : theme.palette.sidebar.inactiveText,
                     mb: 0,
                     transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                     boxShadow: isActive(item.path) ? '0 4px 16px rgba(0, 0, 0, 0.25)' : '0 2px 8px rgba(0,0,0,0.08)',
@@ -260,9 +263,9 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
         sx={{ 
           my: 3, 
           width: '60%',
-          borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.12)' : '#e9ecef',
+          borderColor: theme.palette.sidebar.border,
           '&::before, &::after': {
-            borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.12)' : '#e9ecef',
+            borderColor: theme.palette.sidebar.border,
           }
         }} 
       />
@@ -286,8 +289,8 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
           slotProps={{
             tooltip: {
               sx: {
-                backgroundColor: '#1a1a1a',
-                color: '#ffffff',
+                backgroundColor: theme.palette.tooltip.background,
+                color: theme.palette.tooltip.text,
                 fontSize: '0.75rem',
                 fontFamily: "'Inter', sans-serif",
                 fontWeight: 500,
@@ -314,10 +317,10 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
               position: 'relative',
               transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
               '&:hover': {
-                backgroundColor: 'rgba(0, 0, 0, 0.06)',
+                backgroundColor: theme.palette.sidebar.hoverBackground,
                 transform: 'translateY(-1px)',
                 '& .themeIcon': {
-                  color: isDarkMode ? '#FFFFFF' : '#FCC000',
+                  color: theme.palette.text.primary,
                   transform: 'scale(1.05)',
                 },
               },
@@ -335,10 +338,10 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
                 alignItems: 'center',
                 justifyContent: 'center',
                 borderRadius: 3,
-                color: isDarkMode ? '#B0B0B0' : '#6b7280',
+                color: theme.palette.sidebar.inactiveText,
                 mb: 0,
                 transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+                backgroundColor: theme.palette.sidebar.inactiveBackground,
                 boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
                 '&:hover': {
                   boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
@@ -357,8 +360,8 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
           slotProps={{
             tooltip: {
               sx: {
-                backgroundColor: '#1a1a1a',
-                color: '#ffffff',
+                backgroundColor: theme.palette.tooltip.background,
+                color: theme.palette.tooltip.text,
                 fontSize: '0.75rem',
                 fontFamily: "'Inter', sans-serif",
                 fontWeight: 500,
@@ -385,10 +388,10 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
               position: 'relative',
               transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                   '&:hover': {
-                backgroundColor: 'rgba(0, 0, 0, 0.06)',
+                backgroundColor: theme.palette.sidebar.hoverBackground,
                 transform: 'translateY(-1px)',
                 '& .icon': {
-                  color: isActive('/help') ? '#FFFFFF' : (isDarkMode ? '#FFFFFF' : '#000000'),
+                  color: isActive('/help') ? theme.palette.sidebar.activeText : theme.palette.text.primary,
                   transform: 'scale(1.05)',
                 },
               },
@@ -406,8 +409,8 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
               alignItems: 'center',
               justifyContent: 'center',
                 borderRadius: 3,
-                backgroundColor: isActive('/help') ? (isDarkMode ? '#FCC000' : '#000000') : (isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)'),
-                color: isActive('/help') ? (isDarkMode ? '#000000' : '#FFFFFF') : (isDarkMode ? '#B0B0B0' : '#6b7280'),
+                backgroundColor: isActive('/help') ? theme.palette.sidebar.activeBackground : theme.palette.sidebar.inactiveBackground,
+                color: isActive('/help') ? theme.palette.sidebar.activeText : theme.palette.sidebar.inactiveText,
                 mb: 1,
                 transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                 boxShadow: isActive('/help') ? '0 4px 16px rgba(0, 0, 0, 0.25)' : '0 2px 8px rgba(0,0,0,0.08)',
@@ -429,8 +432,8 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
           slotProps={{
             tooltip: {
               sx: {
-                backgroundColor: '#1a1a1a',
-                color: '#ffffff',
+                backgroundColor: theme.palette.tooltip.background,
+                color: theme.palette.tooltip.text,
                 fontSize: '0.75rem',
                 fontFamily: "'Inter', sans-serif",
                 fontWeight: 500,
@@ -458,10 +461,10 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
               borderRadius: 3,
               transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
             '&:hover': {
-                backgroundColor: 'rgba(0, 0, 0, 0.06)',
+                backgroundColor: theme.palette.sidebar.hoverBackground,
                 transform: 'translateY(-1px)',
                 '& .icon': {
-                  color: isDarkMode ? '#FFFFFF' : '#374151',
+                  color: theme.palette.text.primary,
                   transform: 'scale(1.05)',
                 },
               },
@@ -479,10 +482,10 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
               alignItems: 'center',
               justifyContent: 'center',
                 borderRadius: 3,
-                color: isDarkMode ? '#B0B0B0' : '#6b7280',
+                color: theme.palette.sidebar.inactiveText,
                 mb: 1,
                 transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+                backgroundColor: theme.palette.sidebar.inactiveBackground,
                 boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
                 '&:hover': {
                   boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
@@ -508,7 +511,7 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
                 mt: 1.5,
                 borderRadius: 3,
                 minWidth: 180,
-                border: '1px solid #e9ecef',
+                border: `1px solid ${theme.palette.divider}`,
                 '&:before': {
                   content: '""',
                   display: 'block',
@@ -518,14 +521,14 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
                   width: 12,
                   height: 12,
                   bgcolor: 'background.paper',
-                  border: '1px solid #e9ecef',
+                  border: `1px solid ${theme.palette.divider}`,
                   borderRight: 'none',
                   borderBottom: 'none',
                   transform: 'translateY(-50%) translateX(-50%) rotate(45deg)',
                   zIndex: 0,
                 },
                 fontFamily: "'Inter', sans-serif",
-                backgroundColor: '#ffffff',
+                backgroundColor: theme.palette.menu.background,
               },
             }
           }}
@@ -545,13 +548,13 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
               my: 0.5,
               transition: 'all 0.2s ease',
               '&:hover': { 
-                backgroundColor: 'rgba(0, 0, 0, 0.04)',
-                '& .MuiListItemIcon-root': { color: '#374151' },
-                '& .MuiTypography-root': { color: '#374151' }
+                backgroundColor: theme.palette.menu.hover,
+                '& .MuiListItemIcon-root': { color: theme.palette.menu.icon },
+                '& .MuiTypography-root': { color: theme.palette.menu.text }
               }
             }}
           >
-            <ListItemIcon sx={{ color: '#6b7280', minWidth: 36 }}>
+            <ListItemIcon sx={{ color: theme.palette.menu.icon, minWidth: 36 }}>
               <Gear size={18} />
             </ListItemIcon>
             <ListItemText 
@@ -560,7 +563,7 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
                 fontFamily: "'Inter', sans-serif",
                 fontWeight: 500,
                 fontSize: '0.875rem',
-                color: '#374151'
+                color: theme.palette.menu.text
               }}
             />
           </MenuItem>
@@ -575,13 +578,13 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
               my: 0.5,
               transition: 'all 0.2s ease',
               '&:hover': { 
-                backgroundColor: 'rgba(0, 0, 0, 0.04)',
-                '& .MuiListItemIcon-root': { color: '#374151' },
-                '& .MuiTypography-root': { color: '#374151' }
+                backgroundColor: theme.palette.menu.hover,
+                '& .MuiListItemIcon-root': { color: theme.palette.menu.icon },
+                '& .MuiTypography-root': { color: theme.palette.menu.text }
               }
             }}
           >
-            <ListItemIcon sx={{ color: '#6b7280', minWidth: 36 }}>
+            <ListItemIcon sx={{ color: theme.palette.menu.icon, minWidth: 36 }}>
               <SignOut size={18} />
             </ListItemIcon>
             <ListItemText 
@@ -590,7 +593,7 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
                 fontFamily: "'Inter', sans-serif",
                 fontWeight: 500,
                 fontSize: '0.875rem',
-                color: '#374151'
+                color: theme.palette.menu.text
               }}
             />
           </MenuItem>

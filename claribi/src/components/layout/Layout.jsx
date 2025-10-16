@@ -21,7 +21,7 @@ const Layout = ({ children, fullWidth = false }) => {
       width: '100%', 
       overflow: 'hidden', 
       position: 'relative',
-      bgcolor: isDarkMode ? '#121212' : '#ffffff'
+      bgcolor: theme.palette.background.default
     }}>
 
       <Box 
@@ -61,15 +61,15 @@ const Layout = ({ children, fullWidth = false }) => {
               aria-label="menu"
               onClick={toggleSidebar}
               sx={{ 
-                color: isDarkMode ? '#FFFFFF' : '#333',
-                backgroundColor: isDarkMode ? 'rgba(30, 30, 30, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                color: theme.palette.text.primary,
+                backgroundColor: theme.palette.background.paper,
                 backdropFilter: 'blur(8px)',
-                border: isDarkMode ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(0, 0, 0, 0.08)',
-                boxShadow: isDarkMode ? '0 2px 8px rgba(0, 0, 0, 0.3)' : '0 2px 8px rgba(0, 0, 0, 0.06)',
+                border: `1px solid ${theme.palette.divider}`,
+                boxShadow: theme.palette.mode === 'dark' ? '0 2px 8px rgba(0, 0, 0, 0.3)' : '0 2px 8px rgba(0, 0, 0, 0.06)',
                 '&:hover': {
-                  color: '#FCC000',
-                  backgroundColor: isDarkMode ? 'rgba(30, 30, 30, 1)' : 'rgba(255, 255, 255, 1)',
-                  boxShadow: isDarkMode ? '0 4px 12px rgba(0, 0, 0, 0.4)' : '0 4px 12px rgba(0, 0, 0, 0.1)',
+                  color: theme.palette.primary.main,
+                  backgroundColor: theme.palette.background.paper,
+                  boxShadow: theme.palette.mode === 'dark' ? '0 4px 12px rgba(0, 0, 0, 0.4)' : '0 4px 12px rgba(0, 0, 0, 0.1)',
                 }
               }}
             >
@@ -84,7 +84,7 @@ const Layout = ({ children, fullWidth = false }) => {
             overflow: 'auto',
             width: '100%',
             height: '100%',
-            background: isDarkMode ? '#121212' : '#ffffff',
+            background: theme.palette.background.default,
             display: 'flex',
             flexDirection: 'column',
             margin: 0,
@@ -100,7 +100,7 @@ const Layout = ({ children, fullWidth = false }) => {
               flexDirection: 'column',
               margin: 0,
               padding: 0,
-              bgcolor: isDarkMode ? '#121212' : '#ffffff'
+              bgcolor: theme.palette.background.default
             }}>
               {children}
             </Box>
@@ -116,7 +116,7 @@ const Layout = ({ children, fullWidth = false }) => {
               justifyContent: 'flex-start',
               maxWidth: '1400px',
               mx: 'auto',
-              bgcolor: isDarkMode ? '#121212' : '#ffffff'
+              bgcolor: theme.palette.background.default
             }}>
               {children}
             </Box>

@@ -24,17 +24,60 @@ const createAppTheme = (isDarkMode = false) => createTheme({
     background: {
       default: isDarkMode ? '#121212' : '#EEEEEE',
       paper: isDarkMode ? '#1E1E1E' : '#ffffff',
-      sidebar: isDarkMode ? 'rgba(18, 18, 18, 0.95)' : 'transparent',
-      content: isDarkMode ? '#1E1E1E' : 'transparent',
+      sidebar: isDarkMode ? '#1E1E1E' : '#f8f9fa',
+      content: isDarkMode ? '#1E1E1E' : '#ffffff',
+      input: isDarkMode ? '#2A2A2A' : '#f5f5f5',
+      hover: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+      chat: isDarkMode ? '#141414' : '#ffffff',
     },
     text: {
-      primary: isDarkMode ? '#FFFFFF' : '#212121',
-      secondary: isDarkMode ? '#B0B0B0' : '#616161',
+      primary: isDarkMode ? '#FFFFFF' : '#1a1a1a',
+      secondary: isDarkMode ? '#B0B0B0' : '#6b7280',
       disabled: isDarkMode ? '#666666' : '#9e9e9e',
       hint: isDarkMode ? '#666666' : '#9e9e9e',
     },
+    divider: isDarkMode ? 'rgba(255, 255, 255, 0.12)' : '#e9ecef',
     action: {
-      hover: '#FCC000'
+      hover: '#FCC000',
+      selected: isDarkMode ? '#FCC000' : '#555555',
+    },
+    // Custom palette extensions
+    sidebar: {
+      background: isDarkMode ? '#1E1E1E' : '#f8f9fa',
+      activeBackground: isDarkMode ? '#FCC000' : '#000000',
+      activeText: isDarkMode ? '#000000' : '#FFFFFF',
+      inactiveBackground: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+      inactiveText: isDarkMode ? '#B0B0B0' : '#6b7280',
+      hoverBackground: isDarkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.06)',
+      border: isDarkMode ? 'rgba(255, 255, 255, 0.12)' : '#e9ecef',
+    },
+    tooltip: {
+      background: isDarkMode ? '#1a1a1a' : '#1a1a1a',
+      text: isDarkMode ? '#ffffff' : '#ffffff',
+    },
+    menu: {
+      background: isDarkMode ? '#ffffff' : '#ffffff',
+      hover: isDarkMode ? 'rgba(0, 0, 0, 0.04)' : 'rgba(0, 0, 0, 0.04)',
+      text: isDarkMode ? '#374151' : '#374151',
+      icon: isDarkMode ? '#6b7280' : '#6b7280',
+    },
+    input: {
+      background: isDarkMode ? '#2A2A2A' : '#f5f5f5',
+      text: isDarkMode ? '#E0E0E0' : 'inherit',
+      placeholder: isDarkMode ? '#B0B0B0' : 'inherit',
+      border: isDarkMode ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)',
+      focusBorder: isDarkMode ? '#FCC000' : '#555555',
+    },
+    code: {
+      background: isDarkMode ? 'rgba(252, 192, 0, 0.2)' : 'rgba(85, 85, 85, 0.1)',
+      text: isDarkMode ? '#FCC000' : '#555555',
+      blockBackground: isDarkMode ? '#1A1A1A' : '#f5f5f5',
+    },
+    icon: {
+      primary: isDarkMode ? '#FFFFFF' : '#000000',
+      secondary: isDarkMode ? '#B0B0B0' : '#6b7280',
+      disabled: isDarkMode ? '#666666' : '#9e9e9e',
+      hover: isDarkMode ? '#FCC000' : '#555555',
     }
   },
   typography: {
@@ -73,46 +116,12 @@ const createAppTheme = (isDarkMode = false) => createTheme({
       fontWeight: 600,
     }
   },
-  palette: {
-    primary: {
-      main: '#555555',
-      light: '#777777',
-      dark: '#333333',
-      contrastText: '#ffffff',
-    },
-    secondary: {
-      main: '#666666',
-      light: '#999999',
-      dark: '#444444',
-      contrastText: '#ffffff',
-    },
-    black: {
-      main: '#000000',
-      light: '#333333',
-      dark: '#000000',
-      contrastText: '#ffffff',
-    },
-    background: {
-      default: '#EEEEEE',
-      paper: '#ffffff',
-      sidebar: 'transparent',
-      content: 'transparent',
-    },
-    text: {
-      primary: '#212121',
-      secondary: '#616161',
-      disabled: '#9e9e9e',
-      hint: '#9e9e9e',
-    },
-    action: {
-      hover: '#FCC000'
-    }
-  },
   components: {
     MuiPaper: {
       styleOverrides: {
         root: {
           borderRadius: '20px',
+          backgroundColor: isDarkMode ? '#1E1E1E' : '#ffffff',
         },
       },
     },
@@ -140,7 +149,7 @@ const createAppTheme = (isDarkMode = false) => createTheme({
     MuiLink: {
       styleOverrides: {
         root: {
-          color: '#555555',
+          color: isDarkMode ? '#FCC000' : '#555555',
           '&:hover': {
             color: '#FCC000',
           },
@@ -151,10 +160,10 @@ const createAppTheme = (isDarkMode = false) => createTheme({
       styleOverrides: {
         root: {
           '&.Mui-selected': {
-            color: '#555555',
+            color: isDarkMode ? '#FCC000' : '#555555',
           },
           '&.Mui-focusVisible': {
-            backgroundColor: 'rgba(85, 85, 85, 0.1)',
+            backgroundColor: isDarkMode ? 'rgba(252, 192, 0, 0.1)' : 'rgba(85, 85, 85, 0.1)',
           },
           '&:hover': {
             color: '#FCC000'
@@ -165,7 +174,7 @@ const createAppTheme = (isDarkMode = false) => createTheme({
     MuiTabs: {
       styleOverrides: {
         indicator: {
-          backgroundColor: '#555555',
+          backgroundColor: isDarkMode ? '#FCC000' : '#555555',
         },
       },
     },
@@ -187,6 +196,79 @@ const createAppTheme = (isDarkMode = false) => createTheme({
           '&.Mui-checked': {
             color: isDarkMode ? '#FCC000' : '#555555',
           }
+        }
+      }
+    },
+    MuiTextField: {
+      styleOverrides: {
+        root: {
+          '& .MuiOutlinedInput-root': {
+            backgroundColor: isDarkMode ? '#2A2A2A' : '#f5f5f5',
+            color: isDarkMode ? '#E0E0E0' : 'inherit',
+            '&:hover': {
+              backgroundColor: isDarkMode ? '#2A2A2A' : '#f5f5f5',
+              borderColor: isDarkMode ? 'rgba(252, 192, 0, 0.3)' : 'rgba(85, 85, 85, 0.3)',
+            },
+            '&.Mui-focused': {
+              backgroundColor: isDarkMode ? '#2A2A2A' : '#ffffff',
+              borderColor: isDarkMode ? '#FCC000' : '#555555',
+            },
+            '& .MuiInputBase-input::placeholder': {
+              color: isDarkMode ? '#B0B0B0' : 'inherit',
+              opacity: 1
+            }
+          }
+        }
+      }
+    },
+    MuiTooltip: {
+      styleOverrides: {
+        tooltip: {
+          backgroundColor: isDarkMode ? '#1a1a1a' : '#1a1a1a',
+          color: isDarkMode ? '#ffffff' : '#ffffff',
+          fontSize: '0.75rem',
+          fontFamily: "'Inter', sans-serif",
+          fontWeight: 500,
+          borderRadius: 2,
+          padding: '6px 12px',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+        }
+      }
+    },
+    MuiMenu: {
+      styleOverrides: {
+        paper: {
+          backgroundColor: isDarkMode ? '#ffffff' : '#ffffff',
+          border: isDarkMode ? '1px solid #e9ecef' : '1px solid #e9ecef',
+          '& .MuiMenuItem-root': {
+            '&:hover': {
+              backgroundColor: isDarkMode ? 'rgba(0, 0, 0, 0.04)' : 'rgba(0, 0, 0, 0.04)',
+            }
+          }
+        }
+      }
+    },
+    MuiIconButton: {
+      styleOverrides: {
+        root: {
+          '&:hover': {
+            backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+          }
+        }
+      }
+    },
+    MuiChip: {
+      styleOverrides: {
+        root: {
+          backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+          color: isDarkMode ? '#B0B0B0' : '#6b7280',
+        }
+      }
+    },
+    MuiDivider: {
+      styleOverrides: {
+        root: {
+          borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.12)' : '#e9ecef',
         }
       }
     }
