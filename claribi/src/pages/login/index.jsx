@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Typography, Paper, Button, Alert, Snackbar } from '@mui/material';
+import { Box, Typography, Paper, Button, Alert, Snackbar, useTheme } from '@mui/material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { useAuth } from '../../contexts/AuthContext';
@@ -12,6 +12,7 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { login, currentUser, loading } = useAuth();
+  const theme = useTheme();
   const [errorMessage, setErrorMessage] = useState(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const [verifying, setVerifying] = useState(false);
