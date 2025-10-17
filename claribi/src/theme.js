@@ -56,10 +56,10 @@ const createAppTheme = (isDarkMode = false) => createTheme({
       text: isDarkMode ? '#ffffff' : '#ffffff',
     },
     menu: {
-      background: isDarkMode ? '#ffffff' : '#ffffff',
-      hover: isDarkMode ? 'rgba(0, 0, 0, 0.04)' : 'rgba(0, 0, 0, 0.04)',
-      text: isDarkMode ? '#374151' : '#374151',
-      icon: isDarkMode ? '#6b7280' : '#6b7280',
+      background: isDarkMode ? '#2A2A2A' : '#ffffff',
+      hover: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+      text: isDarkMode ? '#E0E0E0' : '#374151',
+      icon: isDarkMode ? '#B0B0B0' : '#6b7280',
     },
     input: {
       background: isDarkMode ? '#2A2A2A' : '#f5f5f5',
@@ -227,7 +227,7 @@ const createAppTheme = (isDarkMode = false) => createTheme({
           backgroundColor: isDarkMode ? '#1a1a1a' : '#1a1a1a',
           color: isDarkMode ? '#ffffff' : '#ffffff',
           fontSize: '0.75rem',
-          fontFamily: "'Inter', sans-serif",
+          fontFamily: "'Nunito Sans', sans-serif",
           fontWeight: 500,
           borderRadius: 2,
           padding: '6px 12px',
@@ -238,11 +238,11 @@ const createAppTheme = (isDarkMode = false) => createTheme({
     MuiMenu: {
       styleOverrides: {
         paper: {
-          backgroundColor: isDarkMode ? '#ffffff' : '#ffffff',
-          border: isDarkMode ? '1px solid #e9ecef' : '1px solid #e9ecef',
+          backgroundColor: isDarkMode ? '#2A2A2A' : '#ffffff',
+          border: isDarkMode ? '1px solid rgba(255, 255, 255, 0.12)' : '1px solid #e9ecef',
           '& .MuiMenuItem-root': {
             '&:hover': {
-              backgroundColor: isDarkMode ? 'rgba(0, 0, 0, 0.04)' : 'rgba(0, 0, 0, 0.04)',
+              backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
             }
           }
         }

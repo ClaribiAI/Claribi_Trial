@@ -145,19 +145,36 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
             }
           }}
         />
-        <Typography 
-          variant="subtitle2" 
-          sx={{ 
-            fontFamily: "'Inter', sans-serif", 
-            fontWeight: 600,
-            fontSize: '0.75rem',
-            color: theme.palette.text.primary,
-            letterSpacing: '0.3px',
-            textTransform: 'uppercase'
-          }}
-        >
-          claribi
-        </Typography>
+        <Box sx={{ textAlign: 'center' }}>
+          <Typography 
+            variant="subtitle2" 
+            sx={{ 
+              fontFamily: "'Nunito Sans', sans-serif", 
+              fontWeight: 900,
+              fontSize: '0.95rem',
+              color: theme.palette.text.primary,
+              letterSpacing: '0.3px',
+              textTransform: 'lowercase',
+              lineHeight: 2
+            }}
+          >
+            clari<span className="bi-yellow">bi</span>
+          </Typography>
+          <Typography 
+            variant="subtitle2" 
+            sx={{ 
+              fontFamily: "'Nunito Sans', sans-serif", 
+              fontWeight: 400,
+              fontSize: '0.65rem',
+              color: theme.palette.text.primary,
+              letterSpacing: '0.3px',
+              textTransform: 'lowercase',
+              lineHeight: 1
+            }}
+          >
+            console
+          </Typography>
+        </Box>
       </Box>
 
       <Box 
@@ -193,7 +210,7 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
                     backgroundColor: theme.palette.tooltip.background,
                     color: theme.palette.tooltip.text,
                     fontSize: '0.75rem',
-                    fontFamily: "'Inter', sans-serif",
+                    fontFamily: "'Nunito Sans', sans-serif",
                     fontWeight: 500,
                     borderRadius: 2,
                     px: 1.5,
@@ -292,7 +309,7 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
                 backgroundColor: theme.palette.tooltip.background,
                 color: theme.palette.tooltip.text,
                 fontSize: '0.75rem',
-                fontFamily: "'Inter', sans-serif",
+                fontFamily: "'Nunito Sans', sans-serif",
                 fontWeight: 500,
                 borderRadius: 2,
                 px: 1.5,
@@ -363,7 +380,7 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
                 backgroundColor: theme.palette.tooltip.background,
                 color: theme.palette.tooltip.text,
                 fontSize: '0.75rem',
-                fontFamily: "'Inter', sans-serif",
+                fontFamily: "'Nunito Sans', sans-serif",
                 fontWeight: 500,
                 borderRadius: 2,
                 px: 1.5,
@@ -435,7 +452,7 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
                 backgroundColor: theme.palette.tooltip.background,
                 color: theme.palette.tooltip.text,
                 fontSize: '0.75rem',
-                fontFamily: "'Inter', sans-serif",
+                fontFamily: "'Nunito Sans', sans-serif",
                 fontWeight: 500,
                 borderRadius: 2,
                 px: 1.5,
@@ -527,7 +544,7 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
                   transform: 'translateY(-50%) translateX(-50%) rotate(45deg)',
                   zIndex: 0,
                 },
-                fontFamily: "'Inter', sans-serif",
+                fontFamily: "'Nunito Sans', sans-serif",
                 backgroundColor: theme.palette.menu.background,
               },
             }
@@ -560,7 +577,7 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
             <ListItemText 
               primary="Settings"
               primaryTypographyProps={{
-                fontFamily: "'Inter', sans-serif",
+                fontFamily: "'Nunito Sans', sans-serif",
                 fontWeight: 500,
                 fontSize: '0.875rem',
                 color: theme.palette.menu.text
@@ -590,7 +607,7 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
             <ListItemText 
               primary="Logout"
               primaryTypographyProps={{
-                fontFamily: "'Inter', sans-serif",
+                fontFamily: "'Nunito Sans', sans-serif",
                 fontWeight: 500,
                 fontSize: '0.875rem',
                 color: theme.palette.menu.text

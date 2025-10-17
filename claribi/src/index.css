@@ -310,3 +310,9 @@ button:hover,
   outline: none !important;
 }
 
+/* Specific class for yellow BI text in sidebar - higher specificity */
+.dark .MuiBox-root .bi-yellow,
+.bi-yellow {
+  color: #FCC000 !important;
+}
+
