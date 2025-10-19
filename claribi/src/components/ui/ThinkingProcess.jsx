@@ -41,7 +41,7 @@ const ThinkingProcess = React.memo(({
                 border: `1px solid ${alpha(theme.palette.divider, 0.12)}`,
                 borderRadius: 2,
                 overflow: 'hidden',
-                bgcolor: alpha(theme.palette.background.paper, 0.5)
+                bgcolor: theme.palette.background.chat
             }}
         >
             {/* Header */}
@@ -97,11 +97,13 @@ const ThinkingProcess = React.memo(({
                                 {actionHistory.map((action, index) => {
                                     // Check if action is completed - handle different status values
                                     // For regular steps, consider them completed if:
-                                    // 1. They have status 'completed', 'done', or 'finished'
-                                    // 2. They are search steps with resultCount (completed search)
-                                    // 3. They are regular steps that are not the current action (meaning they're done)
-                                    // 4. They are regular steps that are not the last action in the list (meaning they're done)
-                                    const isCompleted = action.status === 'completed' || 
+                                    // 1. The entire thinking process is completed (isCompleted prop is true)
+                                    // 2. They have status 'completed', 'done', or 'finished'
+                                    // 3. They are search steps with resultCount (completed search)
+                                    // 4. They are regular steps that are not the current action (meaning they're done)
+                                    // 5. They are regular steps that are not the last action in the list (meaning they're done)
+                                    const isActionCompleted = isCompleted || // If entire process is completed, all actions are completed
+                                                       action.status === 'completed' || 
                                                        action.status === 'done' || 
                                                        action.status === 'finished' ||
                                                        (action.type === 'search' && action.resultCount !== undefined) ||
@@ -117,10 +119,10 @@ const ThinkingProcess = React.memo(({
                                                 gap: 1,
                                                 p: 1,
                                                 borderRadius: 1,
-                                                bgcolor: isCompleted 
+                                                bgcolor: isActionCompleted 
                                                     ? alpha(theme.palette.success.main, 0.08)
                                                     : alpha(theme.palette.primary.main, 0.05),
-                                                border: `1px solid ${isCompleted 
+                                                border: `1px solid ${isActionCompleted 
                                                     ? alpha(theme.palette.success.main, 0.15)
                                                     : alpha(theme.palette.primary.main, 0.15)}`
                                             }}
@@ -130,7 +132,7 @@ const ThinkingProcess = React.memo(({
                                                     width: 16,
                                                     height: 16,
                                                     borderRadius: '50%',
-                                                    bgcolor: isCompleted 
+                                                    bgcolor: isActionCompleted 
                                                         ? theme.palette.success.main
                                                         : theme.palette.primary.main,
                                                     color: 'white',
@@ -142,7 +144,7 @@ const ThinkingProcess = React.memo(({
                                                     mt: 0.25
                                                 }}
                                             >
-                                                {isCompleted ? '✓' : '○'}
+                                                {isActionCompleted ? '✓' : '○'}
                                             </Box>
                                             <Box sx={{ flex: 1, minWidth: 0 }}>
                                                 <Typography 

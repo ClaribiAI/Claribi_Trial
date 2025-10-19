@@ -140,10 +140,22 @@ const createAppTheme = (isDarkMode = false) => createTheme({
           textTransform: 'none',
           fontWeight: 600,
           padding: '8px 16px',
+        },
+        contained: {
           '&:hover': {
-            color: '#FCC000'
+            color: `${isDarkMode ? '#000000' : '#ffffff'} !important`
           }
         },
+        outlined: {
+          '&:hover': {
+            color: '#FCC000 !important'
+          }
+        },
+        text: {
+          '&:hover': {
+            color: '#FCC000 !important'
+          }
+        }
       },
     },
     MuiLink: {

@@ -116,7 +116,8 @@ def upload_powerbi_file():
     if 'pbix_file' not in request.files: return jsonify({'error': 'PBIX file is required'}), 400
 
     file = request.files['pbix_file']
-    if not file.filename.lower().endswith('.pbix'): return jsonify({'error': 'File must be a .pbix file'}), 400
+    # Note: File type validation is handled on the frontend during file selection
+    # This allows users to rename files without .pbix extension if desired
 
     temp_dir = os.path.join(current_app.instance_path, 'temp_uploads')
     os.makedirs(temp_dir, exist_ok=True)

@@ -94,48 +94,58 @@ class RAGOrchestrationService:
         send_update("context_analysis", "Analyzing context to see if more information is needed...")
         
         sufficient, follow_up, clarifications = self._analyze_context(query, initial_context)
-        
+        logger.info("follow_up: %s", follow_up)
         # Handle search steps first, even if clarifications are needed
         if not sufficient and follow_up:
-            send_update("follow_up_retrieval", "Retrieving additional context...", {"follow_up_queries": follow_up})
+            # Extract just the query strings for parallel retrieval
+            query_strings = [item["query"] for item in follow_up if item.get("query")]
+            send_update("follow_up_retrieval", "Retrieving additional context...", {"follow_up_queries": [item["summary"] for item in follow_up]})
             
             # Send individual search generation updates
-            for i, follow_up_query in enumerate(follow_up):
+            for i, follow_up_item in enumerate(follow_up):
+                query_text = follow_up_item.get("query", "")
+                summary_text = follow_up_item.get("summary", "")
+
+                
                 # Skip empty queries
-                if not follow_up_query or not follow_up_query.strip():
+                if not query_text or not query_text.strip():
                     logger.warning(f"Skipping empty follow-up query at index {i}")
                     continue
                     
-                search_id = f"search_{i}_{hash(follow_up_query) % 10000}"
-                send_update("search_generated", f"Search: {follow_up_query}", {
-                    "search_query": follow_up_query,
+                search_id = f"search_{i}_{hash(query_text) % 10000}"
+                send_update("search_generated", summary_text, {
+                    "search_query": query_text,
+                    "search_summary": summary_text,
                     "search_id": search_id
                 })
             
             # Execute searches and send completion updates
             logger.info("Executing parallel search retrieval...")
-            additional_docs = self._retrieve_parallel(retriever, follow_up)
+            additional_docs = self._retrieve_parallel(retriever, query_strings)
             
             # Log retrieval operations for follow-up queries
-            for i, follow_up_query in enumerate(follow_up):
-                if follow_up_query and follow_up_query.strip():
-                    query_docs = retriever.invoke(follow_up_query)
-                    vector_store_service.log_retrieval_operation(follow_up_query, len(query_docs), f"follow_up_search_{i}")
+            for i, query_text in enumerate(query_strings):
+                if query_text and query_text.strip():
+                    query_docs = retriever.invoke(query_text)
+                    vector_store_service.log_retrieval_operation(query_text, len(query_docs), f"follow_up_search_{i}")
                     self.token_usage_tracker['total_retrieval_operations'] += 1
                     self.token_usage_tracker['total_documents_retrieved'] += len(query_docs)
             
             # Count results per query by running individual retrievals
-            for i, follow_up_query in enumerate(follow_up):
+            for i, follow_up_item in enumerate(follow_up):
+                query_text = follow_up_item.get("query", "")
+                summary_text = follow_up_item.get("summary", "")
+                
                 # Skip empty queries
-                if not follow_up_query or not follow_up_query.strip():
+                if not query_text or not query_text.strip():
                     logger.warning(f"Skipping empty follow-up query at index {i} in completion loop")
                     continue
                     
-                search_id = f"search_{i}_{hash(follow_up_query) % 10000}"
+                search_id = f"search_{i}_{hash(query_text) % 10000}"
                 # Get documents for this specific query
-                query_docs = retriever.invoke(follow_up_query)
+                query_docs = retriever.invoke(query_text)
                 result_count = len(query_docs) if query_docs else 0
-                send_update("search_completed", f"Search completed: {follow_up_query}", {
+                send_update("search_completed", f"Search completed: {summary_text}", {
                     "search_id": search_id,
                     "result_count": result_count
                 })
@@ -146,8 +156,9 @@ class RAGOrchestrationService:
         
         # After search steps, check if clarifications are still needed
         if clarifications:
-            send_update("clarification_required", "User input is needed to provide the best answer.", {"follow_up_queries": follow_up})
-            pre_fetched_context = self._format_docs(self._retrieve_parallel(retriever, follow_up)) if follow_up else ""
+            send_update("clarification_required", "User input is needed to provide the best answer.", {"follow_up_queries": [item["summary"] for item in follow_up] if follow_up else []})
+            query_strings = [item["query"] for item in follow_up if item.get("query")] if follow_up else []
+            pre_fetched_context = self._format_docs(self._retrieve_parallel(retriever, query_strings)) if query_strings else ""
             return RAGResult("NEEDS_CLARIFICATION", {"user_clarifications": clarifications, "context_for_continuation": {"collection_name": collection_name, "original_query": query, "initial_context": final_context, "pre_fetched_context": pre_fetched_context}})
         
         send_update("final_generation", "Generating the final answer...")
@@ -209,7 +220,7 @@ class RAGOrchestrationService:
             "rag_context_key": rag_context_key
         })
 
-    def _analyze_context(self, q: str, ctx: str) -> Tuple[bool, List[str], List[str]]:
+    def _analyze_context(self, q: str, ctx: str) -> Tuple[bool, List[Dict[str, str]], List[str]]:
         # Create the chain but invoke LLM directly to preserve metadata
         prompt = PromptTemplate(template=CONTEXT_ANALYSIS_PROMPT, input_variables=["context", "question"])
         formatted_prompt = prompt.format(question=q, context=ctx)
@@ -225,11 +236,22 @@ class RAGOrchestrationService:
             
             # Check if context is sufficient based on the 'sufficient' field
             sufficient = data.get("sufficient", True)
-            follow_up_queries = data.get("follow_up_queries", [])
+            follow_up_queries_raw = data.get("follow_up_queries", [])
             user_clarifications = data.get("user_clarifications", [])
             
-            # Filter out empty or invalid follow-up queries
-            follow_up_queries = [q.strip() for q in follow_up_queries if q and q.strip()]
+            # Process follow-up queries - new format only
+            follow_up_queries = []
+            for query_item in follow_up_queries_raw:
+                if isinstance(query_item, dict):
+                    query_text = query_item.get("query", "").strip()
+                    summary_text = query_item.get("summary", "").strip()
+                    if query_text and summary_text:
+                        follow_up_queries.append({
+                            "query": query_text,
+                            "summary": summary_text
+                        })
+            
+            # Filter out empty clarifications
             user_clarifications = [c.strip() for c in user_clarifications if c and c.strip()]
             
             logger.info(f"Context sufficient: {sufficient}, follow_up_queries: {len(follow_up_queries)}, user_clarifications: {len(user_clarifications)}")
