@@ -807,13 +807,12 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded }) => {
             <Box 
                 sx={{ 
                     p: 4, 
-                    bgcolor: 'background.paper',
-                    borderTop: `1px solid ${alpha(theme.palette.divider, 0.12)}`,
+                    bgcolor: theme.palette.background.chat,
                     boxShadow: '0 -2px 8px rgba(0,0,0,0.05)'
                 }}
             >
                 {clarificationFlow.active ? (
-                    <Box display="flex" gap={1} alignItems="flex-end">
+                    <Box sx={{ position: 'relative' }}>
                         <TextField
                             fullWidth
                             multiline
@@ -827,59 +826,66 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded }) => {
                             sx={{
                                 '& .MuiOutlinedInput-root': {
                                     borderRadius: 3,
-                                    bgcolor: alpha(theme.palette.grey[50], 0.3),
+                                    bgcolor: theme.palette.background.chat,
                                     border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
-                                    color: 'inherit',
+                                    color: theme.palette.text.primary,
+                                    pr: currentClarificationAnswer.trim() ? 7 : 2, // Add right padding when button is visible
                                     '&:hover': { 
-                                        bgcolor: alpha(theme.palette.grey[50], 0.5),
+                                        bgcolor: theme.palette.background.chat,
                                         borderColor: alpha(theme.palette.input.focusBorder, 0.3)
                                     },
                                     '&.Mui-focused': { 
-                                        bgcolor: 'background.paper',
+                                        bgcolor: theme.palette.background.chat,
                                         borderColor: theme.palette.input.focusBorder,
                                         boxShadow: `0 0 0 2px ${alpha(theme.palette.input.focusBorder, 0.1)}`
                                     }
                                 },
                                 '& .MuiInputBase-input': {
-                                    color: 'inherit'
+                                    color: theme.palette.text.primary
                                 },
                                 '& .MuiInputBase-input::placeholder': {
-                                    color: 'inherit',
+                                    color: theme.palette.text.secondary,
                                     opacity: 1
                                 }
                             }}
                         />
-                        <Button
-                            onClick={submitCurrentClarificationAnswer}
-                            disabled={!currentClarificationAnswer.trim() || isProcessingClarifications}
-                            variant="contained"
-                            sx={{
-                                minWidth: 52,
-                                height: 52,
-                                borderRadius: 3,
-                                bgcolor: theme.palette.primary.main,
-                                '&:hover': { 
-                                    bgcolor: theme.palette.primary.dark,
-                                    transform: 'translateY(-1px)',
-                                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-                                },
-                                '&:disabled': { 
-                                    bgcolor: alpha(theme.palette.primary.main, 0.3),
-                                    transform: 'none',
-                                    boxShadow: 'none'
-                                },
-                                transition: 'all 0.2s ease'
-                            }}
-                        >
-                            {isProcessingClarifications ? (
-                                <LoadingSpinner size={20} compact />
-                            ) : (
-                                clarificationFlow.currentIndex + 1 === clarificationFlow.questions.length ? 'Submit' : 'Next'
-                            )}
-                        </Button>
+                        {currentClarificationAnswer.trim() && (
+                            <Button
+                                onClick={submitCurrentClarificationAnswer}
+                                disabled={isProcessingClarifications}
+                                variant="contained"
+                                sx={{
+                                    position: 'absolute',
+                                    right: 8,
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    minWidth: 40,
+                                    height: 40,
+                                    borderRadius: 2,
+                                    bgcolor: theme.palette.primary.main,
+                                    '&:hover': { 
+                                        bgcolor: theme.palette.primary.dark,
+                                        transform: 'translateY(-50%) scale(1.05)',
+                                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                                    },
+                                    '&:disabled': { 
+                                        bgcolor: alpha(theme.palette.primary.main, 0.3),
+                                        transform: 'translateY(-50%)',
+                                        boxShadow: 'none'
+                                    },
+                                    transition: 'all 0.2s ease'
+                                }}
+                            >
+                                {isProcessingClarifications ? (
+                                    <LoadingSpinner size={16} compact />
+                                ) : (
+                                    clarificationFlow.currentIndex + 1 === clarificationFlow.questions.length ? 'Submit' : 'Next'
+                                )}
+                            </Button>
+                        )}
                     </Box>
                 ) : (
-                    <Box display="flex" gap={1} alignItems="flex-end">
+                    <Box sx={{ position: 'relative' }}>
                         <TextField
                             ref={inputRef}
                             fullWidth
@@ -894,56 +900,63 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded }) => {
                             sx={{
                                 '& .MuiOutlinedInput-root': {
                                     borderRadius: 3,
-                                    bgcolor: theme.palette.input.background,
+                                    bgcolor: theme.palette.background.chat,
                                     border: `1px solid ${theme.palette.input.border}`,
-                                    color: theme.palette.input.text,
+                                    color: theme.palette.text.primary,
+                                    pr: inputMessage.trim() ? 7 : 2, // Add right padding when button is visible
                                     '&:hover': { 
-                                        bgcolor: theme.palette.input.background,
+                                        bgcolor: theme.palette.background.chat,
                                         borderColor: alpha(theme.palette.input.focusBorder, 0.3)
                                     },
                                     '&.Mui-focused': { 
-                                        bgcolor: theme.palette.input.background,
+                                        bgcolor: theme.palette.background.chat,
                                         borderColor: theme.palette.input.focusBorder,
                                         boxShadow: `0 0 0 2px ${alpha(theme.palette.input.focusBorder, 0.1)}`
                                     }
                                 },
                                 '& .MuiInputBase-input': {
-                                    color: theme.palette.input.text
+                                    color: theme.palette.text.primary
                                 },
                                 '& .MuiInputBase-input::placeholder': {
-                                    color: theme.palette.input.placeholder,
+                                    color: theme.palette.text.secondary,
                                     opacity: 1
                                 }
                             }}
                         />
-                        <Button
-                            onClick={handleSendMessage}
-                            disabled={!inputMessage.trim() || isLoading}
-                            variant="contained"
-                            sx={{
-                                minWidth: 52,
-                                height: 52,
-                                borderRadius: 3,
-                                bgcolor: theme.palette.primary.main,
-                                '&:hover': { 
-                                    bgcolor: theme.palette.primary.dark,
-                                    transform: 'translateY(-1px)',
-                                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-                                },
-                                '&:disabled': { 
-                                    bgcolor: alpha(theme.palette.primary.main, 0.3),
-                                    transform: 'none',
-                                    boxShadow: 'none'
-                                },
-                                transition: 'all 0.2s ease'
-                            }}
-                        >
-                            {isLoading ? (
-                                <LoadingSpinner size={20} compact />
-                            ) : (
-                                <PaperPlaneRight size={20} />
-                            )}
-                        </Button>
+                        {inputMessage.trim() && (
+                            <Button
+                                onClick={handleSendMessage}
+                                disabled={isLoading}
+                                variant="contained"
+                                sx={{
+                                    position: 'absolute',
+                                    right: 8,
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    minWidth: 40,
+                                    height: 40,
+                                    borderRadius: 2,
+                                    bgcolor: theme.palette.primary.main,
+                                    '&:hover': { 
+                                        bgcolor: theme.palette.primary.dark,
+                                        transform: 'translateY(-50%) scale(1.05)',
+                                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                                    },
+                                    '&:disabled': { 
+                                        bgcolor: alpha(theme.palette.primary.main, 0.3),
+                                        transform: 'translateY(-50%)',
+                                        boxShadow: 'none'
+                                    },
+                                    transition: 'all 0.2s ease'
+                                }}
+                            >
+                                {isLoading ? (
+                                    <LoadingSpinner size={16} compact />
+                                ) : (
+                                    <PaperPlaneRight size={16} />
+                                )}
+                            </Button>
+                        )}
                     </Box>
                 )}
             </Box>
