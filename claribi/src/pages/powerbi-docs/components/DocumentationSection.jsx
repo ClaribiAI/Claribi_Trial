@@ -31,6 +31,7 @@ import {
     FloppyDiskIcon,
     XIcon
 } from '@phosphor-icons/react';
+import ReactMarkdown from 'react-markdown';
 import LoadingOverlay from './LoadingOverlay';
 import RecommendationCard from './RecommendationCard';
 import RichTextEditor from './RichTextEditor';
@@ -320,101 +321,15 @@ const DocumentationSection = ({
                                                     borderRadius: '0 4px 4px 0'
                                                 }
                                             }}
-                                            dangerouslySetInnerHTML={{
-                                                __html: typeof content === 'string' ? content : JSON.stringify(content, null, 2)
-                                            }}
-                                        />
-                                    )}
-                                </Paper>
-                            )}
-                            
-                            {/* Special handling for improvement recommendations raw text display */}
-                            {section.id === 'improvement_recommendations' && parsedRecommendations.length === 0 && content && (
-                                <Paper 
-                                    sx={{ 
-                                        p: 3, 
-                                        bgcolor: alpha(theme.palette.background.paper, 0.6),
-                                        border: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
-                                        borderRadius: 2
-                                    }}
-                                >
-                                    <Box 
-                                        sx={{
-                                            '& h1': { 
-                                                fontSize: '1.5rem', 
-                                                fontWeight: 600, 
-                                                color: theme.palette.text.primary,
-                                                mt: 3,
-                                                mb: 2,
-                                                '&:first-of-type': { mt: 0 }
-                                            },
-                                            '& h2': { 
-                                                fontSize: '1.25rem', 
-                                                fontWeight: 600, 
-                                                color: theme.palette.text.primary,
-                                                mt: 3,
-                                                mb: 2
-                                            },
-                                            '& h3': { 
-                                                fontSize: '1.125rem', 
-                                                fontWeight: 500, 
-                                                color: theme.palette.text.primary,
-                                                mt: 2,
-                                                mb: 1
-                                            },
-                                            '& p': { 
-                                                mb: 2, 
-                                                lineHeight: 1.7,
-                                                color: 'text.secondary'
-                                            },
-                                            '& ul, & ol': { 
-                                                mb: 2, 
-                                                pl: 3,
-                                                '& li': { 
-                                                    mb: 0.5, 
-                                                    lineHeight: 1.6,
-                                                    color: theme.palette.text.primary
+                                        >
+                                            <ReactMarkdown>
+                                                {section.id === 'improvement_recommendations' && typeof content === 'object' && content.raw_text 
+                                                    ? content.raw_text 
+                                                    : (typeof content === 'string' ? content : JSON.stringify(content, null, 2))
                                                 }
-                                            },
-                                            '& strong': { 
-                                                fontWeight: 600, 
-                                                color: theme.palette.text.primary
-                                            },
-                                            '& code': { 
-                                                bgcolor: theme.palette.code.background,
-                                                color: theme.palette.code.text,
-                                                px: 1,
-                                                py: 0.25,
-                                                borderRadius: 1,
-                                                fontSize: '0.875rem',
-                                                fontFamily: 'monospace'
-                                            },
-                                            '& pre': { 
-                                                bgcolor: alpha(theme.palette.grey[900], 0.05),
-                                                p: 2, 
-                                                borderRadius: 2, 
-                                                overflow: 'auto',
-                                                mb: 2,
-                                                border: `1px solid ${alpha(theme.palette.divider, 0.12)}`,
-                                                color: 'inherit'
-                                            },
-                                            '& blockquote': { 
-                                                borderLeft: `4px solid ${theme.palette.primary.main}`,
-                                                pl: 2, 
-                                                fontStyle: 'italic', 
-                                                color: theme.palette.text.secondary,
-                                                mb: 2,
-                                                bgcolor: theme.palette.mode === 'dark' ? alpha('#FCC000', 0.05) : alpha(theme.palette.primary.main, 0.02),
-                                                py: 1,
-                                                borderRadius: '0 4px 4px 0'
-                                            }
-                                        }}
-                                        dangerouslySetInnerHTML={{
-                                            __html: typeof content === 'object' && content.raw_text 
-                                                ? content.raw_text 
-                                                : (typeof content === 'string' ? content : JSON.stringify(content, null, 2))
-                                        }}
-                                    />
+                                            </ReactMarkdown>
+                                        </Box>
+                                    )}
                                 </Paper>
                             )}
                         </Box>
