@@ -1,8 +1,10 @@
 import React from 'react';
 import { Box } from '@mui/material';
+import { useTheme } from '../../contexts/ThemeContext';
 import './LoadingSpinner.css';
 
 const LoadingSpinner = ({ size = 40, compact = false }) => {
+  const { isDarkMode } = useTheme();
   const squareSize = size / 2.5; // Each square is smaller than the total size to create spacing
   
   return (
@@ -22,7 +24,7 @@ const LoadingSpinner = ({ size = 40, compact = false }) => {
         }}
       >
         <div 
-          className="square square-black top-left"
+          className={`square ${isDarkMode ? 'square-white' : 'square-black'} top-left`}
           style={{
             width: squareSize,
             height: squareSize,
@@ -43,7 +45,7 @@ const LoadingSpinner = ({ size = 40, compact = false }) => {
           }}
         />
         <div 
-          className="square square-black bottom-right"
+          className={`square ${isDarkMode ? 'square-white' : 'square-black'} bottom-right`}
           style={{
             width: squareSize,
             height: squareSize,

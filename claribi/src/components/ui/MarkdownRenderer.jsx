@@ -33,34 +33,69 @@ const specialSectionsMap = {
 };
 
 /**
- * Merges our custom DAX token styles with a base theme to ensure correct coloring.
+ * Creates a Power BI-inspired DAX syntax theme.
  * @param {object} theme - The MUI theme object.
  * @returns {object} A style object for react-syntax-highlighter.
  */
 const getDaxSyntaxTheme = (theme) => {
-    const baseTheme = theme.palette.mode === 'dark' ? vscDarkPlus : oneLight;
-
-    const customStyles = {
-        // ✅ DEFINITE FIX FOR FUNCTION COLOR:
-        // This rule explicitly targets the 'keyword' token (which includes all DAX functions)
-        // and forces its color to be blue, overriding the theme's default.
-        'keyword': {
-            color: theme.palette.mode === 'dark' ? '#569CD6' : '#0000FF' // VSCode-like blue for dark, standard blue for light
+    const isDark = theme.palette.mode === 'dark';
+    
+    return {
+        'pre[class*="language-"]': {
+            background: 'transparent',
+            color: 'inherit',
+            margin: 0,
+            padding: 0
         },
-
-        // This rule correctly styles 'Table'[Column] identifiers
-        'table-column': {
-            color: theme.palette.mode === 'dark' ? '#4EC9B0' : '#2B91AF' // A teal/cyan color
+        'code[class*="language-"]': {
+            background: 'transparent',
+            color: 'inherit',
+            fontFamily: 'inherit',
+            fontSize: 'inherit',
+            lineHeight: 'inherit'
         },
-
-        // This rule correctly styles [Measure] identifiers
-        'measure': {
-            color: theme.palette.mode === 'dark' ? '#9CDCFE' : '#0451A5' // Light Blue / Dark Blue
+        // DAX-specific token styling with Power BI colors
+        'token.keyword': {
+            color: isDark ? '#569cd6' : '#0000ff',  // Blue for functions/keywords
+            fontWeight: 'bold'
+        },
+        'token.function': {
+            color: isDark ? '#dcdcaa' : '#795e26',  // Yellow for functions
+            fontWeight: 'bold'
+        },
+        'token.string': {
+            color: isDark ? '#ce9178' : '#a31515'   // Orange for strings
+        },
+        'token.number': {
+            color: isDark ? '#b5cea8' : '#098658'   // Green for numbers
+        },
+        'token.operator': {
+            color: isDark ? '#d4d4d4' : '#000000'   // White/black for operators
+        },
+        'token.punctuation': {
+            color: isDark ? '#d4d4d4' : '#000000'   // White/black for punctuation
+        },
+        'token.comment': {
+            color: isDark ? '#6a9955' : '#008000',  // Green for comments
+            fontStyle: 'italic'
+        },
+        'token.table-column': {
+            color: isDark ? '#4ec9b0' : '#2b91af',  // Teal for table[column]
+            fontWeight: 'bold'
+        },
+        'token.measure': {
+            color: isDark ? '#9cdcfe' : '#0451a5',  // Light blue for [measure]
+            fontWeight: 'bold'
+        },
+        'token.class-name': {
+            color: isDark ? '#4ec9b0' : '#2b91af',  // Teal for table[column] (alias)
+            fontWeight: 'bold'
+        },
+        'token.variable': {
+            color: isDark ? '#9cdcfe' : '#0451a5',  // Light blue for [measure] (alias)
+            fontWeight: 'bold'
         }
     };
-    
-    // Merge the base theme with our overrides
-    return { ...baseTheme, ...customStyles };
 };
 
 
@@ -96,13 +131,80 @@ const MarkdownRenderer = ({ content, sx = {} }) => {
             const match = /language-(\w+)/.exec(className || '');
             const language = match ? match[1] : '';
 
-            // For code blocks (not inline), use SyntaxHighlighter
+            // For DAX code blocks, use custom renderer
+            if (!inline && language === 'dax') {
+                const codeText = String(children).replace(/\n$/, '');
+                
+                // Simple DAX syntax highlighting
+                const highlightDAX = (text) => {
+                    const isDark = theme.palette.mode === 'dark';
+                    const colors = {
+                        keyword: isDark ? '#569cd6' : '#0000ff',
+                        string: isDark ? '#ce9178' : '#a31515',
+                        number: isDark ? '#b5cea8' : '#098658',
+                        operator: isDark ? '#d4d4d4' : '#000000',
+                        tableColumn: isDark ? '#4ec9b0' : '#2b91af',
+                        measure: isDark ? '#9cdcfe' : '#0451a5'
+                    };
+
+                    // Split by common DAX patterns - more comprehensive function list
+                    const parts = text.split(/(\bSUM\b|\bSUMX\b|\bAVERAGE\b|\bAVERAGEX\b|\bCOUNT\b|\bCOUNTA\b|\bCOUNTX\b|\bCOUNTAX\b|\bCOUNTROWS\b|\bDISTINCTCOUNT\b|\bMAX\b|\bMAXX\b|\bMIN\b|\bMINX\b|\bCALCULATE\b|\bCALCULATETABLE\b|\bFILTER\b|\bALL\b|\bALLEXCEPT\b|\bALLSELECTED\b|\bDISTINCT\b|\bVALUES\b|\bRELATED\b|\bRELATEDTABLE\b|\bEARLIER\b|\bEARLIEST\b|\bVAR\b|\bRETURN\b|\bIF\b|\bSWITCH\b|\bAND\b|\bOR\b|\bNOT\b|\bTRUE\b|\bFALSE\b|\bBLANK\b|\bDATE\b|\bDATEDIFF\b|\bNOW\b|\bTODAY\b|\bYEAR\b|\bMONTH\b|\bDAY\b|\bHOUR\b|\bMINUTE\b|\bSECOND\b|\bEOMONTH\b|\bSTARTOFMONTH\b|\bENDOFMONTH\b|\bDATESYTD\b|\bDATESQTD\b|\bDATESMTD\b|\bTOTALYTD\b|\bTOTALQTD\b|\bTOTALMTD\b|\bSAMEPERIODLASTYEAR\b|\bPARALLELPERIOD\b|\bNEXTDAY\b|\bNEXTMONTH\b|\bNEXTQUARTER\b|\bNEXTYEAR\b|\bPREVIOUSDAY\b|\bPREVIOUSMONTH\b|\bPREVIOUSQUARTER\b|\bPREVIOUSYEAR\b|\bDATESBETWEEN\b|\bDATESINPERIOD\b|\bCONCATENATE\b|\bCONCATENATEX\b|\bEXACT\b|\bFIND\b|\bFIXED\b|\bFORMAT\b|\bLEFT\b|\bLEN\b|\bLOWER\b|\bMID\b|\bREPLACE\b|\bREPT\b|\bRIGHT\b|\bSEARCH\b|\bSUBSTITUTE\b|\bTRIM\b|\bUPPER\b|\bVALUE\b|\bADDCOLUMNS\b|\bCROSSJOIN\b|\bGENERATESERIES\b|\bGROUPBY\b|\bHASONEVALUE\b|\bISBLANK\b|\bISCROSSFILTERED\b|\bISFILTERED\b|\bNATURALINNERJOIN\b|\bNATURALLEFTOUTERJOIN\b|\bSELECTEDVALUE\b|\bSUMMARIZE\b|\bSUMMARIZECOLUMNS\b|\bTOPN\b|\bTREATAS\b|\bUNION\b|'[^']*'\[[^\]]*\]|\[[^\]]*\]|"[^"]*"|\d+(\.\d+)?|[=+\-*/<>()])/g);
+                    
+                    return parts.map((part, index) => {
+                        // Check for DAX functions/keywords (case insensitive)
+                        if (/\b(SUM|SUMX|AVERAGE|AVERAGEX|COUNT|COUNTA|COUNTX|COUNTAX|COUNTROWS|DISTINCTCOUNT|MAX|MAXX|MIN|MINX|CALCULATE|CALCULATETABLE|FILTER|ALL|ALLEXCEPT|ALLSELECTED|DISTINCT|VALUES|RELATED|RELATEDTABLE|EARLIER|EARLIEST|VAR|RETURN|IF|SWITCH|AND|OR|NOT|TRUE|FALSE|BLANK|DATE|DATEDIFF|NOW|TODAY|YEAR|MONTH|DAY|HOUR|MINUTE|SECOND|EOMONTH|STARTOFMONTH|ENDOFMONTH|DATESYTD|DATESQTD|DATESMTD|TOTALYTD|TOTALQTD|TOTALMTD|SAMEPERIODLASTYEAR|PARALLELPERIOD|NEXTDAY|NEXTMONTH|NEXTQUARTER|NEXTYEAR|PREVIOUSDAY|PREVIOUSMONTH|PREVIOUSQUARTER|PREVIOUSYEAR|DATESBETWEEN|DATESINPERIOD|CONCATENATE|CONCATENATEX|EXACT|FIND|FIXED|FORMAT|LEFT|LEN|LOWER|MID|REPLACE|REPT|RIGHT|SEARCH|SUBSTITUTE|TRIM|UPPER|VALUE|ADDCOLUMNS|CROSSJOIN|GENERATESERIES|GROUPBY|HASONEVALUE|ISBLANK|ISCROSSFILTERED|ISFILTERED|NATURALINNERJOIN|NATURALLEFTOUTERJOIN|SELECTEDVALUE|SUMMARIZE|SUMMARIZECOLUMNS|TOPN|TREATAS|UNION)\b/i.test(part)) {
+                            return <span key={index} style={{ color: colors.keyword, fontWeight: 'bold' }}>{part}</span>;
+                        } else if (/'[^']*'\[[^\]]*\]/.test(part)) {
+                            return <span key={index} style={{ color: colors.tableColumn, fontWeight: 'bold' }}>{part}</span>;
+                        } else if (/\[[^\]]*\]/.test(part)) {
+                            return <span key={index} style={{ color: colors.measure, fontWeight: 'bold' }}>{part}</span>;
+                        } else if (/"[^"]*"/.test(part)) {
+                            return <span key={index} style={{ color: colors.string }}>{part}</span>;
+                        } else if (/\d+(\.\d+)?/.test(part)) {
+                            return <span key={index} style={{ color: colors.number }}>{part}</span>;
+                        } else if (/[=+\-*/<>()]/.test(part)) {
+                            return <span key={index} style={{ color: colors.operator }}>{part}</span>;
+                        }
+                        return part;
+                    });
+                };
+
+                return (
+                    <Box sx={{
+                        borderRadius: '8px',
+                        padding: '16px',
+                        margin: '16px 0',
+                        overflow: 'auto',
+                        border: theme.palette.mode === 'dark' ? '1px solid #3c3c3c' : '1px solid #e1e4e8',
+                        fontSize: '14px',
+                        lineHeight: '1.5',
+                        fontFamily: 'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace',
+                        whiteSpace: 'pre'
+                    }}>
+                        {highlightDAX(codeText)}
+                    </Box>
+                );
+            }
+
+            // For other code blocks, use SyntaxHighlighter
             if (!inline && language) {
                 return (
                     <SyntaxHighlighter
                         style={syntaxTheme}
                         language={language}
                         PreTag="div"
+                        customStyle={{
+                            backgroundColor: theme.palette.mode === 'dark' ? '#1e1e1e' : '#ffffff',
+                            color: theme.palette.mode === 'dark' ? '#d4d4d4' : '#000000',
+                            borderRadius: '8px',
+                            padding: '16px',
+                            margin: '16px 0',
+                            overflow: 'auto',
+                            border: theme.palette.mode === 'dark' ? '1px solid #3c3c3c' : '1px solid #e1e4e8',
+                            fontSize: '14px',
+                            lineHeight: '1.5',
+                            fontFamily: 'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace'
+                        }}
                         {...props}
                     >
                         {String(children).replace(/\n$/, '')}

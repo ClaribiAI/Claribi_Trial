@@ -22,34 +22,12 @@ class PowerBIPbixService:
         """
         self.generator = PowerBIDocumentationGenerator(ai_client_instance)
 
-    def analyze_pbix_file(self, pbix_file_path: str) -> Dict:
-        """Analyzes a full .pbix file and generates all documentation sections."""
+    def analyze_from_summaries(self, summaries: Dict, section: str, custom_instructions: str = '') -> str:
+        """Analyzes a specific section using file summaries."""
         try:
-            logger.info(f"Starting full analysis of PBIX file: {pbix_file_path}")
-
-            if not os.path.exists(pbix_file_path):
-                raise FileNotFoundError(f"PBIX file not found: {pbix_file_path}")
-            if not pbix_file_path.lower().endswith('.pbix'):
-                raise ValueError("File must be a .pbix file.")
-
-            pbix_data = self._extract_pbix_data(pbix_file_path)
-            documentation = self._generate_documentation(pbix_data)
+            logger.info(f"Starting section analysis for: '{section}' using summaries")
             
-            return {
-                "pbix_data": pbix_data,
-                "documentation": documentation,
-            }
-        except Exception as e:
-            logger.error(f"Error in analyze_pbix_file: {str(e)}", exc_info=True)
-            raise
-
-    def analyze_pbix_section(self, pbix_file_path: str, section: str, custom_instructions: str = '') -> str:
-        """Analyzes a specific section of a .pbix file."""
-        try:
-            logger.info(f"Starting section analysis for: '{section}'")
-            
-            pbix_data = self._extract_pbix_data(pbix_file_path)
-            context = self._prepare_context(pbix_data)
+            context = self._prepare_context_from_summaries(summaries)
             
             analysis_functions = {
                 'executive_summary': self.generator.generate_executive_summary,
@@ -87,56 +65,51 @@ class PowerBIPbixService:
                 raise ValueError(f"Unknown or unsupported section: '{section}'")
                 
         except Exception as e:
-            logger.error(f"Error in analyze_pbix_section '{section}': {str(e)}", exc_info=True)
+            logger.error(f"Error in analyze_from_summaries '{section}': {str(e)}", exc_info=True)
             raise
 
-    def _extract_pbix_data(self, pbix_file_path: str) -> Dict:
-        """Extracts key information from a .pbix file using PBIXRay."""
-        logger.info(f"Extracting data from {pbix_file_path}")
-        pbix_model = PBIXRay(pbix_file_path)
-        # In a real scenario, add error handling for each extraction
-        return {
-            "tables": pbix_model.dax_tables.to_dict('records') if not pbix_model.dax_tables.empty else [],
-            "dax_measures": pbix_model.dax_measures.to_dict('records') if not pbix_model.dax_measures.empty else [],
-            "relationships": pbix_model.relationships.to_dict('records') if not pbix_model.relationships.empty else [],
-            "power_query": pbix_model.power_query.to_dict('records') if not pbix_model.power_query.empty else []
-        }
 
-    def _prepare_context(self, pbix_data: Dict) -> Dict:
-        """Prepares the extracted data into a structured context for the AI."""
+    def _prepare_context_from_summaries(self, summaries: Dict) -> Dict:
+        """Prepares the summaries into a structured context for the AI."""
+        semantic_model = summaries.get('semantic_model_summary', {})
+        power_query = summaries.get('power_query_summary', {})
+        visuals = summaries.get('visuals_summary', {})
+        
         return {
             "report": {
-                "visuals": [], "filters": [], "themes": [] # PBIXRay does not extract visual info
+                "visuals": visuals.get('visuals', []),
+                "pages": visuals.get('pages', []),
+                "filters": [],  # Not available in summaries
+                "themes": []    # Not available in summaries
             },
             "model": {
-                "tables": pbix_data.get("tables", []),
-                "measures": pbix_data.get("dax_measures", []),
-                "relationships": pbix_data.get("relationships", []),
-                "expressions": pbix_data.get("power_query", [])
+                "tables": semantic_model.get('tables', []),
+                "measures": self._extract_measures_from_tables(semantic_model.get('tables', [])),
+                "relationships": semantic_model.get('relationships', []),
+                "expressions": power_query.get('scripts', [])
             }
         }
     
-    def _generate_documentation(self, pbix_data: Dict) -> Dict:
-        """Orchestrates the generation of all documentation sections."""
-        context = self._prepare_context(pbix_data)
-        logger.info("Generating all documentation sections...")
-
-        return {
-            "executive_summary": self.generator.generate_executive_summary(context),
-            "data_model_analysis": self.generator.generate_data_model_analysis(context),
-            "visualization_analysis": self.generator.generate_visualization_analysis(context),
-            "security_analysis": self.generator.generate_security_analysis(context),
-            "improvement_recommendations": self.generator.generate_improvement_recommendations(context),
-        }
-
-    def parse_improvement_recommendations(self, pbix_file_path: str) -> List[Dict]:
-        """Parses improvement recommendations from a previously generated recommendations text."""
+    def _extract_measures_from_tables(self, tables: List[Dict]) -> List[Dict]:
+        """Extract all measures from tables for backward compatibility."""
+        measures = []
+        for table in tables:
+            table_measures = table.get('measures', [])
+            for measure in table_measures:
+                measures.append({
+                    'Name': measure.get('name', ''),
+                    'Expression': measure.get('expression', ''),
+                    'TableName': table.get('name', ''),
+                    'IsHidden': measure.get('is_hidden', False)
+                })
+        return measures
+    
+    def parse_improvement_recommendations_from_summaries(self, summaries: Dict) -> List[Dict]:
+        """Parse improvement recommendations from summaries."""
         try:
-            logger.info(f"Parsing improvement recommendations for: {pbix_file_path}")
+            logger.info("Parsing improvement recommendations from summaries")
             
-            # First generate the recommendations
-            pbix_data = self._extract_pbix_data(pbix_file_path)
-            context = self._prepare_context(pbix_data)
+            context = self._prepare_context_from_summaries(summaries)
             
             # Generate the recommendations text
             recommendations_text = self.generator.generate_improvement_recommendations(context)
@@ -145,6 +118,9 @@ class PowerBIPbixService:
             return self.generator.parse_improvement_recommendations(recommendations_text)
             
         except Exception as e:
-            logger.error(f"Error parsing improvement recommendations: {str(e)}", exc_info=True)
+            logger.error(f"Error parsing improvement recommendations from summaries: {str(e)}", exc_info=True)
             raise
+    
+    
+
 

@@ -43,7 +43,7 @@ import { useNotification } from '../../contexts/NotificationContext';
 import LoadingSpinner from './LoadingSpinner';
 import ConfirmationDialog from './ConfirmationDialog';
 
-const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete }) => {
+const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, actionType = 'chat' }) => {
     const theme = useTheme();
     const { showNotification } = useNotification();
     const [anchorEl, setAnchorEl] = React.useState(null);
@@ -124,9 +124,9 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete }) => {
     };
 
     return (
-        <Box>
+        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {/* Header with Upload Button */}
-            <Box display="flex" justifyContent="flex-end" alignItems="center" mb={3}>
+            <Box display="flex" justifyContent="flex-end" alignItems="center" mb={3} sx={{ flexShrink: 0 }}>
                 <Button
                     variant="contained"
                     startIcon={<CloudArrowUp size={20} color={theme.palette.mode === 'dark' ? '#000000' : '#ffffff'} />}
@@ -161,17 +161,23 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete }) => {
                     boxShadow: theme.palette.mode === 'dark' 
                         ? '0 4px 20px rgba(0,0,0,0.3)' 
                         : '0 4px 20px rgba(0,0,0,0.08)',
-                    border: `1px solid ${alpha(theme.palette.divider, 0.1)}`
+                    border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                    flexGrow: 1,
+                    overflow: 'auto'
                 }}
             >
-                <Table>
+                <Table stickyHeader>
                     <TableHead>
                         <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.02) }}>
                             <TableCell sx={{ 
                                 fontWeight: 600, 
                                 color: theme.palette.text.primary,
                                 borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                                py: 2
+                                py: 2,
+                                position: 'sticky',
+                                top: 0,
+                                zIndex: 1,
+                                bgcolor: theme.palette.background.paper
                             }}>
                                 Name
                             </TableCell>
@@ -179,7 +185,11 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete }) => {
                                 fontWeight: 600, 
                                 color: theme.palette.text.primary,
                                 borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                                py: 2
+                                py: 2,
+                                position: 'sticky',
+                                top: 0,
+                                zIndex: 1,
+                                bgcolor: theme.palette.background.paper
                             }}>
                                 Last Modified
                             </TableCell>
@@ -189,7 +199,11 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete }) => {
                                 borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
                                 py: 2,
                                 textAlign: 'center',
-                                width: 120
+                                width: 120,
+                                position: 'sticky',
+                                top: 0,
+                                zIndex: 1,
+                                bgcolor: theme.palette.background.paper
                             }}>
                                 Actions
                             </TableCell>
@@ -251,7 +265,7 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete }) => {
                                     textAlign: 'center'
                                 }}>
                                     <Box display="flex" gap={1} justifyContent="center">
-                                        <Tooltip title="Chat with this file">
+                                        <Tooltip title={actionType === 'chat' ? "Chat with this file" : "Generate documentation"}>
                                             <IconButton
                                                 size="small"
                                                 onClick={(e) => handleFileClick(file)}
@@ -264,7 +278,7 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete }) => {
                                                     transition: 'all 0.2s ease'
                                                 }}
                                             >
-                                                <ChatCircle size={18} />
+                                                {actionType === 'chat' ? <ChatCircle size={18} /> : <FileText size={18} />}
                                             </IconButton>
                                         </Tooltip>
                                         <Tooltip title="More actions">

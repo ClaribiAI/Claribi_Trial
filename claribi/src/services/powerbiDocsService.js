@@ -1,15 +1,34 @@
 import api from './api';
+import powerbiFileService from './powerbiFileService';
 
-export const analyzePowerBIFiles = async (pbixFile) => {
-    const formData = new FormData();
-    
-    // Add the .pbix file
-    formData.append('pbix_file', pbixFile);
+export const getUploadedFiles = async () => {
+    try {
+        const response = await api.get('/api/powerbi-docs/list-files');
+        return response.data;
+    } catch (error) {
+        throw error.response?.data || error;
+    }
+};
+
+export const getFileSummaries = async (collectionName) => {
+    try {
+        const response = await api.get(`/api/powerbi-docs/get-summaries/${collectionName}`);
+        return response.data;
+    } catch (error) {
+        throw error.response?.data || error;
+    }
+};
+
+export const analyzePowerBISection = async (collectionName, section, customInstructions = '') => {
+    const requestData = {
+        collection_name: collectionName,
+        custom_instructions: customInstructions.trim()
+    };
 
     try {
-        const response = await api.post('/api/powerbi-docs/analyze', formData, {
+        const response = await api.post(`/api/powerbi-docs/analyze-section/${section}`, requestData, {
             headers: {
-                'Content-Type': 'multipart/form-data',
+                'Content-Type': 'application/json',
             },
             timeout: 0
         });
@@ -19,21 +38,15 @@ export const analyzePowerBIFiles = async (pbixFile) => {
     }
 };
 
-export const analyzePowerBISection = async (pbixFile, section, customInstructions = '') => {
-    const formData = new FormData();
-    
-    // Add the .pbix file
-    formData.append('pbix_file', pbixFile);
-
-    // Add custom instructions if provided
-    if (customInstructions && customInstructions.trim()) {
-        formData.append('custom_instructions', customInstructions.trim());
-    }
+export const parseImprovementRecommendations = async (collectionName) => {
+    const requestData = {
+        collection_name: collectionName
+    };
 
     try {
-        const response = await api.post(`/api/powerbi-docs/analyze-section/${section}`, formData, {
+        const response = await api.post('/api/powerbi-docs/parse-recommendations', requestData, {
             headers: {
-                'Content-Type': 'multipart/form-data',
+                'Content-Type': 'application/json',
             },
             timeout: 0
         });
@@ -43,16 +56,15 @@ export const analyzePowerBISection = async (pbixFile, section, customInstruction
     }
 };
 
-export const parseImprovementRecommendations = async (pbixFile) => {
-    const formData = new FormData();
-    
-    // Add the .pbix file
-    formData.append('pbix_file', pbixFile);
+export const applyImprovementRecommendation = async (collectionName, recommendationId) => {
+    const requestData = {
+        collection_name: collectionName
+    };
 
     try {
-        const response = await api.post('/api/powerbi-docs/parse-recommendations', formData, {
+        const response = await api.post(`/api/powerbi-docs/apply-recommendation/${recommendationId}`, requestData, {
             headers: {
-                'Content-Type': 'multipart/form-data',
+                'Content-Type': 'application/json',
             },
             timeout: 0
         });
@@ -62,21 +74,5 @@ export const parseImprovementRecommendations = async (pbixFile) => {
     }
 };
 
-export const applyImprovementRecommendation = async (pbixFile, recommendationId) => {
-    const formData = new FormData();
-    
-    // Add the .pbix file
-    formData.append('pbix_file', pbixFile);
-
-    try {
-        const response = await api.post(`/api/powerbi-docs/apply-recommendation/${recommendationId}`, formData, {
-            headers: {
-                'Content-Type': 'multipart/form-data',
-            },
-            timeout: 0
-        });
-        return response.data;
-    } catch (error) {
-        throw error.response?.data || error;
-    }
-}; 
+// Re-export shared file operations
+export { powerbiFileService }; 

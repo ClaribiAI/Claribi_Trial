@@ -268,14 +268,36 @@ button:hover,
   color: #FFFFFF !important;
 }
 
-.dark .MuiBox-root code {
+.dark .MuiBox-root code:not([class*="language-"]) {
   color: #FCC000 !important;
   background-color: rgba(252, 192, 0, 0.2) !important;
 }
 
-.dark .MuiBox-root pre {
+.dark .MuiBox-root pre:not([class*="language-"]) {
   color: #E0E0E0 !important;
   background-color: #1A1A1A !important;
+}
+
+/* DAX Syntax Highlighting - Dark Mode */
+.dark .MuiBox-root pre[class*="language-dax"] {
+  background-color: #1e1e1e !important;
+  color: #d4d4d4 !important;
+}
+
+.dark .MuiBox-root pre[class*="language-dax"] code {
+  background-color: transparent !important;
+  color: inherit !important;
+}
+
+/* DAX Syntax Highlighting - Light Mode */
+.MuiBox-root pre[class*="language-dax"] {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+}
+
+.MuiBox-root pre[class*="language-dax"] code {
+  background-color: transparent !important;
+  color: inherit !important;
 }
 
 .dark .MuiBox-root blockquote {

@@ -33,7 +33,7 @@ const AppContent: FC = () => {
           } />
           <Route path="/powerbi-docs" element={
             <ProtectedRoute requiredRole={null} requiredMicrosoftRole={null}>
-              <Layout>
+              <Layout fullWidth>
                 <PowerBIDocumentation />
               </Layout>
             </ProtectedRoute>
