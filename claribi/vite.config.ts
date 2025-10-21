@@ -293,7 +293,8 @@ export default defineConfig(({ mode }) => {
       allowedHosts: [
         'localhost',
         '127.0.0.1',
-        'claribifrontend-production.up.railway.app'
+        'claribifrontend-production.up.railway.app',
+        'console.claribi.ai'
       ],
     },
     // Environment variables
