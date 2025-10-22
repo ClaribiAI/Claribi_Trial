@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     Box,
@@ -12,17 +12,20 @@ import {
     DialogTitle,
     DialogContent,
     DialogActions,
-    Button
+    Button,
+    Snackbar
 } from '@mui/material';
 import {
     ChatCircle,
     FileText,
-    CloudArrowUp
+    CloudArrowUp,
+    CheckCircle
 } from '@phosphor-icons/react';
-import { getUploadedFiles } from '../../services/powerbiChatService';
+import { getUploadedFiles, uploadPowerBIFile } from '../../services/powerbiChatService';
 import FileTable from '../../components/ui/FileTable';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import StatsCard from '../../components/ui/StatsCard';
+import UploadConfirmationDialog from '../../components/ui/UploadConfirmationDialog';
 import { useNotification } from '../../contexts/NotificationContext';
 
 const Home = () => {
@@ -36,6 +39,17 @@ const Home = () => {
     const [error, setError] = useState(null);
     const [selectionDialogOpen, setSelectionDialogOpen] = useState(false);
     const [selectedFile, setSelectedFile] = useState(null);
+    
+    // Upload state management
+    const [uploadLoading, setUploadLoading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const [showUploadSuccess, setShowUploadSuccess] = useState(false);
+    const [successMessage, setSuccessMessage] = useState('');
+    const [retryCount, setRetryCount] = useState(0);
+    const [showUploadConfirmation, setShowUploadConfirmation] = useState(false);
+    const [pendingFile, setPendingFile] = useState(null);
+    
+    const fileInputRef = useRef(null);
 
     // Load files on component mount
     useEffect(() => {
@@ -97,7 +111,101 @@ const Home = () => {
     };
 
     const handleUploadNew = () => {
-        navigate('/powerbi-chat');
+        fileInputRef.current?.click();
+    };
+
+    const handleFileUpload = (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        // Validate file type
+        if (!file.name.toLowerCase().endsWith('.pbix')) {
+            setError('Please select a valid .pbix file');
+            return;
+        }
+
+        // Validate file size (max 100MB)
+        const maxSize = 100 * 1024 * 1024;
+        if (file.size > maxSize) {
+            setError('File size must be less than 100MB');
+            return;
+        }
+
+        // Store file and show confirmation dialog
+        setPendingFile(file);
+        setShowUploadConfirmation(true);
+        setError(null);
+    };
+
+    const handleConfirmUpload = async (renamedFile) => {
+        setUploadLoading(true);
+        setUploadProgress(0);
+        setError(null);
+        setRetryCount(0);
+
+        try {
+            const response = await uploadPowerBIFile(renamedFile, (progress) => {
+                setUploadProgress(progress);
+            });
+            
+            // Show success message
+            setSuccessMessage('Power BI file uploaded and analyzed successfully!');
+            setShowUploadSuccess(true);
+            setTimeout(() => setShowUploadSuccess(false), 6000);
+
+            // Close confirmation dialog and refresh files list
+            setShowUploadConfirmation(false);
+            setPendingFile(null);
+            
+            // Reload files to show the new upload
+            await loadFiles();
+
+        } catch (err) {
+            console.error('Error uploading file:', err);
+            
+            // Enhanced retry logic for various error types
+            const shouldRetry = (
+                err.message.includes('Connection was interrupted') || 
+                err.message.includes('Network error') || 
+                err.message.includes('ECONNRESET') ||
+                err.message.includes('Server error during processing') ||
+                err.message.includes('Server temporarily unavailable')
+            ) && retryCount < 2;
+            
+            if (shouldRetry) {
+                setRetryCount(prev => prev + 1);
+                setError(`Upload failed (attempt ${retryCount + 1}/3). Retrying in 3 seconds...`);
+                
+                // Wait 3 seconds before retry (increased from 2 seconds)
+                setTimeout(() => {
+                    handleConfirmUpload(renamedFile);
+                }, 3000);
+                return;
+            }
+            
+            // Show specific error messages based on error type
+            if (err.message.includes('File too large')) {
+                setError('File is too large. Please try with a file smaller than 100MB.');
+            } else if (err.message.includes('Invalid file format')) {
+                setError('Invalid file format. Please ensure you are uploading a valid .pbix file.');
+            } else if (err.message.includes('Server error during processing')) {
+                setError('Server error occurred. The server may have restarted. Please try again.');
+            } else {
+                setError(err.message || 'Failed to upload file. Please try again.');
+            }
+            setRetryCount(0);
+        } finally {
+            setUploadLoading(false);
+            setUploadProgress(0);
+        }
+    };
+
+    const handleCloseUploadConfirmation = () => {
+        if (uploadLoading) {
+            return; // Prevent closing while uploading
+        }
+        setShowUploadConfirmation(false);
+        setPendingFile(null);
     };
 
     const handleFileDelete = (deletedFile) => {
@@ -106,6 +214,15 @@ const Home = () => {
 
     return (
         <Box sx={{ width: '100%', height: '100vh', display: 'flex', flexDirection: 'column' }}>
+            {/* Hidden file input */}
+            <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pbix"
+                onChange={handleFileUpload}
+                style={{ display: 'none' }}
+            />
+
             {/* Error Alert */}
             {error && (
                 <Box sx={{ px: 2, pb: 1 }}>
@@ -468,6 +585,37 @@ const Home = () => {
                     </Button>
                 </DialogActions>
             </Dialog>
+
+            {/* Success Snackbar */}
+            <Snackbar
+                open={showUploadSuccess}
+                autoHideDuration={6000}
+                onClose={() => setShowUploadSuccess(false)}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                sx={{ zIndex: 9999 }}
+            >
+                <Alert 
+                    onClose={() => setShowUploadSuccess(false)} 
+                    severity="success"
+                    icon={<CheckCircle size={20} />}
+                    sx={{ 
+                        width: '100%',
+                        boxShadow: 3,
+                        fontFamily: "'Nunito Sans', sans-serif"
+                    }}
+                >
+                    {successMessage}
+                </Alert>
+            </Snackbar>
+
+            {/* Upload Confirmation Dialog */}
+            <UploadConfirmationDialog
+                open={showUploadConfirmation}
+                onClose={handleCloseUploadConfirmation}
+                onConfirm={handleConfirmUpload}
+                file={pendingFile}
+                isUploading={uploadLoading}
+            />
         </Box>
     );
 };

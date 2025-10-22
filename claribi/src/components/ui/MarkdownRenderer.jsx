@@ -220,7 +220,7 @@ const MarkdownRenderer = ({ content, sx = {} }) => {
                             fontFamily: 'monospace',
                             fontSize: '0.875em',
                             backgroundColor: 'transparent',
-                            color: theme.palette.primary.main,
+                            color: `${theme.palette.mode === 'dark' ? '#B0B0B0' : '#6b7280'} !important`,
                             padding: '0',
                             fontWeight: 'bold'
                         }}

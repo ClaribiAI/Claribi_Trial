@@ -39,7 +39,7 @@ class Config:
 
     # File validation settings
     ALLOWED_EXTENSIONS = {'tmdl'}
-    MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max upload size
+    MAX_CONTENT_LENGTH = 100 * 1024 * 1024  # 100MB max upload size to match frontend
     
     # Database settings
     DATABASE_URL = os.getenv('DATABASE_URL')  # Direct connection string for Neon PostgreSQL

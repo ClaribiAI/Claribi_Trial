@@ -119,8 +119,21 @@ def upload_powerbi_file():
     if 'pbix_file' not in request.files: return jsonify({'error': 'PBIX file is required'}), 400
 
     file = request.files['pbix_file']
-    # Note: File type validation is handled on the frontend during file selection
-    # This allows users to rename files without .pbix extension if desired
+    
+    # Enhanced file validation
+    if not file.filename:
+        return jsonify({'error': 'No file selected'}), 400
+    
+    # Check file size before processing
+    file.seek(0, 2)  # Seek to end
+    file_size = file.tell()
+    file.seek(0)  # Reset to beginning
+    
+    if file_size > config.MAX_CONTENT_LENGTH:
+        return jsonify({'error': f'File too large. Maximum size is {config.MAX_CONTENT_LENGTH // (1024*1024)}MB'}), 413
+    
+    if file_size == 0:
+        return jsonify({'error': 'Empty file not allowed'}), 400
 
     temp_dir = os.path.join(current_app.instance_path, 'temp_uploads')
     os.makedirs(temp_dir, exist_ok=True)
@@ -131,17 +144,42 @@ def upload_powerbi_file():
     temp_filename = temp_file.name
 
     try:
+        # Save file with progress tracking
         file.save(temp_filename)
         # We must explicitly close the file handle here so PBIXRay can access it without conflict.
         temp_file.close()
 
-        # Extract documents and metadata using the correct method
-        documents, collection_metadata = PBIXParsingService.extract_and_chunk_with_metadata(temp_filename, file.filename)
+        # Log file processing start
+        logger.info(f"Starting PBIX processing for file: {file.filename} (size: {file_size} bytes)")
+        
+        # Extract documents and metadata using the correct method with error handling
+        try:
+            documents, collection_metadata = PBIXParsingService.extract_and_chunk_with_metadata(temp_filename, file.filename)
+            logger.info(f"Successfully extracted {len(documents)} documents from PBIX file")
+        except MemoryError as e:
+            logger.error(f"Memory error processing PBIX file {file.filename}: {e}")
+            return jsonify({'error': 'File too large to process. Please try with a smaller file.'}), 413
+        except Exception as e:
+            logger.error(f"Error extracting PBIX file {file.filename}: {e}")
+            return jsonify({'error': 'Failed to process PBIX file. The file may be corrupted or in an unsupported format.'}), 400
         
         # Generate summaries using the powerbi_docs service
-        summaries = SummaryGenerationService.generate_summaries_from_metadata(collection_metadata['structured_metadata'])
+        try:
+            summaries = SummaryGenerationService.generate_summaries_from_metadata(collection_metadata['structured_metadata'])
+            logger.info(f"Successfully generated summaries for {file.filename}")
+        except Exception as e:
+            logger.error(f"Error generating summaries for {file.filename}: {e}")
+            # Continue without summaries rather than failing completely
+            summaries = []
+        
         collection_name = vector_store_service.generate_collection_name()
-        vector_store_service.create_collection(documents, collection_name, collection_metadata)
+        
+        try:
+            vector_store_service.create_collection(documents, collection_name, collection_metadata)
+            logger.info(f"Successfully created vector collection: {collection_name}")
+        except Exception as e:
+            logger.error(f"Error creating vector collection for {file.filename}: {e}")
+            return jsonify({'error': 'Failed to create vector collection. Please try again.'}), 500
 
         # Save summaries to database
         try:
@@ -189,9 +227,18 @@ def upload_powerbi_file():
         logger.error(f"Failed to process uploaded PBIX file: {e}", exc_info=True)
         return jsonify({'error': 'Failed to analyze the PBIX file.'}), 500
     finally:
-        # The finally block now reliably deletes the file after all operations are done.
-        if os.path.exists(temp_filename):
-            os.remove(temp_filename)
+        # Memory cleanup and file cleanup
+        try:
+            # Force garbage collection to free memory
+            import gc
+            gc.collect()
+            
+            # The finally block now reliably deletes the file after all operations are done.
+            if os.path.exists(temp_filename):
+                os.remove(temp_filename)
+                logger.info(f"Cleaned up temporary file: {temp_filename}")
+        except Exception as cleanup_error:
+            logger.error(f"Error during cleanup: {cleanup_error}")
 
 
 @powerbi_chat_bp.route('/powerbi-chat/list-files', methods=['GET', 'OPTIONS'])

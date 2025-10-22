@@ -268,9 +268,13 @@ button:hover,
   color: #FFFFFF !important;
 }
 
+/* Inline code styling - same for both light and dark modes */
+.MuiBox-root code:not([class*="language-"]) {
+  background-color: transparent !important;
+}
+
 .dark .MuiBox-root code:not([class*="language-"]) {
-  color: #FCC000 !important;
-  background-color: rgba(252, 192, 0, 0.2) !important;
+  color: #FFFFFF !important;
 }
 
 .dark .MuiBox-root pre:not([class*="language-"]) {
