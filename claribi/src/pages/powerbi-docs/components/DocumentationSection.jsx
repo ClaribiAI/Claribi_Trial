@@ -31,7 +31,7 @@ import {
     FloppyDiskIcon,
     XIcon
 } from '@phosphor-icons/react';
-import ReactMarkdown from 'react-markdown';
+import MarkdownRenderer from '../../../components/ui/MarkdownRenderer';
 import LoadingOverlay from './LoadingOverlay';
 import RecommendationCard from './RecommendationCard';
 import RichTextEditor from './RichTextEditor';
@@ -322,12 +322,13 @@ const DocumentationSection = ({
                                                 }
                                             }}
                                         >
-                                            <ReactMarkdown>
-                                                {section.id === 'improvement_recommendations' && typeof content === 'object' && content.raw_text 
-                                                    ? content.raw_text 
-                                                    : (typeof content === 'string' ? content : JSON.stringify(content, null, 2))
+                                            <MarkdownRenderer 
+                                                content={
+                                                    section.id === 'improvement_recommendations' && typeof content === 'object' && content.raw_text 
+                                                        ? content.raw_text 
+                                                        : (typeof content === 'string' ? content : JSON.stringify(content, null, 2))
                                                 }
-                                            </ReactMarkdown>
+                                            />
                                         </Box>
                                     )}
                                 </Paper>
