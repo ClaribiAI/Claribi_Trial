@@ -78,7 +78,9 @@ class RAGOrchestrationService:
         vector_store_service.log_retrieval_operation(query, len(initial_docs), "initial_retrieval")
         self.token_usage_tracker['total_retrieval_operations'] += 1
         self.token_usage_tracker['total_documents_retrieved'] += len(initial_docs)
-        initial_context = self._format_docs(initial_docs)
+        
+        # Ensure dataset summary is always included in initial context
+        initial_context = self._build_initial_context_with_summary(initial_docs, collection_name)
         
         # Combine conversation context with initial retrieval
         if conversation_context:
@@ -272,6 +274,39 @@ class RAGOrchestrationService:
         return llm_response.content
 
     def _format_docs(self, docs: List) -> str: return "\n\n".join([doc.page_content for doc in docs])
+
+    def _build_initial_context_with_summary(self, docs: List, collection_name: str) -> str:
+        """
+        Build initial context ensuring dataset summary is always included.
+        The dataset summary document should be the first document in the context.
+        """
+        if not docs:
+            return ""
+        
+        # Find the dataset summary document (should be the first one due to insertion order)
+        dataset_summary = None
+        other_docs = []
+        
+        for doc in docs:
+            if (hasattr(doc, 'metadata') and 
+                doc.metadata.get('type') == 'dataset_summary' and 
+                doc.metadata.get('source') == 'dataset_summary'):
+                dataset_summary = doc
+            else:
+                other_docs.append(doc)
+        
+        # Build context with dataset summary first
+        context_parts = []
+        
+        if dataset_summary:
+            context_parts.append("=== DATASET OVERVIEW ===")
+            context_parts.append(dataset_summary.page_content)
+            context_parts.append("=== DETAILED CONTEXT ===")
+        
+        if other_docs:
+            context_parts.append(self._format_docs(other_docs))
+        
+        return "\n\n".join(context_parts)
 
     def _retrieve_parallel(self, retriever, queries: List[str]) -> List:
         if not queries: return []

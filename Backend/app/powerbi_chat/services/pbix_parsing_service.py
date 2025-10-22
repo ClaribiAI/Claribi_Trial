@@ -10,6 +10,7 @@ from typing import Dict, List, Any
 from langchain_core.documents import Document
 
 from app.powerbi_docs.pbixray import PBIXRay
+from app.powerbi_chat.services.dataset_summary_service import dataset_summary_service
 
 
 logger = logging.getLogger(__name__)
@@ -54,6 +55,10 @@ class PBIXParsingService:
         )
 
         documents = PBIXParsingService._chunk_metadata(structured_metadata)
+
+        # Generate dataset summary document (always included in Gemini calls)
+        dataset_summary_doc = dataset_summary_service.generate_dataset_summary(structured_metadata)
+        documents.insert(0, dataset_summary_doc)  # Insert at the beginning for priority
 
         # Create summary metadata (not the full PBIX data)
 
