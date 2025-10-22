@@ -333,7 +333,7 @@ class PowerBIDocumentationGenerator:
                 system_instruction=improvement_system_instruction,
                 context='improvement_recommendations'
             )
-            logger.info(f"Gemini response: {response}")
+           # logger.info(f"Gemini response: {response}")
             return response
 
         except Exception as e:

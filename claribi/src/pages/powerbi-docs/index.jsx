@@ -122,7 +122,13 @@ const PowerBIDocumentation = () => {
     };
 
     const handleFileClick = (file) => {
-        setSelectedFile(file);
+        // Map collection_name to sessionId for compatibility with the backend
+        const fileWithSessionId = {
+            ...file,
+            sessionId: file.collection_name,
+            name: file.filename
+        };
+        setSelectedFile(fileWithSessionId);
         setCurrentView('documentation');
     };
 

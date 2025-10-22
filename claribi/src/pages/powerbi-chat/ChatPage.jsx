@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
     Box,
     Typography,
@@ -14,7 +14,8 @@ import {
 import {
     PaperPlaneRight,
     ArrowLeft,
-    Copy
+    Copy,
+    X as XIcon
 } from '@phosphor-icons/react';
 import { sendPowerBIQueryWithUpdates, deletePowerBISession, sendUserClarifications } from '../../services/powerbiChatService';
 import MarkdownRenderer from '../../components/ui/MarkdownRenderer';
@@ -22,7 +23,7 @@ import ThinkingProcess from '../../components/ui/ThinkingProcess';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { useNotification } from '../../contexts/NotificationContext';
 
-const ChatPage = ({ pbixFile, onBack, isNewlyUploaded }) => {
+const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseChat, isInline = false }) => {
     const theme = useTheme();
     const { showNotification } = useNotification();
     const [messages, setMessages] = useState([]);
@@ -55,6 +56,7 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded }) => {
     
     // Conversation history state for follow-up questions
     const [conversationHistory, setConversationHistory] = useState([]);
+    const [initialMessageSent, setInitialMessageSent] = useState(false);
     const MAX_CONVERSATION_TOKENS = 8000; // Token limit for conversation history
 
     const messagesEndRef = useRef(null);
@@ -143,30 +145,32 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded }) => {
         prevMessageCountRef.current = messages.length;
     }, [messages.length]);
 
-    // Add system message when file is selected (only for newly uploaded files)
+    // Add system message when file is selected (only for newly uploaded files and not inline)
     useEffect(() => {
-        if (pbixFile && messages.length === 0 && isNewlyUploaded) {
-            const metadata = pbixFile.metadata || {};
-            const systemMessage = {
-                id: Date.now(),
-                type: 'assistant',
-                content: `Great! I've analyzed your Power BI file "${pbixFile.name}". I found ${metadata.tables_count || 0} tables, ${metadata.measures_count || 0} measures, ${metadata.visuals_count || 0} visuals, ${metadata.relationships_count || 0} relationships, and ${metadata.power_query_scripts_count || 0} Power Query scripts. I can now provide specific insights about your data model and help with any questions about your dataset.`,
-                timestamp: new Date(),
-                messageType: 'system_welcome'
-            };
-            setMessages([systemMessage]);
-        } else if (pbixFile && messages.length === 0 && !isNewlyUploaded) {
-            const metadata = pbixFile.metadata || {};
-            const systemMessage = {
-                id: Date.now(),
-                type: 'assistant',
-                content: `Great! I've loaded your previously uploaded Power BI file "${pbixFile.name}". I found ${metadata.tables_count || 0} tables, ${metadata.measures_count || 0} measures, ${metadata.visuals_count || 0} visuals, ${metadata.relationships_count || 0} relationships, and ${metadata.power_query_scripts_count || 0} Power Query scripts. I can now provide specific insights about your data model and help with any questions about your dataset.`,
-                timestamp: new Date(),
-                messageType: 'system_welcome'
-            };
-            setMessages([systemMessage]);
+        if (pbixFile && messages.length === 0 && !isInline) {
+            if (isNewlyUploaded) {
+                const metadata = pbixFile.metadata || {};
+                const systemMessage = {
+                    id: Date.now(),
+                    type: 'assistant',
+                    content: `Great! I've analyzed your Power BI file "${pbixFile.name}". I found ${metadata.tables_count || 0} tables, ${metadata.measures_count || 0} measures, ${metadata.visuals_count || 0} visuals, ${metadata.relationships_count || 0} relationships, and ${metadata.power_query_scripts_count || 0} Power Query scripts. I can now provide specific insights about your data model and help with any questions about your dataset.`,
+                    timestamp: new Date(),
+                    messageType: 'system_welcome'
+                };
+                setMessages([systemMessage]);
+            } else {
+                const metadata = pbixFile.metadata || {};
+                const systemMessage = {
+                    id: Date.now(),
+                    type: 'assistant',
+                    content: `Great! I've loaded your previously uploaded Power BI file "${pbixFile.name}". I found ${metadata.tables_count || 0} tables, ${metadata.measures_count || 0} measures, ${metadata.visuals_count || 0} visuals, ${metadata.relationships_count || 0} relationships, and ${metadata.power_query_scripts_count || 0} Power Query scripts. I can now provide specific insights about your data model and help with any questions about your dataset.`,
+                    timestamp: new Date(),
+                    messageType: 'system_welcome'
+                };
+                setMessages([systemMessage]);
+            }
         }
-    }, [pbixFile, isNewlyUploaded]);
+    }, [pbixFile, isNewlyUploaded, isInline]);
 
     // Cleanup: Delete session when component unmounts
     // Note: We don't delete sessions when unmounting to prevent accidental deletion
@@ -241,8 +245,9 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded }) => {
         }
     };
 
-    const handleSendMessage = async () => {
-        if (!inputMessage.trim() || isLoading) return;
+    const handleSendMessage = useCallback(async (messageToSend = null) => {
+        const message = messageToSend || inputMessage;
+        if (!message?.trim() || isLoading) return;
         
         // Check if PBIX file is uploaded
         if (!pbixFile) {
@@ -253,7 +258,7 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded }) => {
         const userMessage = { 
             id: Date.now(), 
             type: 'user', 
-            content: inputMessage.trim(), 
+            content: message.trim(), 
             timestamp: new Date(),
             messageType: 'user_query'
         };
@@ -262,7 +267,7 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded }) => {
         // Add user message to conversation history
         const newConversationHistory = [...conversationHistory, {
             role: 'user',
-            content: inputMessage.trim(),
+            content: message.trim(),
             timestamp: new Date()
         }];
         
@@ -272,8 +277,11 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded }) => {
         
         console.log('Conversation history being sent:', summarizedHistory);
         
-        const originalQuery = inputMessage.trim();
-        setInputMessage('');
+        const originalQuery = message.trim();
+        // Only clear input message if we're not using a passed message
+        if (!messageToSend) {
+            setInputMessage('');
+        }
         setIsLoading(true);
         setError(null);
         setActionHistory([]); // Clear previous history
@@ -433,7 +441,22 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded }) => {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [inputMessage, isLoading, pbixFile, conversationHistory, addActionToHistory, summarizeConversationHistory]);
+
+    // Auto-send initial message if provided
+    useEffect(() => {
+        if (initialMessage && pbixFile && !initialMessageSent) {
+            console.log('Auto-send triggered with:', { initialMessage, pbixFile });
+            // Wait a moment for the component to be fully mounted, then auto-send
+            const timer = setTimeout(() => {
+                console.log('Calling handleSendMessage with initial message');
+                handleSendMessage(initialMessage);
+                setInitialMessageSent(true);
+            }, 500);
+            
+            return () => clearTimeout(timer);
+        }
+    }, [initialMessage, pbixFile, handleSendMessage, initialMessageSent]);
 
     const handleKeyDown = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -684,42 +707,72 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded }) => {
                 }}
             >
                 <Box display="flex" alignItems="center" gap={2}>
-                    {/* Back Button */}
-                    <Tooltip title="Back to file management">
-                        <Button
-                            onClick={onBack}
-                            sx={{
-                                minWidth: 'auto',
-                                width: 40,
-                                height: 40,
-                                borderRadius: 2,
-                                bgcolor: 'transparent',
-                                color: theme.palette.text.secondary,
-                                p: 0,
-                                '&:hover': {
-                                    bgcolor: alpha(theme.palette.primary.main, 0.1),
-                                    color: theme.palette.primary.main,
-                                    transform: 'scale(1.05)'
-                                },
-                                transition: 'all 0.2s ease'
-                            }}
-                        >
-                            <ArrowLeft size={20} />
-                        </Button>
-                    </Tooltip>
+                    {/* Back Button - only show when not inline */}
+                    {!isInline && (
+                        <Tooltip title="Back to file management">
+                            <Button
+                                onClick={onBack}
+                                sx={{
+                                    minWidth: 'auto',
+                                    width: 40,
+                                    height: 40,
+                                    borderRadius: 2,
+                                    bgcolor: 'transparent',
+                                    color: theme.palette.text.secondary,
+                                    p: 0,
+                                    '&:hover': {
+                                        bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                        color: theme.palette.primary.main,
+                                        transform: 'scale(1.05)'
+                                    },
+                                    transition: 'all 0.2s ease'
+                                }}
+                            >
+                                <ArrowLeft size={20} />
+                            </Button>
+                        </Tooltip>
+                    )}
                     
-                    {/* File Name */}
-                    <Typography variant="h6" component="h1" sx={{ 
-                        fontWeight: 600, 
-                        color: theme.palette.text.primary,
-                        fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif",
-                        flex: 1,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap'
-                    }}>
-                        {pbixFile?.name}
-                    </Typography>
+                    {/* File Name - only show when not inline */}
+                    {!isInline && (
+                        <Typography variant="h6" component="h1" sx={{ 
+                            fontWeight: 600, 
+                            color: theme.palette.text.primary,
+                            fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif",
+                            flex: 1,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                        }}>
+                            {pbixFile?.name}
+                        </Typography>
+                    )}
+
+                    {/* Close Button - only show when used inline */}
+                    {onCloseChat && (
+                        <Tooltip title="Close chat">
+                            <Button
+                                onClick={onCloseChat}
+                                sx={{
+                                    minWidth: 'auto',
+                                    width: 40,
+                                    height: 40,
+                                    borderRadius: 2,
+                                    bgcolor: 'transparent',
+                                    color: theme.palette.text.secondary,
+                                    p: 0,
+                                    '&:hover': {
+                                        bgcolor: alpha(theme.palette.error.main, 0.1),
+                                        color: theme.palette.error.main,
+                                        transform: 'scale(1.05)'
+                                    },
+                                    transition: 'all 0.2s ease'
+                                }}
+                            >
+                                <XIcon size={20} />
+                            </Button>
+                        </Tooltip>
+                    )}
                 </Box>
             </Box>
             

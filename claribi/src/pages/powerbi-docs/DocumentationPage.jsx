@@ -25,6 +25,7 @@ import { analyzePowerBISection, parseImprovementRecommendations, applyImprovemen
 import DocumentationSection from './components/DocumentationSection';
 import CustomInstructionsModal from './components/CustomInstructionsModal';
 import documentExportService from '../../services/documentExportService';
+import ChatPage from '../powerbi-chat/ChatPage';
 
 const DocumentationPage = ({ 
     selectedFile, 
@@ -44,6 +45,10 @@ const DocumentationPage = ({
     const [editingSection, setEditingSection] = useState(null);
     const [editedContent, setEditedContent] = useState({});
     const [sectionLoading, setSectionLoading] = useState({});
+    
+    // Chat interface state
+    const [showChat, setShowChat] = useState(false);
+    const [chatInitialMessage, setChatInitialMessage] = useState('');
 
     // Define available sections with Phosphor icons matching sidebar style
     const sections = [
@@ -80,44 +85,24 @@ const DocumentationPage = ({
     ];
 
 
-    const handleApplyRecommendation = async (recommendationId) => {
+    const handleApplyRecommendation = (recommendation) => {
         if (!selectedFile) {
             setError('Please select a file first');
             return;
         }
 
-        setApplyingRecommendation(recommendationId);
+        // Create the initial message for the chat
+        const initialMessage = `Please guide me step-by-step on how to implement this recommendation: ${recommendation.title} - ${recommendation.description}`;
+        
+        // Set the chat state
+        setChatInitialMessage(initialMessage);
+        setShowChat(true);
         setError(null);
+    };
 
-        try {
-            const result = await applyImprovementRecommendation(selectedFile.collection_name, recommendationId);
-            
-            if (result.success) {
-                // Download the modified files
-                if (result.download_data) {
-                    const blob = new Blob([atob(result.download_data)], { type: 'application/zip' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = result.download_filename || 'modified_files.zip';
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                }
-                
-                // Show success message
-                alert(`Recommendation applied successfully! ${result.message}\n\nChanges summary: ${result.changes_summary}`);
-            } else {
-                setError(`Failed to apply recommendation: ${result.message}`);
-            }
-            
-        } catch (err) {
-            setError(err.error || 'An error occurred while applying the recommendation');
-            console.error('Error:', err);
-        } finally {
-            setApplyingRecommendation(null);
-        }
+    const handleCloseChat = () => {
+        setShowChat(false);
+        setChatInitialMessage('');
     };
 
     const handleRegenerateClick = (sectionName) => {
@@ -285,11 +270,19 @@ const DocumentationPage = ({
     return (
         <Fade in={true} timeout={800}>
             <Box sx={{ 
-                px: { xs: 2, sm: 3, md: 4, lg: 6 }, 
-                maxWidth: '100%',
-                bgcolor: theme.palette.background.default,
-                minHeight: '100vh'
+                display: 'flex',
+                height: '100vh',
+                bgcolor: theme.palette.background.default
             }}>
+                {/* Main Documentation Area */}
+                <Box sx={{ 
+                    flex: showChat ? 1 : 1,
+                    px: { xs: 2, sm: 3, md: 4, lg: 6 }, 
+                    maxWidth: showChat ? '50%' : '100%',
+                    bgcolor: theme.palette.background.default,
+                    minHeight: '100vh',
+                    overflow: 'auto'
+                }}>
                 {/* Header */}
                 <Box 
                     sx={{ 
@@ -455,6 +448,27 @@ const DocumentationPage = ({
                         )
                     ))}
                 </Box>
+                </Box>
+
+                {/* Chat Interface - Slide in from right */}
+                {showChat && (
+                    <Box sx={{ 
+                        flex: 1,
+                        maxWidth: '50%',
+                        height: '100vh',
+                        borderLeft: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                        bgcolor: theme.palette.background.paper
+                    }}>
+                        <ChatPage
+                            pbixFile={selectedFile}
+                            onBack={onBack}
+                            isNewlyUploaded={false}
+                            initialMessage={chatInitialMessage}
+                            onCloseChat={handleCloseChat}
+                            isInline={true}
+                        />
+                    </Box>
+                )}
 
                 <CustomInstructionsModal 
                     showModal={showInstructionsModal}

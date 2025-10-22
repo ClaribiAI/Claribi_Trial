@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
     Box,
     Typography,
@@ -55,6 +55,17 @@ const DocumentationSection = ({
     onApplyRecommendation, 
     theme 
 }) => {
+    // Memoize sorted recommendations to prevent re-sorting on every render
+    const sortedRecommendations = useMemo(() => {
+        if (!parsedRecommendations || parsedRecommendations.length === 0) return [];
+        
+        return [...parsedRecommendations].sort((a, b) => {
+            const priorityOrder = { high: 3, medium: 2, low: 1 };
+            const aPriority = priorityOrder[a.priority] || 0;
+            const bPriority = priorityOrder[b.priority] || 0;
+            return bPriority - aPriority; // High priority first
+        });
+    }, [parsedRecommendations]);
     return (
         <Fade in={true} timeout={600}>
             <Card 
@@ -94,19 +105,24 @@ const DocumentationSection = ({
                         <Box display="flex" gap={1}>
                             {content && editingSection !== section.id && (
                                 <>
-                                    <Tooltip title="Edit content">
-                                        <IconButton 
-                                            onClick={() => onEdit(section.id)}
-                                            size="small"
-                                            sx={{
-                                                '&:hover': {
-                                                    backgroundColor: 'rgba(0, 0, 0, 0.04)'
-                                                }
-                                            }}
-                                        >
-                                            <PencilSimpleIcon size={16} />
-                                        </IconButton>
-                                    </Tooltip>
+                                    {/* Edit button - hidden for improvement recommendations */}
+                                    {section.id !== 'improvement_recommendations' && (
+                                        <Tooltip title="Edit content">
+                                            <IconButton 
+                                                onClick={() => onEdit(section.id)}
+                                                size="small"
+                                                sx={{
+                                                    '&:hover': {
+                                                        backgroundColor: 'rgba(0, 0, 0, 0.04)'
+                                                    }
+                                                }}
+                                            >
+                                                <PencilSimpleIcon size={16} />
+                                            </IconButton>
+                                        </Tooltip>
+                                    )}
+                                    
+                                    {/* Regenerate button - always visible when content exists */}
                                     <Tooltip title="Regenerate section">
                                         <IconButton 
                                             onClick={() => onRegenerate(section.id)}
@@ -121,6 +137,8 @@ const DocumentationSection = ({
                                             <ArrowClockwiseIcon size={16} />
                                         </IconButton>
                                     </Tooltip>
+                                    
+                                    {/* Export button - always visible when content exists */}
                                     <FormControl size="small" sx={{ minWidth: 120 }}>
                                         <Select
                                             displayEmpty
@@ -216,15 +234,15 @@ const DocumentationSection = ({
                                 <Box>
                                     <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
                                         <AlertTitle>Interactive Recommendations</AlertTitle>
-                                        Click "Apply Fix" to have AI modify your files with the specific improvement.
+                                        Click "Apply Fix" to have Claribi Console Chat guide you through the specific improvement.
                                     </Alert>
                                     
                                     <Box mb={4}>
-                                        {parsedRecommendations.map((rec) => (
+                                        {sortedRecommendations.map((rec) => (
                                             <RecommendationCard
                                                 key={rec.id}
                                                 recommendation={rec}
-                                                onApply={onApplyRecommendation}
+                                                onApply={(recommendation) => onApplyRecommendation(recommendation)}
                                                 isApplying={applyingRecommendation === rec.id}
                                             />
                                         ))}

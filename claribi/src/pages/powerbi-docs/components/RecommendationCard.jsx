@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
     Box,
     Typography,
@@ -14,48 +14,87 @@ import {
     InfoIcon,
     GearSixIcon
 } from '@phosphor-icons/react';
+import MarkdownRenderer from '../../../components/ui/MarkdownRenderer';
+
+// Move configuration functions outside component to prevent recreation on every render
+const getPriorityConfig = (priority, theme) => {
+    switch (priority) {
+        case 'high': 
+            return { 
+                color: 'error', 
+                bgcolor: alpha(theme.palette.error.main, 0.1)
+            };
+        case 'medium': 
+            return { 
+                color: 'warning', 
+                bgcolor: alpha(theme.palette.warning.main, 0.1)
+            };
+        case 'low': 
+            return { 
+                color: 'success', 
+                bgcolor: alpha(theme.palette.success.main, 0.1)
+            };
+        default: 
+            return { 
+                color: 'info', 
+                icon: <InfoIcon size={16} />,
+                bgcolor: alpha(theme.palette.info.main, 0.1)
+            };
+    }
+};
+
+const getComplexityConfig = (complexity, theme) => {
+    switch (complexity) {
+        case 'high': 
+            return { 
+                color: 'secondary', 
+                label: 'Complex',
+                bgcolor: alpha(theme.palette.secondary.main, 0.1),
+                variant: 'filled'
+            };
+        case 'medium': 
+            return { 
+                color: 'primary', 
+                label: 'Moderate',
+                bgcolor: alpha(theme.palette.primary.main, 0.1),
+                variant: 'filled'
+            };
+        case 'low': 
+            return { 
+                color: 'info', 
+                label: 'Simple',
+                bgcolor: alpha(theme.palette.info.main, 0.1),
+                variant: 'filled'
+            };
+        default: 
+            return { 
+                color: 'default', 
+                label: complexity,
+                bgcolor: alpha(theme.palette.grey[500], 0.1),
+                variant: 'filled'
+            };
+    }
+};
 
 // Enhanced Recommendation Card with modern styling
 const RecommendationCard = ({ recommendation, onApply, isApplying }) => {
     const theme = useTheme();
     
-    const getPriorityConfig = (priority) => {
-        switch (priority) {
-            case 'high': 
-                return { 
-                    color: 'error', 
-                    bgcolor: alpha(theme.palette.error.main, 0.1)
-                };
-            case 'medium': 
-                return { 
-                    color: 'warning', 
-                    bgcolor: alpha(theme.palette.warning.main, 0.1)
-                };
-            case 'low': 
-                return { 
-                    color: 'success', 
-                    bgcolor: alpha(theme.palette.success.main, 0.1)
-                };
-            default: 
-                return { 
-                    color: 'info', 
-                    icon: <InfoIcon size={16} />,
-                    bgcolor: alpha(theme.palette.info.main, 0.1)
-                };
-        }
-    };
-
-    const getComplexityConfig = (complexity) => {
-        switch (complexity) {
-            case 'high': return { color: 'secondary', label: 'Complex' };
-            case 'medium': return { color: 'primary', label: 'Moderate' };
-            case 'low': return { color: 'info', label: 'Simple' };
-            default: return { color: 'default', label: complexity };
-        }
-    };
-
-    const priorityConfig = getPriorityConfig(recommendation.priority);
-    const complexityConfig = getComplexityConfig(recommendation.complexity);
+    // Memoize expensive calculations
+    const priorityConfig = useMemo(() => 
+        getPriorityConfig(recommendation.priority, theme), 
+        [recommendation.priority, theme]
+    );
+    
+    const complexityConfig = useMemo(() => 
+        getComplexityConfig(recommendation.complexity, theme), 
+        [recommendation.complexity, theme]
+    );
+    
+    const filteredFiles = useMemo(() => 
+        recommendation.applicable_files.filter(file => file !== 'semantic_model' && file !== 'report'),
+        [recommendation.applicable_files]
+    );
 
     return (
         <Card 
@@ -72,9 +111,31 @@ const RecommendationCard = ({ recommendation, onApply, isApplying }) => {
         >
             <CardContent sx={{ p: 3 }}>
                 <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
-                    <Typography variant="h6" component="h4" sx={{ fontWeight: 600, color: 'text.primary' }}>
-                        {recommendation.title}
-                    </Typography>
+                    <Box sx={{ fontWeight: 600, color: 'text.primary' }}>
+                        <MarkdownRenderer 
+                            content={recommendation.title}
+                            sx={{
+                                '& h1, & h2, & h3, & h4, & h5, & h6': {
+                                    fontSize: '1.25rem',
+                                    fontWeight: 600,
+                                    color: 'text.primary',
+                                    margin: 0,
+                                    lineHeight: 1.3
+                                },
+                                '& p': {
+                                    fontSize: '1.25rem',
+                                    fontWeight: 600,
+                                    color: 'text.primary',
+                                    margin: 0,
+                                    lineHeight: 1.3
+                                },
+                                '& strong': {
+                                    fontWeight: 600,
+                                    color: 'text.primary'
+                                }
+                            }}
+                        />
+                    </Box>
                     <Box display="flex" gap={1}>
                         <Chip 
                             icon={priorityConfig.icon}
@@ -91,8 +152,12 @@ const RecommendationCard = ({ recommendation, onApply, isApplying }) => {
                             label={`${complexityConfig.label} complexity`}
                             color={complexityConfig.color}
                             size="small"
-                            variant="outlined"
-                            sx={{ textTransform: 'capitalize' }}
+                            variant={complexityConfig.variant}
+                            sx={{ 
+                                textTransform: 'capitalize',
+                                bgcolor: complexityConfig.bgcolor,
+                                fontWeight: 500
+                            }}
                         />
                     </Box>
                 </Box>
@@ -110,28 +175,58 @@ const RecommendationCard = ({ recommendation, onApply, isApplying }) => {
                     />
                 </Box>
                 
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 3, lineHeight: 1.6 }}>
-                    {recommendation.description}
-                </Typography>
+                <Box sx={{ mb: 3 }}>
+                    <MarkdownRenderer 
+                        content={recommendation.description}
+                        sx={{
+                            '& p': {
+                                margin: 0,
+                                lineHeight: 1.6,
+                                color: 'text.secondary'
+                            },
+                            '& ul, & ol': {
+                                margin: '8px 0',
+                                paddingLeft: '20px',
+                                '& li': {
+                                    marginBottom: '4px',
+                                    lineHeight: 1.6,
+                                    color: 'text.secondary'
+                                }
+                            },
+                            '& strong': {
+                                fontWeight: 600,
+                                color: 'text.primary'
+                            },
+                            '& code': {
+                                backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                                color: theme.palette.primary.main,
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                fontSize: '0.875rem',
+                                fontFamily: 'monospace'
+                            }
+                        }}
+                    />
+                </Box>
                 
                 <Box display="flex" justifyContent="space-between" alignItems="center">
                     <Box display="flex" gap={1} flexWrap="wrap">
-                        {recommendation.applicable_files.map((file, index) => (
-                            <Chip 
-                                key={index}
-                                label={file}
-                                size="small"
-                                variant="outlined"
-                                sx={{ 
-                                    fontSize: '0.75rem',
-                                    bgcolor: alpha(theme.palette.info.main, 0.05)
-                                }}
-                            />
-                        ))}
+                        {filteredFiles.map((file, index) => (
+                                <Chip 
+                                    key={index}
+                                    label={file}
+                                    size="small"
+                                    variant="outlined"
+                                    sx={{ 
+                                        fontSize: '0.75rem',
+                                        bgcolor: alpha(theme.palette.info.main, 0.05)
+                                    }}
+                                />
+                            ))}
                     </Box>
                     
                     <Button
-                        onClick={() => onApply(recommendation.id)}
+                        onClick={() => onApply(recommendation)}
                         disabled={isApplying}
                         variant="contained"
                         size="small"
@@ -151,4 +246,4 @@ const RecommendationCard = ({ recommendation, onApply, isApplying }) => {
     );
 };
 
-export default RecommendationCard;
+export default React.memo(RecommendationCard);
