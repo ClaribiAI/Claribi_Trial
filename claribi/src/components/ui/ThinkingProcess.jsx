@@ -15,6 +15,7 @@ import {
     CaretDown,
     CaretRight
 } from '@phosphor-icons/react';
+import LoadingSpinner from './LoadingSpinner';
 
 const ThinkingProcess = React.memo(({ 
     isVisible = false, 
@@ -60,6 +61,9 @@ const ThinkingProcess = React.memo(({
                     <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                         AI Thinking Process
                     </Typography>
+                    {!isCompleted && (
+                        <LoadingSpinner size={14} compact />
+                    )}
                     <Chip
                         label={isCompleted ? 'Completed' : 'Processing'}
                         size="small"
@@ -75,15 +79,15 @@ const ThinkingProcess = React.memo(({
             {/* Expanded Content */}
             <Collapse in={expanded}>
                 <Box sx={{ p: 1.5, pt: 0 }}>
-                    {/* Current Action */}
-                    {currentAction && (
+                    {/* Current Action - only show when processing */}
+                    {currentAction && !isCompleted && (
                         <Box sx={{ mb: 2 }}>
                             <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
                                 Current Action:
                             </Typography>
-                            <Typography variant="body2" sx={{ fontStyle: 'italic' }}>
-                                {currentAction}
-                            </Typography>
+                                <Typography variant="body2" sx={{ fontStyle: 'italic' }}>
+                                    {currentAction}
+                                </Typography>
                         </Box>
                     )}
 

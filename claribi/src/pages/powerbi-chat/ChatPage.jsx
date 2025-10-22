@@ -382,8 +382,8 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded }) => {
                     timestamp: new Date(),
                     messageType: 'clarification_question'
                 }]);
-                // Keep thinking process visible to show search steps
-                setThinkingProcess(prev => ({ ...prev, isCompleted: true }));
+                // Keep thinking process visible and in processing state to show search steps
+                setThinkingProcess(prev => ({ ...prev, isCompleted: false }));
                 return; // Stop here and wait for user clarification
             }
     
@@ -512,7 +512,7 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded }) => {
             setThinkingProcess(prev => ({
                 ...prev,
                 currentAction: 'Generating final response...',
-                isCompleted: true
+                isCompleted: false // Keep processing until final response is displayed
             }));
             
             const assistantMessage = {
@@ -523,6 +523,13 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded }) => {
                 messageType: 'final_response'
             };
             setMessages(prev => [...prev, assistantMessage]);
+            
+            // Mark thinking process as completed after adding the final response
+            setThinkingProcess(prev => ({
+                ...prev,
+                isCompleted: true
+            }));
+            
             clarificationDialogOpenRef.current = false;
             setClarificationFlow({ active: false, questions: [], answers: {}, originalQuery: '', currentIndex: 0, clarificationSessionKey: null });
         } catch (err) {
@@ -894,7 +901,7 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded }) => {
                             value={inputMessage}
                             onChange={(e) => setInputMessage(e.target.value)}
                             onKeyDown={handleKeyDown}
-                            placeholder="Ask me anything about Power BI..."
+                            placeholder="Ask me anything about your Power BI dataset..."
                             variant="outlined"
                             disabled={isLoading}
                             sx={{
