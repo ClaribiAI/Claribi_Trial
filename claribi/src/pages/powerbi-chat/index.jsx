@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
     Box,
     Alert,
@@ -16,6 +17,7 @@ import { useNotification } from '../../contexts/NotificationContext';
 
 const PowerBIChat = () => {
     const { showNotification } = useNotification();
+    const location = useLocation();
     const [currentView, setCurrentView] = useState('file-management'); // 'file-management' or 'chat'
     const [pbixFile, setPbixFile] = useState(null);
     const [uploadLoading, setUploadLoading] = useState(false);
@@ -30,6 +32,13 @@ const PowerBIChat = () => {
     const [error, setError] = useState(null);
 
     const fileInputRef = useRef(null);
+
+    // Handle file selection from navigation state
+    useEffect(() => {
+        if (location.state?.selectedFile) {
+            handleFileSelect(location.state.selectedFile);
+        }
+    }, [location.state]);
 
     const handleFileUpload = (event) => {
         const file = event.target.files[0];

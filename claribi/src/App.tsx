@@ -26,7 +26,7 @@ const AppContent: FC = () => {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/" element={
             <ProtectedRoute requiredRole={null} requiredMicrosoftRole={null}>
-              <Layout>
+              <Layout fullWidth>
                 <Home />
               </Layout>
             </ProtectedRoute>

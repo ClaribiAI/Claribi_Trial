@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
     Box,
     Alert,
@@ -14,6 +15,7 @@ import FileManagementPage from './FileManagementPage';
 import DocumentationPage from './DocumentationPage';
 
 const PowerBIDocumentation = () => {
+    const location = useLocation();
     const [currentView, setCurrentView] = useState('file-management'); // 'file-management' or 'documentation'
     const [selectedFile, setSelectedFile] = useState(null);
     const [showFileSelection, setShowFileSelection] = useState(false);
@@ -27,6 +29,13 @@ const PowerBIDocumentation = () => {
     const [error, setError] = useState(null);
 
     const fileInputRef = useRef(null);
+
+    // Handle file selection from navigation state
+    useEffect(() => {
+        if (location.state?.selectedFile) {
+            handleFileSelect(location.state.selectedFile);
+        }
+    }, [location.state]);
 
     const handleUploadNew = () => {
         setShowFileSelection(true);

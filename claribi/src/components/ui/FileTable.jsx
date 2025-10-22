@@ -43,7 +43,7 @@ import { useNotification } from '../../contexts/NotificationContext';
 import LoadingSpinner from './LoadingSpinner';
 import ConfirmationDialog from './ConfirmationDialog';
 
-const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, actionType = 'chat' }) => {
+const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, actionType = 'chat', onChatClick, onDocsClick }) => {
     const theme = useTheme();
     const { showNotification } = useNotification();
     const [anchorEl, setAnchorEl] = React.useState(null);
@@ -176,7 +176,7 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, actionType =
                                 py: 2,
                                 position: 'sticky',
                                 top: 0,
-                                zIndex: 1,
+                                zIndex: 10,
                                 bgcolor: theme.palette.background.paper
                             }}>
                                 Name
@@ -188,7 +188,7 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, actionType =
                                 py: 2,
                                 position: 'sticky',
                                 top: 0,
-                                zIndex: 1,
+                                zIndex: 10,
                                 bgcolor: theme.palette.background.paper
                             }}>
                                 Last Modified
@@ -202,7 +202,7 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, actionType =
                                 width: 120,
                                 position: 'sticky',
                                 top: 0,
-                                zIndex: 1,
+                                zIndex: 10,
                                 bgcolor: theme.palette.background.paper
                             }}>
                                 Actions
@@ -218,7 +218,6 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, actionType =
                                     cursor: 'pointer',
                                     '&:hover': {
                                         bgcolor: alpha(theme.palette.primary.main, 0.05),
-                                        transform: 'translateY(-1px)',
                                         boxShadow: theme.palette.mode === 'dark' 
                                             ? '0 2px 8px rgba(0,0,0,0.2)' 
                                             : '0 2px 8px rgba(0,0,0,0.05)'
@@ -265,22 +264,65 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, actionType =
                                     textAlign: 'center'
                                 }}>
                                     <Box display="flex" gap={1} justifyContent="center">
-                                        <Tooltip title={actionType === 'chat' ? "Chat with this file" : "Generate documentation"}>
-                                            <IconButton
-                                                size="small"
-                                                onClick={(e) => handleFileClick(file)}
-                                                sx={{
-                                                    color: theme.palette.primary.main,
-                                                    '&:hover': {
-                                                        bgcolor: alpha(theme.palette.primary.main, 0.1),
-                                                        transform: 'scale(1.1)'
-                                                    },
-                                                    transition: 'all 0.2s ease'
-                                                }}
-                                            >
-                                                {actionType === 'chat' ? <ChatCircle size={18} /> : <FileText size={18} />}
-                                            </IconButton>
-                                        </Tooltip>
+                                        {actionType === 'both' ? (
+                                            <>
+                                                <Tooltip title="Chat with this file">
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (onChatClick) onChatClick(file);
+                                                        }}
+                                                        sx={{
+                                                            color: theme.palette.primary.main,
+                                                            '&:hover': {
+                                                                bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                                                transform: 'scale(1.1)'
+                                                            },
+                                                            transition: 'all 0.2s ease'
+                                                        }}
+                                                    >
+                                                        <ChatCircle size={18} />
+                                                    </IconButton>
+                                                </Tooltip>
+                                                <Tooltip title="Generate documentation">
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (onDocsClick) onDocsClick(file);
+                                                        }}
+                                                        sx={{
+                                                            color: theme.palette.secondary.main,
+                                                            '&:hover': {
+                                                                bgcolor: alpha(theme.palette.secondary.main, 0.1),
+                                                                transform: 'scale(1.1)'
+                                                            },
+                                                            transition: 'all 0.2s ease'
+                                                        }}
+                                                    >
+                                                        <FileText size={18} />
+                                                    </IconButton>
+                                                </Tooltip>
+                                            </>
+                                        ) : (
+                                            <Tooltip title={actionType === 'chat' ? "Chat with this file" : "Generate documentation"}>
+                                                <IconButton
+                                                    size="small"
+                                                    onClick={(e) => handleFileClick(file)}
+                                                    sx={{
+                                                        color: theme.palette.primary.main,
+                                                        '&:hover': {
+                                                            bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                                            transform: 'scale(1.1)'
+                                                        },
+                                                        transition: 'all 0.2s ease'
+                                                    }}
+                                                >
+                                                    {actionType === 'chat' ? <ChatCircle size={18} /> : <FileText size={18} />}
+                                                </IconButton>
+                                            </Tooltip>
+                                        )}
                                         <Tooltip title="More actions">
                                             <IconButton
                                                 size="small"
