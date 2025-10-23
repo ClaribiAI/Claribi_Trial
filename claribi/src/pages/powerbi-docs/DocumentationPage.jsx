@@ -10,7 +10,14 @@ import {
     CircularProgress,
     useTheme,
     alpha,
-    Tooltip
+    Tooltip,
+    Menu,
+    MenuItem,
+    Checkbox,
+    FormControlLabel,
+    Divider,
+    ListItemIcon,
+    ListItemText
 } from '@mui/material';
 import {
     FileTextIcon,
@@ -19,7 +26,8 @@ import {
     PresentationChartIcon,
     LightbulbIcon,
     SparkleIcon,
-    ArrowLeft
+    ArrowLeft,
+    CaretDownIcon
 } from '@phosphor-icons/react';
 import { analyzePowerBISection, parseImprovementRecommendations, applyImprovementRecommendation } from '../../services/powerbiDocsService';
 import DocumentationSection from './components/DocumentationSection';
@@ -45,6 +53,10 @@ const DocumentationPage = ({
     const [editingSection, setEditingSection] = useState(null);
     const [editedContent, setEditedContent] = useState({});
     const [sectionLoading, setSectionLoading] = useState({});
+    
+    // Section selection dropdown state
+    const [anchorEl, setAnchorEl] = useState(null);
+    const [selectedSections, setSelectedSections] = useState([]);
     
     // Chat interface state
     const [showChat, setShowChat] = useState(false);
@@ -248,23 +260,58 @@ const DocumentationPage = ({
         setEditedContent(prev => ({ ...prev, [sectionId]: value }));
     };
 
-    const handleGenerateAll = async () => {
+    // Initialize selected sections with all sections when component mounts
+    React.useEffect(() => {
+        setSelectedSections(sections.map(section => section.id));
+    }, []);
+
+    const handleGenerateAllClick = (event) => {
+        if (!selectedFile) {
+            setError('Please select a file first');
+            return;
+        }
+        setAnchorEl(event.currentTarget);
+    };
+
+    const handleDropdownClose = () => {
+        setAnchorEl(null);
+    };
+
+    const handleSectionToggle = (sectionId) => {
+        setSelectedSections(prev => 
+            prev.includes(sectionId)
+                ? prev.filter(id => id !== sectionId)
+                : [...prev, sectionId]
+        );
+    };
+
+
+    const handleGenerateSelected = async () => {
         if (!selectedFile) {
             setError('Please select a file first');
             return;
         }
 
-        // Start loading for all sections
+        if (selectedSections.length === 0) {
+            setError('Please select at least one section to generate');
+            return;
+        }
+
+        // Filter sections based on selection
+        const sectionsToGenerate = sections.filter(section => selectedSections.includes(section.id));
+
+        // Start loading for selected sections
         const loadingStates = {};
-        sections.forEach(section => {
+        sectionsToGenerate.forEach(section => {
             loadingStates[section.id] = true;
         });
         setSectionLoading(loadingStates);
         setError(null);
+        setAnchorEl(null);
 
         try {
-            // Generate all sections in parallel
-            const promises = sections.map(section => 
+            // Generate selected sections in parallel
+            const promises = sectionsToGenerate.map(section => 
                 analyzePowerBISection(selectedFile.collection_name, section.id, '')
             );
             
@@ -273,7 +320,7 @@ const DocumentationPage = ({
             // Update documentation with all results
             const newDocumentation = {};
             results.forEach((result, index) => {
-                newDocumentation[sections[index].id] = result.analysis;
+                newDocumentation[sectionsToGenerate[index].id] = result.analysis;
             });
             
             setDocumentation(prev => ({
@@ -285,7 +332,7 @@ const DocumentationPage = ({
             }));
             
             // Handle improvement recommendations parsing
-            const improvementIndex = sections.findIndex(s => s.id === 'improvement_recommendations');
+            const improvementIndex = sectionsToGenerate.findIndex(s => s.id === 'improvement_recommendations');
             if (improvementIndex !== -1 && results[improvementIndex]) {
                 const result = results[improvementIndex];
                 if (result.analysis && typeof result.analysis === 'object' && result.analysis.recommendations) {
@@ -375,13 +422,13 @@ const DocumentationPage = ({
                             {selectedFile?.filename}
                         </Typography>
 
-                        {/* Action Button */}
+                        {/* Action Button with Dropdown */}
                         <Button
-                            onClick={handleGenerateAll}
-                            disabled={Object.values(sectionLoading).some(loading => loading)}
+                            onClick={handleGenerateAllClick}
+                            disabled={Object.values(sectionLoading).some(isLoading => isLoading)}
                             variant="contained"
                             size="small"
-                            startIcon={Object.values(sectionLoading).some(loading => loading) ? <CircularProgress size={16} color={theme.palette.primary.contrastText} /> : <SparkleIcon size={16} color={theme.palette.primary.contrastText} />}
+                            endIcon={Object.values(sectionLoading).some(isLoading => isLoading) ? <CircularProgress size={16} color={theme.palette.primary.contrastText} /> : <CaretDownIcon size={16} color={theme.palette.primary.contrastText} />}
                             sx={{ 
                                 bgcolor: theme.palette.primary.main,
                                 color: theme.palette.primary.contrastText,
@@ -398,7 +445,7 @@ const DocumentationPage = ({
                                 }
                             }}
                         >
-                            {Object.values(sectionLoading).some(loading => loading) ? 'Generating...' : 'Generate All'}
+                            {Object.values(sectionLoading).some(isLoading => isLoading) ? 'Generating...' : 'Generate All'}
                         </Button>
                     </Box>
                 </Box>
@@ -569,6 +616,104 @@ const DocumentationPage = ({
                     onRegenerate={handleRegenerateWithInstructions}
                     isLoading={sectionLoading[currentSectionForRegeneration]}
                 />
+
+                {/* Section Selection Dropdown Menu */}
+                <Menu
+                    anchorEl={anchorEl}
+                    open={Boolean(anchorEl)}
+                    onClose={handleDropdownClose}
+                    PaperProps={{
+                        sx: {
+                            minWidth: 300,
+                            maxHeight: 500,
+                            borderRadius: 2,
+                            boxShadow: theme.shadows[8],
+                            mt: 1
+                        }
+                    }}
+                    transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+                    anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+                >
+                    {/* Header */}
+                    <Box sx={{ px: 2, py: 1.5, borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 0.5 }}>
+                            Select Sections to Generate
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                            Choose which documentation sections you'd like to generate
+                        </Typography>
+                    </Box>
+
+
+                    {/* Section List */}
+                    <Box sx={{ maxHeight: 300, overflow: 'auto' }}>
+                        {sections.map((section, index) => (
+                            <MenuItem
+                                key={section.id}
+                                onClick={() => handleSectionToggle(section.id)}
+                                sx={{
+                                    py: 1,
+                                    px: 2,
+                                    '&:hover': {
+                                        backgroundColor: alpha(theme.palette.primary.main, 0.04)
+                                    }
+                                }}
+                            >
+                                <Checkbox
+                                    checked={selectedSections.includes(section.id)}
+                                    sx={{
+                                        p: 0.5,
+                                        '&.Mui-checked': {
+                                            color: theme.palette.primary.main
+                                        }
+                                    }}
+                                />
+                                <ListItemIcon sx={{ minWidth: 32, color: selectedSections.includes(section.id) ? theme.palette.primary.main : theme.palette.text.secondary }}>
+                                    {section.icon}
+                                </ListItemIcon>
+                                <ListItemText
+                                    primary={section.title}
+                                    secondary={section.description}
+                                    primaryTypographyProps={{
+                                        variant: 'body2',
+                                        fontWeight: selectedSections.includes(section.id) ? 500 : 400
+                                    }}
+                                    secondaryTypographyProps={{
+                                        variant: 'caption',
+                                        color: 'text.secondary'
+                                    }}
+                                />
+                            </MenuItem>
+                        ))}
+                    </Box>
+
+                    <Divider />
+
+                    {/* Generate Button */}
+                    <Box sx={{ p: 2 }}>
+                        <Button
+                            fullWidth
+                            variant="contained"
+                            onClick={handleGenerateSelected}
+                            disabled={selectedSections.length === 0 || Object.values(sectionLoading).some(isLoading => isLoading)}
+                            startIcon={Object.values(sectionLoading).some(isLoading => isLoading) ? <CircularProgress size={16} color={theme.palette.primary.contrastText} /> : <SparkleIcon size={16} color={theme.palette.primary.contrastText} />}
+                            sx={{
+                                bgcolor: theme.palette.primary.main,
+                                color: theme.palette.primary.contrastText,
+                                borderRadius: 2,
+                                '&:hover': {
+                                    bgcolor: theme.palette.primary.dark,
+                                    color: theme.palette.primary.contrastText
+                                },
+                                '&:disabled': {
+                                    bgcolor: theme.palette.action.disabledBackground
+                                }
+                            }}
+                        >
+                            {Object.values(sectionLoading).some(isLoading => isLoading) ? 'Generating...' : `Generate ${selectedSections.length} Section${selectedSections.length !== 1 ? 's' : ''}`}
+                        </Button>
+                    </Box>
+                </Menu>
             </Box>
         </Fade>
     );
