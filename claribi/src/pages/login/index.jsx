@@ -174,7 +174,9 @@ const LoginPage = () => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(45deg, #f3e5f5 0%, #e1bee7 100%)',
+        background: theme.palette.mode === 'dark' 
+          ? 'linear-gradient(45deg, #424242 0%, #303030 100%)'
+          : 'linear-gradient(45deg, #f5f5f5 0%, #e0e0e0 100%)',
       }}
     >
       <Snackbar 
@@ -196,7 +198,7 @@ const LoginPage = () => {
           p: 5,
           borderRadius: 4,
           textAlign: 'center',
-          boxShadow: '0 8px 24px rgba(156, 39, 176, 0.2)',
+          boxShadow: '0 8px 24px rgba(255, 193, 7, 0.2)',
         }}
       >
         {(errorMessage || storedOrgError === 'true') && (
@@ -240,8 +242,11 @@ const LoginPage = () => {
               objectFit: 'contain'
             }}
           />
-          <Typography variant="h4" component="h1" fontWeight="bold" sx={{ mb: 1 }}>
-            claribi
+          <Typography variant="h3" component="h1" fontWeight="bold" sx={{ mb: 0 }}>
+            clar<span className="bi-yellow">bi</span>
+          </Typography>
+          <Typography variant="h5" component="h2" fontWeight="normal" sx={{ mb: 1.5, color: 'text.secondary', mt: -0.5 }}>
+            console
           </Typography>
           <Typography variant="body1" color="text.secondary">
             Effortless access to meaningful insights.
