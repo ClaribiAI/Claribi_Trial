@@ -132,7 +132,8 @@ def init_db_pool(
                     return
                 else:
                     try:
-                        _pool.putconn(conn, close=True)
+                        _pool.putconn(conn)
+                        conn.close()
                     except Exception as e:
                         logger.warning(f"Error closing invalid connection during pool test: {e}")
             except Exception as e:
@@ -177,7 +178,8 @@ def init_db_pool(
             except Exception as e:
                 if conn:
                     try:
-                        _pool.putconn(conn, close=True)
+                        _pool.putconn(conn)
+                        conn.close()
                     except:
                         pass
                 raise e
@@ -227,7 +229,8 @@ def get_db_connection():
             
             if not validate_connection(conn):
                 try:
-                    pool.putconn(conn, close=True)
+                    pool.putconn(conn)
+                    conn.close()
                 except Exception as e:
                     logger.warning(f"Error closing invalid connection: {e}")
                     # If putconn fails, the connection might be corrupted, just close it
@@ -239,7 +242,8 @@ def get_db_connection():
                 conn = pool.getconn()
                 if not validate_connection(conn):
                     try:
-                        pool.putconn(conn, close=True)
+                        pool.putconn(conn)
+                        conn.close()
                     except Exception as e:
                         logger.warning(f"Error closing second invalid connection: {e}")
                         try:
@@ -258,7 +262,8 @@ def get_db_connection():
             if conn:
                 try:
                     if not conn.closed:
-                        pool.putconn(conn, close=True)
+                        pool.putconn(conn)
+                        conn.close()
                 except Exception as putconn_error:
                     logger.warning(f"Error returning failed connection to pool: {putconn_error}")
                     # If putconn fails, close connection directly

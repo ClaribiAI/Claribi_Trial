@@ -230,12 +230,22 @@ const RecommendationCard = ({ recommendation, onApply, isApplying }) => {
                         disabled={isApplying}
                         variant="contained"
                         size="small"
-                        startIcon={isApplying ? <CircularProgress size={16} /> : <GearSixIcon size={16} />}
+                        startIcon={isApplying ? <CircularProgress size={16} color={theme.palette.primary.contrastText} /> : <GearSixIcon size={16} color={theme.palette.primary.contrastText} />}
                         sx={{ 
-                            borderRadius: 2,
-                            textTransform: 'none',
+                            bgcolor: theme.palette.primary.main,
+                            color: theme.palette.primary.contrastText,
+                            fontFamily: "'Nunito Sans', sans-serif",
                             fontWeight: 500,
-                            minWidth: 140
+                            textTransform: 'none',
+                            borderRadius: 2,
+                            minWidth: 140,
+                            '&:hover': {
+                                bgcolor: theme.palette.primary.dark,
+                                color: theme.palette.primary.contrastText
+                            },
+                            '&:disabled': {
+                                bgcolor: alpha(theme.palette.primary.main, 0.3)
+                            }
                         }}
                     >
                         {isApplying ? 'Applying...' : 'Apply Fix'}

@@ -40,6 +40,18 @@ const Home = () => {
     const [selectionDialogOpen, setSelectionDialogOpen] = useState(false);
     const [selectedFile, setSelectedFile] = useState(null);
     
+    // Get time-based greeting
+    const getTimeBasedGreeting = () => {
+        const hour = new Date().getHours();
+        if (hour >= 5 && hour < 12) {
+            return 'Good morning';
+        } else if (hour >= 12 && hour < 18) {
+            return 'Good afternoon';
+        } else {
+            return 'Good evening';
+        }
+    };
+    
     // Upload state management
     const [uploadLoading, setUploadLoading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
@@ -262,7 +274,7 @@ const Home = () => {
                             fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif",
                             mb: 0.5
                         }}>
-                            Clari<span className="bi-yellow">bi</span> Console
+                           {getTimeBasedGreeting()}!
                         </Typography>
                         <Typography variant="h6" sx={{ 
                             color: theme.palette.text.secondary, 

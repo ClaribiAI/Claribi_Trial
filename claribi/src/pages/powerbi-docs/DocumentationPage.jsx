@@ -49,6 +49,8 @@ const DocumentationPage = ({
     // Chat interface state
     const [showChat, setShowChat] = useState(false);
     const [chatInitialMessage, setChatInitialMessage] = useState('');
+    const [chatWidth, setChatWidth] = useState(50); // Percentage of viewport width
+    const [isDragging, setIsDragging] = useState(false);
 
     // Define available sections with Phosphor icons matching sidebar style
     const sections = [
@@ -104,6 +106,49 @@ const DocumentationPage = ({
         setShowChat(false);
         setChatInitialMessage('');
     };
+
+    // Drag functionality for resizing chat window
+    const handleMouseDown = (e) => {
+        e.preventDefault();
+        setIsDragging(true);
+    };
+
+    const handleMouseMove = (e) => {
+        if (!isDragging) return;
+        
+        const containerWidth = window.innerWidth;
+        const newChatWidth = ((containerWidth - e.clientX) / containerWidth) * 100;
+        
+        // Constrain chat width between 20% and 60%
+        const constrainedWidth = Math.min(Math.max(newChatWidth, 20), 60);
+        setChatWidth(constrainedWidth);
+    };
+
+    const handleMouseUp = () => {
+        setIsDragging(false);
+    };
+
+    // Add event listeners for drag functionality
+    React.useEffect(() => {
+        if (isDragging) {
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+        } else {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        }
+
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        };
+    }, [isDragging]);
 
     const handleRegenerateClick = (sectionName) => {
         setCurrentSectionForRegeneration(sectionName);
@@ -278,7 +323,7 @@ const DocumentationPage = ({
                 <Box sx={{ 
                     flex: showChat ? 1 : 1,
                     px: { xs: 2, sm: 3, md: 4, lg: 6 }, 
-                    maxWidth: showChat ? '50%' : '100%',
+                    width: showChat ? `${100 - chatWidth}%` : '100%',
                     bgcolor: theme.palette.background.default,
                     minHeight: '100vh',
                     overflow: 'auto'
@@ -364,14 +409,14 @@ const DocumentationPage = ({
                         mb: 4, 
                         borderRadius: 2,
                         boxShadow: theme.shadows[1],
-                        overflow: 'hidden',
+                        overflow: showChat ? 'visible' : 'hidden',
                         bgcolor: theme.palette.background.paper
                     }}
                 >
                     <Tabs
                         value={activeTab}
                         onChange={(e, newValue) => setActiveTab(newValue)}
-                        variant="fullWidth"
+                        variant={showChat ? "standard" : "fullWidth"}
                         sx={{
                             '& .MuiTabs-indicator': {
                                 height: 2,
@@ -380,10 +425,17 @@ const DocumentationPage = ({
                             '& .MuiTab-root': {
                                 textTransform: 'none',
                                 fontWeight: 500,
-                                minHeight: 56,
-                                px: 1.5,
-                                fontSize: '0.875rem',
+                                minHeight: showChat ? 80 : 56,
+                                px: showChat ? 0.5 : 1.5,
+                                fontSize: showChat ? '0.75rem' : '0.875rem',
                                 color: 'inherit',
+                                minWidth: showChat ? 120 : 0,
+                                flex: showChat ? '1 1 auto' : 1,
+                                maxWidth: showChat ? 'none' : 'none',
+                                flexDirection: showChat ? 'column' : 'row',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: showChat ? 0.5 : 0,
                                 '&:hover': {
                                     backgroundColor: 'rgba(0, 0, 0, 0.04)'
                                 },
@@ -398,7 +450,17 @@ const DocumentationPage = ({
                             <Tab
                                 key={section.id}
                                 label={
-                                    <Box display="flex" alignItems="center" gap={0.5} sx={{ minWidth: 0 }}>
+                                    <Box 
+                                        display="flex" 
+                                        alignItems="center" 
+                                        gap={showChat ? 0.5 : 0.5} 
+                                        sx={{ 
+                                            minWidth: 0,
+                                            flexDirection: showChat ? 'column' : 'row',
+                                            justifyContent: 'center',
+                                            textAlign: 'center'
+                                        }}
+                                    >
                                         <Box sx={{ fontSize: '1rem' }}>
                                             {section.icon}
                                         </Box>
@@ -407,9 +469,11 @@ const DocumentationPage = ({
                                             sx={{ 
                                                 fontWeight: 'inherit',
                                                 fontSize: 'inherit',
-                                                whiteSpace: 'nowrap',
+                                                whiteSpace: showChat ? 'normal' : 'nowrap',
                                                 overflow: 'hidden',
-                                                textOverflow: 'ellipsis'
+                                                textOverflow: 'ellipsis',
+                                                lineHeight: showChat ? 1.2 : 'inherit',
+                                                textAlign: 'center'
                                             }}
                                         >
                                             {section.title}
@@ -452,22 +516,48 @@ const DocumentationPage = ({
 
                 {/* Chat Interface - Slide in from right */}
                 {showChat && (
-                    <Box sx={{ 
-                        flex: 1,
-                        maxWidth: '50%',
-                        height: '100vh',
-                        borderLeft: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                        bgcolor: theme.palette.background.paper
-                    }}>
-                        <ChatPage
-                            pbixFile={selectedFile}
-                            onBack={onBack}
-                            isNewlyUploaded={false}
-                            initialMessage={chatInitialMessage}
-                            onCloseChat={handleCloseChat}
-                            isInline={true}
+                    <>
+                        {/* Resize Handle - Invisible */}
+                        <Box
+                            onMouseDown={handleMouseDown}
+                            sx={{
+                                width: 8,
+                                height: '100vh',
+                                cursor: 'col-resize',
+                                position: 'relative',
+                                '&:hover': {
+                                    '&::after': {
+                                        content: '""',
+                                        position: 'absolute',
+                                        left: '50%',
+                                        top: '50%',
+                                        transform: 'translate(-50%, -50%)',
+                                        width: 2,
+                                        height: 40,
+                                        bgcolor: theme.palette.primary.main,
+                                        borderRadius: 1,
+                                        opacity: 0.7
+                                    }
+                                }
+                            }}
                         />
-                    </Box>
+                        
+                        {/* Chat Area */}
+                        <Box sx={{ 
+                            width: `${chatWidth}%`,
+                            height: '100vh',
+                            bgcolor: theme.palette.background.paper
+                        }}>
+                            <ChatPage
+                                pbixFile={selectedFile}
+                                onBack={onBack}
+                                isNewlyUploaded={false}
+                                initialMessage={chatInitialMessage}
+                                onCloseChat={handleCloseChat}
+                                isInline={true}
+                            />
+                        </Box>
+                    </>
                 )}
 
                 <CustomInstructionsModal 
