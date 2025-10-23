@@ -243,7 +243,7 @@ const LoginPage = () => {
             }}
           />
           <Typography variant="h3" component="h1" fontWeight="bold" sx={{ mb: 0 }}>
-            clar<span className="bi-yellow">bi</span>
+            clari<span className="bi-yellow">bi</span>
           </Typography>
           <Typography variant="h5" component="h2" fontWeight="normal" sx={{ mb: 1.5, color: 'text.secondary', mt: -0.5 }}>
             console
