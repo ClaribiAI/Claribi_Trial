@@ -4,10 +4,15 @@ import {
     TextField,
     Button,
     useTheme,
-    alpha
+    alpha,
+    ToggleButtonGroup,
+    ToggleButton,
+    Typography
 } from '@mui/material';
 import {
-    PaperPlaneRight
+    PaperPlaneRight,
+    Info,
+    Lightning
 } from '@phosphor-icons/react';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 
@@ -19,6 +24,7 @@ const ChatInput = React.memo(({
 }) => {
     const theme = useTheme();
     const [inputMessage, setInputMessage] = useState('');
+    const [responseMode, setResponseMode] = useState('detailed');
     const inputRef = useRef(null);
 
     const handleKeyDown = useCallback((e) => {
@@ -33,46 +39,66 @@ const ChatInput = React.memo(({
         const message = inputMessage.trim();
         if (!message || isLoading || disabled) return;
         
-        onSendMessage(message);
+        onSendMessage(message, responseMode);
         setInputMessage('');
-    }, [inputMessage, isLoading, disabled, onSendMessage]);
+    }, [inputMessage, isLoading, disabled, onSendMessage, responseMode]);
 
     const handleInputChange = useCallback((e) => {
         setInputMessage(e.target.value);
     }, []);
 
+    const handleResponseModeChange = useCallback((event, newMode) => {
+        if (newMode !== null) {
+            setResponseMode(newMode);
+        }
+    }, []);
+
     return (
-        <Box sx={{ position: 'relative' }}>
+        <Box sx={{ 
+            display: 'flex', 
+            flexDirection: 'column',
+            gap: 1,
+            bgcolor: theme.palette.background.chat,
+            borderRadius: 3,
+            border: `1px solid ${theme.palette.input.border}`,
+            p: 2,
+            '&:hover': {
+                borderColor: alpha(theme.palette.input.focusBorder, 0.3)
+            },
+            '&:focus-within': {
+                borderColor: theme.palette.input.focusBorder,
+                boxShadow: `0 0 0 2px ${alpha(theme.palette.input.focusBorder, 0.1)}`
+            }
+        }}>
+            {/* Text Input Area - 2 lines */}
             <TextField
                 ref={inputRef}
                 fullWidth
                 multiline
-                maxRows={4}
+                rows={2}
                 value={inputMessage}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
                 placeholder={placeholder}
-                variant="outlined"
+                variant="standard"
                 disabled={isLoading || disabled}
                 sx={{
-                    '& .MuiOutlinedInput-root': {
-                        borderRadius: 3,
-                        bgcolor: theme.palette.background.chat,
-                        border: `1px solid ${theme.palette.input.border}`,
-                        color: theme.palette.text.primary,
-                        pr: inputMessage.trim() ? 7 : 2, // Add right padding when button is visible
-                        '&:hover': { 
-                            bgcolor: theme.palette.background.chat,
-                            borderColor: alpha(theme.palette.input.focusBorder, 0.3)
+                    '& .MuiInput-root': {
+                        '&:before': {
+                            borderBottom: 'none'
                         },
-                        '&.Mui-focused': { 
-                            bgcolor: theme.palette.background.chat,
-                            borderColor: theme.palette.input.focusBorder,
-                            boxShadow: `0 0 0 2px ${alpha(theme.palette.input.focusBorder, 0.1)}`
+                        '&:after': {
+                            borderBottom: 'none'
+                        },
+                        '&:hover:not(.Mui-disabled):before': {
+                            borderBottom: 'none'
                         }
                     },
                     '& .MuiInputBase-input': {
-                        color: theme.palette.text.primary
+                        color: theme.palette.text.primary,
+                        fontSize: '0.95rem',
+                        lineHeight: 1.5,
+                        padding: 0
                     },
                     '& .MuiInputBase-input::placeholder': {
                         color: theme.palette.text.secondary,
@@ -80,40 +106,124 @@ const ChatInput = React.memo(({
                     }
                 }}
             />
-            {inputMessage.trim() && (
+            
+            {/* Bottom Row - Controls */}
+            <Box sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                gap: 1,
+                minHeight: 30
+            }}>
+                {/* Response Mode Toggle */}
+                <Box sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.75,
+                    bgcolor: alpha(theme.palette.background.paper, 0.9),
+                    borderRadius: 2,
+                    border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+                    backdropFilter: 'blur(8px)',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                    px: 1.5,
+                    py: 0,
+                    height: 30,
+                    minWidth: 140
+                }}>
+                    {/* Detailed Text */}
+                    <Box sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 0.4,
+                        color: responseMode === 'detailed' ? theme.palette.primary.main : theme.palette.text.secondary,
+                        transition: 'color 0.2s ease',
+                        opacity: 0.9,
+                        ...theme.typography.caption
+                    }}>
+                        <Info size={10} />
+                        Detailed
+                    </Box>
+
+                    {/* Slider Switch */}
+                    <Box sx={{
+                        position: 'relative',
+                        width: 32,
+                        height: 16,
+                        bgcolor: responseMode === 'detailed' ? alpha(theme.palette.primary.main, 0.2) : alpha(theme.palette.text.secondary, 0.2),
+                        borderRadius: 8,
+                        cursor: 'pointer',
+                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                        '&:hover': {
+                            bgcolor: responseMode === 'detailed' ? alpha(theme.palette.primary.main, 0.3) : alpha(theme.palette.text.secondary, 0.3),
+                        }
+                    }}
+                    onClick={() => setResponseMode(responseMode === 'detailed' ? 'concise' : 'detailed')}
+                    >
+                        {/* Sliding Circle */}
+                        <Box sx={{
+                            position: 'absolute',
+                            top: 1,
+                            left: responseMode === 'detailed' ? 1 : 15,
+                            width: 14,
+                            height: 14,
+                            bgcolor: responseMode === 'detailed' ? theme.palette.primary.main : theme.palette.text.secondary,
+                            borderRadius: '50%',
+                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                        }} />
+                    </Box>
+
+                    {/* Concise Text */}
+                    <Box sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 0.4,
+                        color: responseMode === 'concise' ? theme.palette.primary.main : theme.palette.text.secondary,
+                        transition: 'color 0.2s ease',
+                        opacity: 0.9,
+                        ...theme.typography.caption
+                    }}>
+                        <Lightning size={10} />
+                        Concise
+                    </Box>
+                </Box>
+
+                {/* Send Button */}
                 <Button
                     onClick={handleSendMessage}
-                    disabled={isLoading || disabled}
+                    disabled={isLoading || disabled || !inputMessage.trim()}
                     variant="contained"
                     sx={{
-                        position: 'absolute',
-                        right: 8,
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        minWidth: 40,
-                        height: 40,
+                        minWidth: 30,
+                        height: 30,
                         borderRadius: 2,
-                        bgcolor: theme.palette.primary.main,
-                        '&:hover': { 
+                        bgcolor: inputMessage.trim() ? theme.palette.primary.main : alpha(theme.palette.text.secondary, 0.3),
+                        color: inputMessage.trim() ? theme.palette.primary.contrastText : theme.palette.text.disabled,
+                        '&:hover': inputMessage.trim() ? { 
                             bgcolor: theme.palette.primary.dark,
-                            transform: 'translateY(-50%) scale(1.05)',
+                            transform: 'scale(1.05)',
                             boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                        } : {
+                            bgcolor: alpha(theme.palette.text.secondary, 0.4),
+                            transform: 'none',
+                            boxShadow: 'none'
                         },
                         '&:disabled': { 
-                            bgcolor: alpha(theme.palette.primary.main, 0.3),
-                            transform: 'translateY(-50%)',
+                            bgcolor: alpha(theme.palette.text.secondary, 0.3),
+                            color: theme.palette.text.disabled,
+                            transform: 'none',
                             boxShadow: 'none'
                         },
                         transition: 'all 0.2s ease'
                     }}
                 >
                     {isLoading ? (
-                        <LoadingSpinner size={16} compact />
+                        <LoadingSpinner size={14} compact />
                     ) : (
-                        <PaperPlaneRight size={16} />
+                        <PaperPlaneRight size={14} />
                     )}
                 </Button>
-            )}
+            </Box>
         </Box>
     );
 });

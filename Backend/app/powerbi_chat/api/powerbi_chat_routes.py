@@ -27,6 +27,7 @@ def process_powerbi_query_stream():
     data = request.get_json()
     query, session_id = data.get('query'), data.get('session_id')
     conversation_history = data.get('conversation_history', [])
+    response_mode = data.get('response_mode', 'detailed')
     if not query or not session_id: return jsonify({'error': 'Query and session_id are required'}), 400
 
     def generate_updates():
@@ -48,7 +49,8 @@ def process_powerbi_query_stream():
                         session_id,
                         query,
                         update_callback=update_callback,
-                        conversation_history=conversation_history
+                        conversation_history=conversation_history,
+                        response_mode=response_mode
                     )
                     result_container['result'] = result
                 finally:

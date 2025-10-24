@@ -43,14 +43,16 @@ export const sendPowerBIQuery = async (query, pbixFile = null) => {
  * @param {Object} pbixFile - Optional uploaded PBIX file metadata
  * @param {Function} onUpdate - Callback function for real-time updates
  * @param {Array} conversationHistory - Previous conversation history for context
+ * @param {string} responseMode - Response detail level: 'detailed' or 'concise'
  * @returns {Promise<Object>} The assistant's response with RAG details
  */
-export const sendPowerBIQueryWithUpdates = async (query, pbixFile = null, onUpdate = null, conversationHistory = []) => {
+export const sendPowerBIQueryWithUpdates = async (query, pbixFile = null, onUpdate = null, conversationHistory = [], responseMode = 'detailed') => {
     try {
         const requestData = {
             query: query,
             session_id: pbixFile?.sessionId || null,
-            conversation_history: conversationHistory
+            conversation_history: conversationHistory,
+            response_mode: responseMode
         };
 
         // Use fetch for Server-Sent Events

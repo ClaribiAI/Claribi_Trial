@@ -183,7 +183,7 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
 
 
 
-    const handleSendMessage = useCallback(async (messageToSend) => {
+    const handleSendMessage = useCallback(async (messageToSend, responseMode = 'detailed') => {
         const message = messageToSend;
         if (!message?.trim() || isLoading) return;
         
@@ -303,7 +303,8 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
                 originalQuery, 
                 pbixFile, 
                 handleRealTimeUpdate,
-                summarizedHistory
+                summarizedHistory,
+                responseMode
             );
     
             if (response.type === 'clarification_needed') {

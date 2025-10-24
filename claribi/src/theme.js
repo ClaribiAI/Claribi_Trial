@@ -114,6 +114,11 @@ const createAppTheme = (isDarkMode = false) => createTheme({
       fontFamily: "'Nunito Sans', sans-serif",
       textTransform: 'none',
       fontWeight: 600,
+    },
+    caption: {
+      fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif",
+      fontWeight: 10,
+      fontSize: '0.7rem',
     }
   },
   components: {

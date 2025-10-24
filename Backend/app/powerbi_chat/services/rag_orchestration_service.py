@@ -11,7 +11,7 @@ from langchain_core.prompts import PromptTemplate
 
 from app.powerbi_chat.services.llm_service import llm_service
 from app.powerbi_chat.services.vector_store_service import vector_store_service
-from app.powerbi_chat.prompts import CONTEXT_ANALYSIS_PROMPT, FINAL_RESPONSE_PROMPT
+from app.powerbi_chat.prompts import CONTEXT_ANALYSIS_PROMPT, FINAL_RESPONSE_PROMPT, FINAL_RESPONSE_PROMPT_CONCISE
 from app.powerbi_chat.caching.cache_manager import cache_manager
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ class RAGOrchestrationService:
             'total_documents_retrieved': 0
         }
 
-    def start_query(self, collection_name: str, query: str, update_callback: Callable = None, conversation_history: List[Dict] = None) -> RAGResult:
+    def start_query(self, collection_name: str, query: str, update_callback: Callable = None, conversation_history: List[Dict] = None, response_mode: str = 'detailed') -> RAGResult:
         """
         Starts the RAG process and uses a callback to send real-time updates.
         """
@@ -166,7 +166,7 @@ class RAGOrchestrationService:
         send_update("final_generation", "Generating the final answer...")
         
         # Generate final response
-        final_answer = self._generate_final_response(query, final_context)
+        final_answer = self._generate_final_response(query, final_context, response_mode)
         
         # Cache the RAG context for potential follow-up questions
         rag_context_key = cache_manager.set({
@@ -205,7 +205,7 @@ class RAGOrchestrationService:
                         f"--- User Clarifications ---\n" + "\n".join([f"Q: {q}\nA: {a}" for q, a in clarifications.items()]))
         
         send_update("final_generation", "Generating the final answer with your clarifications...")
-        final_response = self._generate_final_response(context['original_query'], full_context)
+        final_response = self._generate_final_response(context['original_query'], full_context, 'detailed')
         
         # Cache the RAG context for potential follow-up questions
         rag_context_key = cache_manager.set({
@@ -263,9 +263,13 @@ class RAGOrchestrationService:
             logger.warning(f"Failed to parse JSON from context analysis: {e}")
             return True, [], []
 
-    def _generate_final_response(self, query: str, context: str) -> str:
-        # Create the chain but invoke LLM directly to preserve metadata
-        prompt = PromptTemplate(template=FINAL_RESPONSE_PROMPT, input_variables=["context", "question"])
+    def _generate_final_response(self, query: str, context: str, response_mode: str = 'detailed') -> str:
+        # Choose the appropriate prompt template based on response mode
+        if response_mode == 'concise':
+            prompt = PromptTemplate(template=FINAL_RESPONSE_PROMPT_CONCISE, input_variables=["context", "question"])
+        else:
+            prompt = PromptTemplate(template=FINAL_RESPONSE_PROMPT, input_variables=["context", "question"])
+        
         formatted_prompt = prompt.format(question=query, context=context)
         
         # Use the enhanced logging method from LLM service
