@@ -77,6 +77,9 @@ def require_roles(*allowed_roles):
     """
     Decorator to require specific roles for route access.
     
+    This decorator wraps auth_required to ensure authentication first,
+    then checks for specific roles.
+    
     Args:
         allowed_roles: Variable number of role names that are allowed
         
@@ -89,12 +92,15 @@ def require_roles(*allowed_roles):
             pass
     """
     def decorator(f: Callable) -> Callable:
+        # First apply auth_required to ensure user is authenticated
+        @auth_required
         @wraps(f)
         def decorated_function(*args, **kwargs):
             try:
-                user = get_current_user_from_session()
+                # Get user from g.current_user (set by auth_required)
+                user = g.current_user
                 if not user:
-                    logger.warning(f"Unauthorized access attempt to {request.endpoint}")
+                    logger.warning(f"User not found in context for {request.endpoint}")
                     return jsonify({
                         "success": False,
                         "error": "unauthorized",
@@ -110,18 +116,6 @@ def require_roles(*allowed_roles):
                         "message": f"Access denied. Required roles: {', '.join(allowed_roles)}"
                     }), 403
                 
-                # Check if organization is still allowed
-                from app.auth2.services import UserService
-                if not UserService.is_organization_allowed(user.get('organization_id')):
-                    logger.warning(f"Organization {user.get('organization_id')} is no longer allowed to access the system")
-                    return jsonify({
-                        "success": False,
-                        "error": "organization_not_allowed",
-                        "message": "Your organization has not yet purchased a plan. Please visit www.claribi.ai to purchase a plan."
-                    }), 403
-                
-                # Store user in request context for use in route
-                g.current_user = user
                 return f(*args, **kwargs)
                 
             except Exception as e:

@@ -304,29 +304,6 @@ class SecurityService:
             logger.error(f"Error extracting app roles from token: {e}")
             return []
     
-    # @staticmethod
-    # def generate_session_token() -> str:
-    #     """Generate a secure session token"""
-    #     import secrets
-    #     return secrets.token_urlsafe(32)
-    
-    # @staticmethod
-    # def hash_token(token: str) -> str:
-    #     """Hash a token for secure storage"""
-    #     import hashlib
-    #     return hashlib.sha256(token.encode()).hexdigest()
-    
-    # @staticmethod
-    # def verify_token_hash(token: str, token_hash: str) -> bool:
-    #     """Verify a token against its hash"""
-    #     import hashlib
-    #     return hashlib.sha256(token.encode()).hexdigest() == token_hash
-    
-    # @staticmethod
-    # def is_token_expired(expires_at: int) -> bool:
-    #     """Check if a token has expired"""
-    #     import time
-    #     return time.time() > expires_at
 
     @staticmethod
     def clear_session() -> None:

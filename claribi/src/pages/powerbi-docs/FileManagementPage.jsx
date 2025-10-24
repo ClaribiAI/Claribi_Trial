@@ -68,7 +68,7 @@ const FileManagementPage = ({ onFileSelect, onUploadNew }) => {
                             fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif",
                             mb: 0.5
                         }}>
-                            Clari<span className="bi-yellow">bi</span> PowerBI Documentation
+                            Instant Documentation - with a Single Click
                         </Typography>
                         <Typography variant="h6" sx={{ 
                             color: theme.palette.text.secondary, 

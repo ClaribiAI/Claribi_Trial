@@ -2,14 +2,29 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/claribi_icon_logo_dark.png" />
+    <link rel="icon" type="image/png" href="/claribi_icon_logo_favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <title>Claribi Console</title>
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Check if user is trying to access /login while already authenticated
+      // This runs before React loads to prevent routing issues
+      (function() {
+        const isLoggedIn = localStorage.getItem('jwt_token');
+        const currentPath = window.location.pathname;
+        
+        if (isLoggedIn && currentPath === '/login') {
+          console.log('Redirecting authenticated user from /login to home...');
+          window.location.replace('/');
+        }
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

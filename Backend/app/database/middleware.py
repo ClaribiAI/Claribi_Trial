@@ -6,7 +6,9 @@ import time
 
 def set_user_context():
     """Set user context for Row Level Security (RLS)"""
-    user = session.get("user")
+    # Get user from JWT token via auth2 middleware
+    from app.auth2.middleware import get_current_user_from_token
+    user = get_current_user_from_token()
     if not user:
         return  # Not logged in
         
@@ -34,8 +36,10 @@ def set_user_context():
             with get_db_connection() as conn:
                 with conn.cursor() as cursor:
                     # Execute both statements and commit in one transaction
-                    cursor.execute("SET app.current_user_ms_object_id = %s", (ms_object_id,))
-                    cursor.execute("SET app.current_organization_id = %s", (organization_id,))
+                    # SET statements don't work with parameterized queries, use string formatting with proper escaping
+                    import psycopg.sql
+                    cursor.execute(psycopg.sql.SQL("SET app.current_user_ms_object_id = {}").format(psycopg.sql.Literal(ms_object_id)))
+                    cursor.execute(psycopg.sql.SQL("SET app.current_organization_id = {}").format(psycopg.sql.Literal(organization_id)))
                     conn.commit()
                     return  # Success, exit the function
 

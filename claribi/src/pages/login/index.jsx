@@ -19,28 +19,7 @@ const LoginPage = () => {
   const [retryCount, setRetryCount] = useState(0);
   const [backendError, setBackendError] = useState(false);
 
-  // If user is already authenticated, redirect to home
-  useEffect(() => {
-    // Don't redirect if there's an organization error
-    const storedOrgError = sessionStorage.getItem('organizationError');
-    if (storedOrgError === 'true') {
-      return;
-    }
-    
-    // Only redirect if we've explicitly checked and user is authenticated
-    if (currentUser && !loading) {
-      // Check if there is a pending share token
-      const pendingShareToken = sessionStorage.getItem('pendingShareToken');
-      if (pendingShareToken) {
-        // Remove the token from storage
-        sessionStorage.removeItem('pendingShareToken');
-        // Redirect to shared project handler
-        navigate(`/shared-project/${pendingShareToken}`);
-      } else {
-        navigate('/');
-      }
-    }
-  }, [currentUser, loading, navigate]);
+  // Note: Redirect logic for authenticated users is now handled by LoginWrapper component
 
   // Prevent automatic refresh when there are organization access errors
   useEffect(() => {
@@ -92,17 +71,8 @@ const LoginPage = () => {
     console.log("Verification successful, redirecting...");
     setVerifying(false);
     
-    // Check if there is a pending share token
-    const pendingShareToken = sessionStorage.getItem('pendingShareToken');
-    if (pendingShareToken) {
-      // Remove the token from storage
-      sessionStorage.removeItem('pendingShareToken');
-      // Redirect to shared project handler
-      navigate(`/shared-project/${pendingShareToken}`);
-    } else {
-      // Navigate to home page
-      navigate('/');
-    }
+    // Navigate to home page using window.location to avoid HashRouter issues
+    window.location.href = '/';
   };
 
   // Check URL parameters for auth status - this should run first
@@ -110,12 +80,6 @@ const LoginPage = () => {
     const urlParams = new URLSearchParams(window.location.search);
     const errorMsg = urlParams.get('error');
     const authStatus = urlParams.get('auth');
-    const shareToken = urlParams.get('share_token');
-    
-    // Save share token if present
-    if (shareToken) {
-      sessionStorage.setItem('pendingShareToken', shareToken);
-    }
     
     // Handle organization access error immediately
     if (errorMsg === 'organization_not_allowed') {

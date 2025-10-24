@@ -82,7 +82,7 @@ class Config:
     GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
     
     # RAG Pipeline Settings
-    NEON_CONNECTION_STRING ='postgresql://neondb_owner:npg_hXbP6sel9HCm@ep-morning-sky-a8ntg0mx-pooler.eastus2.azure.neon.tech/neondb?sslmode=require&channel_binding=require'
+    NEON_CONNECTION_STRING = os.getenv('NEON_CONNECTION_STRING')
     VECTOR_EMBEDDING_MODEL = os.getenv('VECTOR_EMBEDDING_MODEL', 'text-embedding-004')
     RAG_LLM_MODEL = os.getenv('RAG_LLM_MODEL', 'gemini-2.5-flash')
     VECTOR_STORE_COLLECTION_PREFIX = os.getenv('VECTOR_STORE_COLLECTION_PREFIX', 'pbix_')

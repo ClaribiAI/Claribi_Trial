@@ -4,9 +4,10 @@
 !/claribi/
 !.gitignore
 
-#Ingore pOwer bi docs
-Backend/powerbi_docs/
-Backend/**/powerbi_docs/
+
+# Note: powerbi_docs is now included in deployment
+# Backend/powerbi_docs/
+# Backend/**/powerbi_docs/
 
 # Backend specific ignores
 Backend/__pycache__/
@@ -52,6 +53,7 @@ Backend/docs/_build/
 Backend/**/docs/_build/
 Backend/*.md
 Backend/**/*.md
+Backend/tests/
 
 # claribi specific ignores
 claribi/node_modules/
@@ -86,7 +88,8 @@ claribi/**/certificates/*.cer
 claribi/**/certificates/*.der
 claribi/*.md
 claribi/**/*.md
-
+claribi/src/__tests__/
+claribi/**/src/__tests__/
 # IDE and editor files (global)
 .idea/
 .vscode/

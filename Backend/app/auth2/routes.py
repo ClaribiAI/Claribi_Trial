@@ -251,16 +251,24 @@ def callback():
             "role": user_role
         }
         
-        jwt_token = JWTService.create_user_token(user_data_for_token)
+        access_token, refresh_token = JWTService.create_user_token(user_data_for_token)
         
         # Redirect to frontend with JWT token and clear the code_verifier cookie
         separator = '&' if '?' in redirect_uri else '?'
-        final_redirect_url = f"{redirect_uri}{separator}token={jwt_token}&auth=success"
+        final_redirect_url = f"{redirect_uri}{separator}token={access_token}&auth=success"
         
-        # Clear the PKCE data cookie after successful authentication
+        # Clear the PKCE data cookie and set refresh token cookie
         from flask import make_response
         response = make_response(redirect(final_redirect_url))
         response.set_cookie('pkce_data', '', expires=0, httponly=True, secure=True, samesite='None')
+        response.set_cookie(
+            'refresh_token',
+            refresh_token,
+            httponly=True,
+            secure=True,
+            samesite='None',
+            max_age=7*24*3600  # 7 days
+        )
         
         return response
         
@@ -283,6 +291,59 @@ def organization_not_allowed():
         "message": "Your organization has not yet purchased a plan. Please visit www.claribi.ai to purchase a plan."
     }), 403
 
+@auth2_bp.route("/refresh")
+def refresh_token():
+    """
+    Refresh access token using refresh token from cookie.
+    Returns new access token and refresh token.
+    """
+    try:
+        # Get refresh token from cookie
+        refresh_token = request.cookies.get('refresh_token')
+        if not refresh_token:
+            return jsonify({
+                "success": False,
+                "error": "no_refresh_token",
+                "message": "No refresh token provided"
+            }), 401
+        
+        # Refresh the tokens
+        result = JWTService.refresh_access_token(refresh_token)
+        if not result:
+            return jsonify({
+                "success": False,
+                "error": "invalid_refresh_token",
+                "message": "Invalid or expired refresh token"
+            }), 401
+        
+        new_access_token, new_refresh_token = result
+        
+        # Create response with new access token
+        response = jsonify({
+            "success": True,
+            "access_token": new_access_token
+        })
+        
+        # Set new refresh token cookie
+        response.set_cookie(
+            'refresh_token',
+            new_refresh_token,
+            httponly=True,
+            secure=True,
+            samesite='None',
+            max_age=7*24*3600  # 7 days
+        )
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error refreshing token: {e}")
+        return jsonify({
+            "success": False,
+            "error": "server_error",
+            "message": "Failed to refresh token"
+        }), 500
+
 @auth2_bp.route("/logout")
 def logout():
     """
@@ -293,16 +354,20 @@ def logout():
         # Clear user session
         clear_session()
         
-        # Construct Microsoft logout URL - redirect to login page for better UX
-        frontend_login_url = f"{auth2_config.FRONTEND_URL}/login"
-        logout_uri = f"{auth2_config.MSAL_AUTHORITY}/oauth2/v2.0/logout?post_logout_redirect_uri={frontend_login_url}"
+        # Clear refresh token cookie
+        from flask import make_response
+        frontend_root_url = f"{auth2_config.FRONTEND_URL}/"
+        logout_uri = f"{auth2_config.MSAL_AUTHORITY}/oauth2/v2.0/logout?post_logout_redirect_uri={frontend_root_url}"
         
-        return redirect(logout_uri)
+        response = make_response(redirect(logout_uri))
+        response.set_cookie('refresh_token', '', expires=0, httponly=True, secure=True, samesite='None')
+        
+        return response
         
     except Exception as e:
         logger.error(f"Error during logout: {e}")
-        # On error, redirect to login page instead of root
-        return redirect(f"{auth2_config.FRONTEND_URL}/login")
+        # On error, redirect to root page
+        return redirect(f"{auth2_config.FRONTEND_URL}/")
 
 # --- Protected API Routes ---
 

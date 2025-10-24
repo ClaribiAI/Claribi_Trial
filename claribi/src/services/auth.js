@@ -235,6 +235,27 @@ const authService = {
    */
   removeToken: () => {
     tokenManager.removeToken();
+  },
+
+  /**
+   * Refresh access token using refresh token from httpOnly cookie
+   * @returns {Promise<string>} New access token
+   */
+  refreshAccessToken: async () => {
+    try {
+      const response = await api.get('/api/auth/refresh');
+      if (response.data.success) {
+        tokenManager.setToken(response.data.access_token);
+        console.log('Access token refreshed successfully');
+        return response.data.access_token;
+      }
+      throw new Error('Token refresh failed');
+    } catch (error) {
+      console.error('Token refresh failed:', error);
+      // Clear token on refresh failure
+      tokenManager.removeToken();
+      throw error;
+    }
   }
 };
 

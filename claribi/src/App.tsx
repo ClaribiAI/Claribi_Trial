@@ -1,10 +1,10 @@
 import { FC } from 'react';
-import { HashRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from '@mui/material/styles';
 import Layout from './components/layout/Layout';
 import SettingsPage from './pages/settings';
 import HelpPage from './pages/help';
-import LoginPage from './pages/login';
+import LoginWrapper from './components/auth/LoginWrapper';
 import { AuthProvider } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { useTheme } from './contexts/ThemeContext';
@@ -23,7 +23,7 @@ const AppContent: FC = () => {
     <ThemeProvider theme={theme}>
       <Router>
         <Routes>
-          <Route path="/login" element={<LoginPage />} />
+          <Route path="/login" element={<LoginWrapper />} />
           <Route path="/" element={
             <ProtectedRoute requiredRole={null} requiredMicrosoftRole={null}>
               <Layout fullWidth>

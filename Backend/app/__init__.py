@@ -45,19 +45,24 @@ def create_app():
     
     app.logger.info("Using simplified JWT-based authentication (no session storage)")
     
-    # Initialize CSRF Protection
-    csrf.init_app(app)
-    
-    # Configure CSRF settings for production
+    # Configure CSRF settings BEFORE initializing CSRF Protection
     app.config['WTF_CSRF_CHECK_DEFAULT'] = True
     app.config['WTF_CSRF_TIME_LIMIT'] = None  # No time limit
-    app.config['WTF_CSRF_SSL_STRICT'] = config.SECURE_COOKIES  # Enforce SSL in production
     
     # Configure CSRF referer checking based on environment
     if config.FLASK_ENV == 'production':
         app.config['WTF_CSRF_CHECK_REFERER'] = True
+        app.config['WTF_CSRF_SSL_STRICT'] = True
+        app.logger.info("CSRF configured for production: referer checking enabled, SSL strict enabled")
     else:
+        # Development settings - more permissive
         app.config['WTF_CSRF_CHECK_REFERER'] = False
+        app.config['WTF_CSRF_SSL_STRICT'] = False
+        app.config['WTF_CSRF_METHODS'] = ['POST', 'PUT', 'PATCH', 'DELETE']  # Only check these methods
+        app.logger.info("CSRF configured for development: referer checking disabled, SSL strict disabled")
+    
+    # Initialize CSRF Protection AFTER configuration
+    csrf.init_app(app)
     
     # Configure CSRF exemptions for auth endpoints
     csrf.exempt('auth2.login')
@@ -160,7 +165,7 @@ def create_app():
     # Register blueprints
     app.register_blueprint(auth2_bp, supports_credentials=True)  # Authentication at /api/auth
     app.register_blueprint(powerbi_chat_bp, supports_credentials=True)  # Power BI Chat
-    app.register_blueprint(powerbi_docs_bp)  # Power BI Docs
+    app.register_blueprint(powerbi_docs_bp, supports_credentials=True)  # Power BI Docs
     
     # API-only backend - no catch-all route needed
     # Frontend will be served separately

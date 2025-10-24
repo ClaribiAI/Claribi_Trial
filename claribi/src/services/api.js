@@ -87,7 +87,7 @@ api.interceptors.response.use(
     
     return response;
   },
-  error => {
+  async error => {
     // Log and handle errors
     console.error('API Response Error:', error);
     
@@ -100,9 +100,36 @@ api.interceptors.response.use(
       // Handle authentication errors
       if (status === 401) {
         const currentPath = window.location.pathname;
+        
         // Don't redirect if already on the login page
-        if (currentPath !== '/login') {
+        if (currentPath === '/login') {
+          return Promise.reject(error);
+        }
+        
+        // Don't retry if this request already failed after refresh
+        if (config._retry) {
+          console.log('Token refresh already attempted, redirecting to login');
           window.location.href = '/login';
+          return Promise.reject(error);
+        }
+        
+        // Attempt token refresh before redirecting to login
+        try {
+          console.log('401 error detected, attempting token refresh...');
+          config._retry = true;
+          
+          // Import authService dynamically to avoid circular dependency
+          const authService = (await import('./auth')).default;
+          await authService.refreshAccessToken();
+          
+          console.log('Token refreshed successfully, retrying original request');
+          // Retry the original request with the new token
+          return api.request(config);
+        } catch (refreshError) {
+          console.error('Token refresh failed, redirecting to login:', refreshError);
+          // Only redirect to login if refresh fails
+          window.location.href = '/login';
+          return Promise.reject(error);
         }
       }
       

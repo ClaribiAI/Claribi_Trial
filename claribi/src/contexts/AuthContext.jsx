@@ -1,8 +1,13 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import authService from '../services/auth';
 
-// Define available roles
+// Define available roles - map backend Azure AD roles to frontend roles
 export const ROLES = {
+  // Backend Azure AD roles
+  CLARIBI_ADMIN: 'Claribi_Admin',
+  CLARIBI_USER: 'Claribi_User', 
+  CLARIBI_DEVELOPER: 'Claribi_Developer',
+  // Legacy frontend roles for backward compatibility
   DATA_ANALYST: 'data-analyst',
   USER: 'user'
 };
@@ -18,6 +23,7 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [organizationAccessError, setOrganizationAccessError] = useState(false);
+  const [refreshInterval, setRefreshInterval] = useState(null);
 
   // Fetch the user profile from the backend using JWT tokens
   const fetchUserProfile = async () => {
@@ -64,7 +70,8 @@ export const AuthProvider = ({ children }) => {
         
         setCurrentUser({
           username: userData.display_id,
-          role: ROLES.DATA_ANALYST, // Set default role for claribi (no role switching)
+          role: userData.role, // Use actual backend role from Azure AD
+          backendRole: userData.role, // Store for reference
           ms_object_id: userData.ms_object_id,
           organization_id: userData.organization_id,
           // Add Graph API specific data if available
@@ -93,6 +100,46 @@ export const AuthProvider = ({ children }) => {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Proactive token refresh function
+  const checkAndRefreshToken = async () => {
+    try {
+      const token = authService.getToken();
+      if (!token) return;
+
+      // Check if token expires in the next 5 minutes (300 seconds)
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const currentTime = Date.now() / 1000;
+      const timeUntilExpiry = payload.exp - currentTime;
+
+      if (timeUntilExpiry < 300 && timeUntilExpiry > 0) {
+        console.log('Token expires soon, refreshing proactively...');
+        await authService.refreshAccessToken();
+      }
+    } catch (error) {
+      console.error('Error checking token expiry:', error);
+    }
+  };
+
+  // Start proactive token refresh monitoring
+  const startTokenRefreshMonitoring = () => {
+    // Clear any existing interval
+    if (refreshInterval) {
+      clearInterval(refreshInterval);
+    }
+
+    // Check every minute
+    const interval = setInterval(checkAndRefreshToken, 60000);
+    setRefreshInterval(interval);
+  };
+
+  // Stop token refresh monitoring
+  const stopTokenRefreshMonitoring = () => {
+    if (refreshInterval) {
+      clearInterval(refreshInterval);
+      setRefreshInterval(null);
     }
   };
 
@@ -130,8 +177,18 @@ export const AuthProvider = ({ children }) => {
     return () => {
       window.removeEventListener('popstate', handleNavigation);
       window.removeEventListener('beforeunload', handleBeforeUnload);
+      stopTokenRefreshMonitoring();
     };
   }, []);
+
+  // Start token refresh monitoring when user is authenticated
+  useEffect(() => {
+    if (currentUser) {
+      startTokenRefreshMonitoring();
+    } else {
+      stopTokenRefreshMonitoring();
+    }
+  }, [currentUser]);
 
   // Login using Microsoft AD
   const login = () => {
@@ -156,6 +213,9 @@ export const AuthProvider = ({ children }) => {
   // Logout user
   const logout = () => {
     try {
+      // Stop token refresh monitoring
+      stopTokenRefreshMonitoring();
+      
       // Clear organization access error on logout
       setOrganizationAccessError(false);
       setError(null);
@@ -181,18 +241,27 @@ export const AuthProvider = ({ children }) => {
       // Clear user state and redirect on error
       setCurrentUser(null);
       authService.removeToken();
-      window.location.href = '/login';
+      window.location.href = '/';
     }
   };
 
   // Check if user has specific role
   const hasRole = (role) => currentUser?.role === role;
 
-  // Check if user is a data analyst
+  // Check if user is a data analyst (legacy compatibility)
   const isDataAnalyst = () => currentUser?.role === ROLES.DATA_ANALYST;
 
-  // Check if user is a regular user
+  // Check if user is a regular user (legacy compatibility)
   const isUser = () => currentUser?.role === ROLES.USER;
+
+  // Check if user has admin role
+  const isAdmin = () => currentUser?.role === ROLES.CLARIBI_ADMIN;
+
+  // Check if user has developer role
+  const isDeveloper = () => currentUser?.role === ROLES.CLARIBI_DEVELOPER;
+
+  // Check if user has any valid role
+  const hasValidRole = () => currentUser?.role && Object.values(ROLES).includes(currentUser.role);
 
   // Fetch Graph API data for the current user
   const fetchGraphData = async () => {
@@ -215,6 +284,9 @@ export const AuthProvider = ({ children }) => {
     hasRole,
     isDataAnalyst,
     isUser,
+    isAdmin,
+    isDeveloper,
+    hasValidRole,
     fetchUserProfile,
     fetchGraphData
   };

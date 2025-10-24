@@ -58,72 +58,30 @@ def get_rate_limiter() -> RateLimiter:
     """Get rate limiter instance."""
     return RateLimiter(get_redis())
 
-def generate_csrf_token() -> str:
-    """Generate a new CSRF token."""
-    return jwt.encode(
-        {'timestamp': datetime.utcnow().isoformat()},
-        config.SECRET_KEY,
-        algorithm='HS256'
-    )
-
-def validate_csrf_token(token: str) -> bool:
-    """Validate CSRF token.
-    
-    Args:
-        token: CSRF token to validate
-        
-    Returns:
-        bool: True if token is valid
-    """
-    try:
-        jwt.decode(token, config.SECRET_KEY, algorithms=['HS256'])
-        return True
-    except jwt.InvalidTokenError:
-        return False
 
 def get_current_user() -> Optional[Dict[str, Any]]:
-    """Get the current authenticated user from session.
+    """Get the current authenticated user from JWT token.
+    
+    This function delegates to the auth2 module's implementation.
     
     Returns:
         Optional[Dict[str, Any]]: User data if authenticated, None otherwise
     """
     try:
-        # First check session for Microsoft auth user data
-        if 'user' in session:
-            user_data = session['user']
-            if isinstance(user_data, dict) and 'ms_object_id' in user_data:
-                return {
-                    'id': user_data.get('id'),
-                    'ms_object_id': user_data['ms_object_id'],
-                    'organization_id': user_data.get('organization_id'),
-                    'display_id': user_data.get('display_id'),
-                    'is_active': True  # Microsoft authenticated users are considered active
-                }
+        from app.auth2.middleware import get_current_user_from_token
+        user_data = get_current_user_from_token()
         
-        # Fallback to token-based auth
-        session_token = request.headers.get('Authorization', '').replace('Bearer ', '')
-        if not session_token:
-            logger.debug("No auth token found in headers")
+        if not user_data:
             return None
             
-        # Use JWT service for proper token validation
-        try:
-            from app.auth2.jwt_service import JWTService
-            user_data = JWTService.validate_user_token(session_token)
-            if not user_data:
-                logger.debug("Invalid or expired token")
-                return None
-                
-            return {
-                'id': user_data.get('ms_object_id'),  # Use ms_object_id as id
-                'ms_object_id': user_data['ms_object_id'],
-                'organization_id': user_data.get('organization_id'),
-                'display_id': user_data.get('display_id'),
-                'is_active': True
-            }
-        except Exception as e:
-            logger.debug(f"Error validating token: {e}")
-            return None
+        # Convert auth2 format to expected format for backward compatibility
+        return {
+            'id': user_data.get('ms_object_id'),  # Use ms_object_id as id
+            'ms_object_id': user_data['ms_object_id'],
+            'organization_id': user_data.get('organization_id'),
+            'display_id': user_data.get('display_id'),
+            'is_active': True
+        }
             
     except Exception as e:
         logger.error(f"Error getting current user: {e}", exc_info=True)
@@ -132,45 +90,11 @@ def get_current_user() -> Optional[Dict[str, Any]]:
 def login_required(f: Callable) -> Callable:
     """Decorator to require authentication.
     
-    This decorator checks for a valid session and user authentication
-    before allowing access to the endpoint.
+    This decorator delegates to the auth2 module's auth_required decorator.
     """
-    @functools.wraps(f)
-    def decorated(*args, **kwargs):
-        # Get and set current user
-        user = get_current_user()
-        if not user:
-            logger.warning("Unauthenticated access attempt")
-            abort(401)
-        
-        # Check if organization is allowed
-        from app.auth2.services import UserService
-        if not UserService.is_organization_allowed(user.get('organization_id')):
-            logger.warning(f"Organization {user.get('organization_id')} is not allowed to access the system")
-            abort(403, description="Your organization has not yet purchased a plan. Please visit www.claribi.ai to purchase a plan.")
-        
-        # Set user in flask.g context
-        g.user = user
-            
-        # Log successful authentication
-        logger.debug(f"Authenticated user: {user.get('ms_object_id')}")
-            
-        return f(*args, **kwargs)
-    return decorated
+    from app.auth2.middleware import auth_required
+    return auth_required(f)
 
-def csrf_protected(f: Callable) -> Callable:
-    """Decorator to require CSRF token validation using Flask-WTF.
-    
-    This decorator validates the CSRF token for POST/PUT/DELETE/PATCH requests.
-    Flask-WTF automatically handles CSRF validation, so this decorator is now
-    a pass-through that relies on Flask-WTF's built-in protection.
-    """
-    @functools.wraps(f)
-    def decorated(*args, **kwargs):
-        # Flask-WTF automatically validates CSRF tokens for state-changing requests
-        # No additional validation needed here as Flask-WTF handles it globally
-        return f(*args, **kwargs)
-    return decorated
 
 def rate_limit(
     limit: int = 100,

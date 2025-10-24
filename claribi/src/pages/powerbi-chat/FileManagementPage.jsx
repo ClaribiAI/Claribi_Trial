@@ -93,7 +93,7 @@ const FileManagementPage = ({ onFileSelect, onUploadNew }) => {
                             fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif",
                             mb: 0.5
                         }}>
-                            Clari<span className="bi-yellow">bi</span> Power BI Chat Assistant
+                            Intelligent Chat
                         </Typography>
                         <Typography variant="h6" sx={{ 
                             color: theme.palette.text.secondary, 

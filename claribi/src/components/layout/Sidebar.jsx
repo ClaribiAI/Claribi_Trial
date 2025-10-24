@@ -52,8 +52,8 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
 
   const menuItems = [
     { text: 'Home', icon: <House size={20} />, path: '/' },
-    { text: 'Docs', icon: <Files size={20} />, path: '/powerbi-docs' },
-    { text: 'Chat', icon: <ChatCircle size={20} />, path: '/powerbi-chat' },
+    { text: 'Instant Documentation', icon: <Files size={20} />, path: '/powerbi-docs' },
+    { text: 'Intelligent Chat', icon: <ChatCircle size={20} />, path: '/powerbi-chat' },
   ];
 
   // Filter menu items based on user role
