@@ -85,24 +85,39 @@ const ChatInput = React.memo(({
                 sx={{
                     '& .MuiInput-root': {
                         '&:before': {
-                            borderBottom: 'none'
+                            borderBottom: 'none !important'
                         },
                         '&:after': {
-                            borderBottom: 'none'
+                            borderBottom: 'none !important'
                         },
                         '&:hover:not(.Mui-disabled):before': {
-                            borderBottom: 'none'
+                            borderBottom: 'none !important'
+                        },
+                        '&:hover:not(.Mui-disabled):after': {
+                            borderBottom: 'none !important'
+                        },
+                        '&.Mui-focused:before': {
+                            borderBottom: 'none !important'
+                        },
+                        '&.Mui-focused:after': {
+                            borderBottom: 'none !important'
                         }
                     },
                     '& .MuiInputBase-input': {
                         color: theme.palette.text.primary,
                         fontSize: '0.95rem',
                         lineHeight: 1.5,
-                        padding: 0
+                        padding: 0,
+                        '&::placeholder': {
+                            color: theme.palette.text.secondary,
+                            opacity: 1
+                        }
                     },
-                    '& .MuiInputBase-input::placeholder': {
-                        color: theme.palette.text.secondary,
-                        opacity: 1
+                    '& .MuiInputBase-inputMultiline': {
+                        '&::placeholder': {
+                            color: theme.palette.text.secondary,
+                            opacity: 1
+                        }
                     }
                 }}
             />
@@ -128,7 +143,10 @@ const ChatInput = React.memo(({
                     px: 1.5,
                     py: 0,
                     height: 30,
-                    minWidth: 140
+                    minWidth: 140,
+                    opacity: isLoading ? 0.5 : 1,
+                    pointerEvents: isLoading ? 'none' : 'auto',
+                    cursor: isLoading ? 'not-allowed' : 'default'
                 }}>
                     {/* Detailed Text */}
                     <Box sx={{
