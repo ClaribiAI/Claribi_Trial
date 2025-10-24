@@ -21,13 +21,14 @@ import { sendPowerBIQueryWithUpdates, deletePowerBISession, sendUserClarificatio
 import MarkdownRenderer from '../../components/ui/MarkdownRenderer';
 import ThinkingProcess from '../../components/ui/ThinkingProcess';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import ChatInput from './ChatInput';
+import ClarificationInput from './ClarificationInput';
 import { useNotification } from '../../contexts/NotificationContext';
 
 const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseChat, isInline = false }) => {
     const theme = useTheme();
     const { showNotification } = useNotification();
     const [messages, setMessages] = useState([]);
-    const [inputMessage, setInputMessage] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
     const [thinkingProcess, setThinkingProcess] = useState({
@@ -48,11 +49,8 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
         currentIndex: 0,
         clarificationSessionKey: null
     });
-    const [currentClarificationAnswer, setCurrentClarificationAnswer] = useState('');
     const [isProcessingClarifications, setIsProcessingClarifications] = useState(false);
     const [isWaitingForClarifications, setIsWaitingForClarifications] = useState(false);
-    const [copySuccess, setCopySuccess] = useState(false);
-    const [copyButtonHovered, setCopyButtonHovered] = useState(false);
     
     // Conversation history state for follow-up questions
     const [conversationHistory, setConversationHistory] = useState([]);
@@ -182,71 +180,11 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
         };
     }, []); // Empty dependency array - only run on unmount
 
-    // Handle Enter key for clarification answers
-    const handleClarificationKeyDown = (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            e.stopPropagation();
-            submitCurrentClarificationAnswer();
-        }
-    };
 
-    // Clean text for copying - remove markdown formatting, code blocks, etc.
-    const cleanTextForCopy = (text) => {
-        if (!text) return '';
-        
-        return text
-            // Remove code blocks (```dax ... ```)
-            .replace(/```[\s\S]*?```/g, '')
-            // Remove inline code (`code`)
-            .replace(/`([^`]+)`/g, '$1')
-            // Remove bold/italic markdown
-            .replace(/\*\*([^*]+)\*\*/g, '$1')
-            .replace(/\*([^*]+)\*/g, '$1')
-            .replace(/__([^_]+)__/g, '$1')
-            .replace(/_([^_]+)_/g, '$1')
-            // Remove headers
-            .replace(/^#{1,6}\s+/gm, '')
-            // Remove links [text](url) -> text
-            .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-            // Remove horizontal rules
-            .replace(/^[-*_]{3,}$/gm, '')
-            // Remove list markers
-            .replace(/^[\s]*[-*+]\s+/gm, '• ')
-            .replace(/^[\s]*\d+\.\s+/gm, '')
-            // Remove blockquotes
-            .replace(/^>\s*/gm, '')
-            // Clean up multiple newlines
-            .replace(/\n{3,}/g, '\n\n')
-            // Trim whitespace
-            .trim();
-    };
 
-    // Copy text to clipboard
-    const handleCopyText = async (text) => {
-        const cleanText = cleanTextForCopy(text);
-        try {
-            await navigator.clipboard.writeText(cleanText);
-            setCopySuccess(true);
-            setCopyButtonHovered(false); // Reset hover state
-            setTimeout(() => setCopySuccess(false), 2000);
-        } catch (err) {
-            console.error('Failed to copy text: ', err);
-            // Fallback for older browsers
-            const textArea = document.createElement('textarea');
-            textArea.value = cleanText;
-            document.body.appendChild(textArea);
-            textArea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textArea);
-            setCopySuccess(true);
-            setCopyButtonHovered(false); // Reset hover state
-            setTimeout(() => setCopySuccess(false), 2000);
-        }
-    };
 
-    const handleSendMessage = useCallback(async (messageToSend = null) => {
-        const message = messageToSend || inputMessage;
+    const handleSendMessage = useCallback(async (messageToSend) => {
+        const message = messageToSend;
         if (!message?.trim() || isLoading) return;
         
         // Check if PBIX file is uploaded
@@ -278,10 +216,6 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
         console.log('Conversation history being sent:', summarizedHistory);
         
         const originalQuery = message.trim();
-        // Only clear input message if we're not using a passed message
-        if (!messageToSend) {
-            setInputMessage('');
-        }
         setIsLoading(true);
         setError(null);
         setActionHistory([]); // Clear previous history
@@ -441,7 +375,7 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
         } finally {
             setIsLoading(false);
         }
-    }, [inputMessage, isLoading, pbixFile, conversationHistory, addActionToHistory, summarizeConversationHistory]);
+    }, [isLoading, pbixFile, conversationHistory, addActionToHistory, summarizeConversationHistory]);
 
     // Auto-send initial message if provided
     useEffect(() => {
@@ -458,18 +392,11 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
         }
     }, [initialMessage, pbixFile, handleSendMessage, initialMessageSent]);
 
-    const handleKeyDown = (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            e.stopPropagation();
-            handleSendMessage();
-        }
-    };
 
     // Inline clarification handlers
-    const submitCurrentClarificationAnswer = async () => {
+    const submitCurrentClarificationAnswer = async (answer) => {
         if (!clarificationFlow.active) return;
-        const trimmed = currentClarificationAnswer.trim();
+        const trimmed = answer.trim();
         if (!trimmed) return;
         const totalQuestions = clarificationFlow.questions.length;
         const currentQuestionNumber = clarificationFlow.currentIndex + 1;
@@ -489,7 +416,6 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
         if (hasMore) {
             const nextIndex = clarificationFlow.currentIndex + 1;
             setClarificationFlow(prev => ({ ...prev, answers: nextAnswers, currentIndex: nextIndex }));
-            setCurrentClarificationAnswer('');
             // Ask next question
             setMessages(prev => [...prev, {
                 id: Date.now() + 2,
@@ -509,7 +435,6 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
         }
         setIsProcessingClarifications(true);
         setIsWaitingForClarifications(false);
-        setCurrentClarificationAnswer('');
         addActionToHistory(`Submitting clarifications (${totalQuestions} answers)`, 1, 'in_progress');
         setThinkingProcess(prev => ({
             ...prev,
@@ -570,6 +495,62 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
 
     const MessageBubble = React.memo(({ message, messageIndex, totalMessages }) => {
         const isUser = message.type === 'user';
+        const [copySuccess, setCopySuccess] = useState(false);
+        const [copyButtonHovered, setCopyButtonHovered] = useState(false);
+        
+        // Clean text for copying - remove markdown formatting, code blocks, etc.
+        const cleanTextForCopy = (text) => {
+            if (!text) return '';
+            
+            return text
+                // Remove code blocks (```dax ... ```)
+                .replace(/```[\s\S]*?```/g, '')
+                // Remove inline code (`code`)
+                .replace(/`([^`]+)`/g, '$1')
+                // Remove bold/italic markdown
+                .replace(/\*\*([^*]+)\*\*/g, '$1')
+                .replace(/\*([^*]+)\*/g, '$1')
+                .replace(/__([^_]+)__/g, '$1')
+                .replace(/_([^_]+)_/g, '$1')
+                // Remove headers
+                .replace(/^#{1,6}\s+/gm, '')
+                // Remove links [text](url) -> text
+                .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+                // Remove horizontal rules
+                .replace(/^[-*_]{3,}$/gm, '')
+                // Remove list markers
+                .replace(/^[\s]*[-*+]\s+/gm, '• ')
+                .replace(/^[\s]*\d+\.\s+/gm, '')
+                // Remove blockquotes
+                .replace(/^>\s*/gm, '')
+                // Clean up multiple newlines
+                .replace(/\n{3,}/g, '\n\n')
+                // Trim whitespace
+                .trim();
+        };
+
+        // Copy text to clipboard
+        const handleCopyText = async (text) => {
+            const cleanText = cleanTextForCopy(text);
+            try {
+                await navigator.clipboard.writeText(cleanText);
+                setCopySuccess(true);
+                setCopyButtonHovered(false); // Reset hover state
+                setTimeout(() => setCopySuccess(false), 2000);
+            } catch (err) {
+                console.error('Failed to copy text: ', err);
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = cleanText;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                setCopySuccess(true);
+                setCopyButtonHovered(false); // Reset hover state
+                setTimeout(() => setCopySuccess(false), 2000);
+            }
+        };
         
         return (
             <Box mb={2}>
@@ -872,152 +853,20 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
                 }}
             >
                 {clarificationFlow.active ? (
-                    <Box sx={{ position: 'relative' }}>
-                        <TextField
-                            fullWidth
-                            multiline
-                            maxRows={4}
-                            value={currentClarificationAnswer}
-                            onChange={(e) => setCurrentClarificationAnswer(e.target.value)}
-                            onKeyDown={handleClarificationKeyDown}
-                            placeholder={`Answer: Question ${clarificationFlow.currentIndex + 1}/${clarificationFlow.questions.length}`}
-                            variant="outlined"
-                            disabled={isProcessingClarifications}
-                            sx={{
-                                '& .MuiOutlinedInput-root': {
-                                    borderRadius: 3,
-                                    bgcolor: theme.palette.background.chat,
-                                    border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
-                                    color: theme.palette.text.primary,
-                                    pr: currentClarificationAnswer.trim() ? 7 : 2, // Add right padding when button is visible
-                                    '&:hover': { 
-                                        bgcolor: theme.palette.background.chat,
-                                        borderColor: alpha(theme.palette.input.focusBorder, 0.3)
-                                    },
-                                    '&.Mui-focused': { 
-                                        bgcolor: theme.palette.background.chat,
-                                        borderColor: theme.palette.input.focusBorder,
-                                        boxShadow: `0 0 0 2px ${alpha(theme.palette.input.focusBorder, 0.1)}`
-                                    }
-                                },
-                                '& .MuiInputBase-input': {
-                                    color: theme.palette.text.primary
-                                },
-                                '& .MuiInputBase-input::placeholder': {
-                                    color: theme.palette.text.secondary,
-                                    opacity: 1
-                                }
-                            }}
-                        />
-                        {currentClarificationAnswer.trim() && (
-                            <Button
-                                onClick={submitCurrentClarificationAnswer}
-                                disabled={isProcessingClarifications}
-                                variant="contained"
-                                sx={{
-                                    position: 'absolute',
-                                    right: 8,
-                                    top: '50%',
-                                    transform: 'translateY(-50%)',
-                                    minWidth: 40,
-                                    height: 40,
-                                    borderRadius: 2,
-                                    bgcolor: theme.palette.primary.main,
-                                    '&:hover': { 
-                                        bgcolor: theme.palette.primary.dark,
-                                        transform: 'translateY(-50%) scale(1.05)',
-                                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-                                    },
-                                    '&:disabled': { 
-                                        bgcolor: alpha(theme.palette.primary.main, 0.3),
-                                        transform: 'translateY(-50%)',
-                                        boxShadow: 'none'
-                                    },
-                                    transition: 'all 0.2s ease'
-                                }}
-                            >
-                                {isProcessingClarifications ? (
-                                    <LoadingSpinner size={16} compact />
-                                ) : (
-                                    clarificationFlow.currentIndex + 1 === clarificationFlow.questions.length ? 'Submit' : 'Next'
-                                )}
-                            </Button>
-                        )}
-                    </Box>
+                    <ClarificationInput
+                        onSendAnswer={submitCurrentClarificationAnswer}
+                        isProcessing={isProcessingClarifications}
+                        currentQuestionNumber={clarificationFlow.currentIndex + 1}
+                        totalQuestions={clarificationFlow.questions.length}
+                        disabled={false}
+                    />
                 ) : (
-                    <Box sx={{ position: 'relative' }}>
-                        <TextField
-                            ref={inputRef}
-                            fullWidth
-                            multiline
-                            maxRows={4}
-                            value={inputMessage}
-                            onChange={(e) => setInputMessage(e.target.value)}
-                            onKeyDown={handleKeyDown}
+                    <ChatInput
+                        onSendMessage={handleSendMessage}
+                        isLoading={isLoading}
                             placeholder="Ask me anything about your Power BI dataset..."
-                            variant="outlined"
-                            disabled={isLoading}
-                            sx={{
-                                '& .MuiOutlinedInput-root': {
-                                    borderRadius: 3,
-                                    bgcolor: theme.palette.background.chat,
-                                    border: `1px solid ${theme.palette.input.border}`,
-                                    color: theme.palette.text.primary,
-                                    pr: inputMessage.trim() ? 7 : 2, // Add right padding when button is visible
-                                    '&:hover': { 
-                                        bgcolor: theme.palette.background.chat,
-                                        borderColor: alpha(theme.palette.input.focusBorder, 0.3)
-                                    },
-                                    '&.Mui-focused': { 
-                                        bgcolor: theme.palette.background.chat,
-                                        borderColor: theme.palette.input.focusBorder,
-                                        boxShadow: `0 0 0 2px ${alpha(theme.palette.input.focusBorder, 0.1)}`
-                                    }
-                                },
-                                '& .MuiInputBase-input': {
-                                    color: theme.palette.text.primary
-                                },
-                                '& .MuiInputBase-input::placeholder': {
-                                    color: theme.palette.text.secondary,
-                                    opacity: 1
-                                }
-                            }}
-                        />
-                        {inputMessage.trim() && (
-                            <Button
-                                onClick={handleSendMessage}
-                                disabled={isLoading}
-                                variant="contained"
-                                sx={{
-                                    position: 'absolute',
-                                    right: 8,
-                                    top: '50%',
-                                    transform: 'translateY(-50%)',
-                                    minWidth: 40,
-                                    height: 40,
-                                    borderRadius: 2,
-                                    bgcolor: theme.palette.primary.main,
-                                    '&:hover': { 
-                                        bgcolor: theme.palette.primary.dark,
-                                        transform: 'translateY(-50%) scale(1.05)',
-                                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-                                    },
-                                    '&:disabled': { 
-                                        bgcolor: alpha(theme.palette.primary.main, 0.3),
-                                        transform: 'translateY(-50%)',
-                                        boxShadow: 'none'
-                                    },
-                                    transition: 'all 0.2s ease'
-                                }}
-                            >
-                                {isLoading ? (
-                                    <LoadingSpinner size={16} compact />
-                                ) : (
-                                    <PaperPlaneRight size={16} />
-                                )}
-                            </Button>
-                        )}
-                    </Box>
+                        disabled={false}
+                    />
                 )}
             </Box>
 
