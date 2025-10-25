@@ -1,6 +1,6 @@
 // src/components/MarkdownRenderer.jsx
 
-import React from 'react';
+import React, { memo, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -186,12 +186,12 @@ const CodeBlockWithCopy = ({ children, language, theme, isDax = false }) => {
     );
 };
 
-const MarkdownRenderer = ({ content, sx = {} }) => {
+const MarkdownRenderer = memo(({ content, sx = {} }) => {
     const theme = useTheme();
-    const processedContent = preprocessMarkdown(content);
-    const syntaxTheme = getDaxSyntaxTheme(theme);
+    const processedContent = useMemo(() => preprocessMarkdown(content), [content]);
+    const syntaxTheme = useMemo(() => getDaxSyntaxTheme(theme), [theme]);
 
-    const components = {
+    const components = useMemo(() => ({
         h1: (props) => <Typography variant="h4" component="h1" gutterBottom {...props} />,
         h2: (props) => <Typography variant="h5" component="h2" gutterBottom {...props} />,
         h3: (props) => <Typography variant="h6" component="h3" gutterBottom {...props} />,
@@ -470,7 +470,7 @@ const MarkdownRenderer = ({ content, sx = {} }) => {
                 </code>
             );
         }
-    };
+    }), [theme, syntaxTheme]);
 
     return (
         <Box sx={sx} className="markdown-content">
@@ -482,6 +482,8 @@ const MarkdownRenderer = ({ content, sx = {} }) => {
             </ReactMarkdown>
         </Box>
     );
-};
+});
+
+MarkdownRenderer.displayName = 'MarkdownRenderer';
 
 export default MarkdownRenderer;

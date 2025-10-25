@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, memo } from 'react';
 import {
     Box,
     Typography,
@@ -37,7 +37,7 @@ import RecommendationCard from './RecommendationCard';
 import RichTextEditor from './RichTextEditor';
 
 // Helper function to render a documentation section
-const DocumentationSection = ({ 
+const DocumentationSection = memo(({ 
     section, 
     content, 
     sectionLoading, 
@@ -380,6 +380,8 @@ const DocumentationSection = ({
             </Card>
         </Fade>
     );
-};
+});
+
+DocumentationSection.displayName = 'DocumentationSection';
 
 export default DocumentationSection;

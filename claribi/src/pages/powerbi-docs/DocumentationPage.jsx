@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback, memo } from 'react';
 import {
     Box,
     Typography,
@@ -29,11 +29,12 @@ import {
     ArrowLeft,
     CaretDownIcon
 } from '@phosphor-icons/react';
-import { analyzePowerBISection, parseImprovementRecommendations, applyImprovementRecommendation } from '../../services/powerbiDocsService';
+import { analyzePowerBISection, parseImprovementRecommendations, applyImprovementRecommendation, getGeneratedDocs } from '../../services/powerbiDocsService';
 import DocumentationSection from './components/DocumentationSection';
 import CustomInstructionsModal from './components/CustomInstructionsModal';
 import documentExportService from '../../services/documentExportService';
 import ChatPage from '../powerbi-chat/ChatPage';
+import LoadingSpinner from '../../components/ui/LoadingSpinner';
 
 const DocumentationPage = ({ 
     selectedFile, 
@@ -53,6 +54,8 @@ const DocumentationPage = ({
     const [editingSection, setEditingSection] = useState(null);
     const [editedContent, setEditedContent] = useState({});
     const [sectionLoading, setSectionLoading] = useState({});
+    const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+    const [allSectionsPreloaded, setAllSectionsPreloaded] = useState(false);
     
     // Section selection dropdown state
     const [anchorEl, setAnchorEl] = useState(null);
@@ -99,7 +102,7 @@ const DocumentationPage = ({
     ];
 
 
-    const handleApplyRecommendation = (recommendation) => {
+    const handleApplyRecommendation = useCallback((recommendation) => {
         if (!selectedFile) {
             setError('Please select a file first');
             return;
@@ -112,7 +115,7 @@ const DocumentationPage = ({
         setChatInitialMessage(initialMessage);
         setShowChat(true);
         setError(null);
-    };
+    }, [selectedFile]);
 
     const handleCloseChat = () => {
         setShowChat(false);
@@ -162,13 +165,13 @@ const DocumentationPage = ({
         };
     }, [isDragging]);
 
-    const handleRegenerateClick = (sectionName) => {
+    const handleRegenerateClick = useCallback((sectionName) => {
         setCurrentSectionForRegeneration(sectionName);
         setCustomInstructions('');
         setShowInstructionsModal(true);
-    };
+    }, []);
 
-    const handleGenerateSection = async (sectionId, customInstructions = '') => {
+    const handleGenerateSection = useCallback(async (sectionId, customInstructions = '') => {
         if (!selectedFile) {
             setError('Please select a file first');
             return;
@@ -211,7 +214,7 @@ const DocumentationPage = ({
         } finally {
             setSectionLoading(prev => ({ ...prev, [sectionId]: false }));
         }
-    };
+    }, [selectedFile]);
 
     const handleRegenerateWithInstructions = () => {
         if (currentSectionForRegeneration) {
@@ -234,13 +237,13 @@ const DocumentationPage = ({
         }
     };
 
-    const handleEditContent = (sectionId) => {
+    const handleEditContent = useCallback((sectionId) => {
         const currentContent = documentation?.documentation?.[sectionId] || '';
         setEditedContent(prev => ({ ...prev, [sectionId]: currentContent }));
         setEditingSection(sectionId);
-    };
+    }, [documentation]);
 
-    const handleSaveEdit = (sectionId) => {
+    const handleSaveEdit = useCallback((sectionId) => {
         // Update the documentation with edited content
         setDocumentation(prev => ({
             ...prev,
@@ -250,20 +253,93 @@ const DocumentationPage = ({
             }
         }));
         setEditingSection(null);
-    };
+    }, [editedContent]);
 
-    const handleCancelEdit = () => {
+    const handleCancelEdit = useCallback(() => {
         setEditingSection(null);
-    };
+    }, []);
 
-    const handleContentChange = (sectionId, value) => {
+    const handleContentChange = useCallback((sectionId, value) => {
         setEditedContent(prev => ({ ...prev, [sectionId]: value }));
-    };
+    }, []);
+
+    const handleTabChange = useCallback((event, newValue) => {
+        setActiveTab(newValue);
+    }, []);
 
     // Initialize selected sections with all sections when component mounts
     React.useEffect(() => {
         setSelectedSections(sections.map(section => section.id));
     }, []);
+
+    // Load existing generated docs when selectedFile changes
+    React.useEffect(() => {
+        const loadExistingDocs = async () => {
+            if (!selectedFile?.collection_name) {
+                setInitialLoadComplete(true);
+                setAllSectionsPreloaded(true);
+                return;
+            }
+
+            setInitialLoadComplete(false);
+            setAllSectionsPreloaded(false);
+            setError(null);
+
+            try {
+                const response = await getGeneratedDocs(selectedFile.collection_name);
+                const generatedSections = response.generated_sections || {};
+
+                if (Object.keys(generatedSections).length > 0) {
+                    // Convert the response format to match our documentation state
+                    const docsState = {};
+                    Object.entries(generatedSections).forEach(([sectionName, sectionData]) => {
+                        // Handle the new JSONB format where content is wrapped in an object
+                        if (sectionData.content && typeof sectionData.content === 'object') {
+                            if (sectionData.content.content) {
+                                // New format: {content: "text", type: "text"}
+                                docsState[sectionName] = sectionData.content.content;
+                            } else {
+                                // Direct object format (like improvement_recommendations)
+                                docsState[sectionName] = sectionData.content;
+                            }
+                        } else {
+                            // Fallback for old format or direct string
+                            docsState[sectionName] = sectionData.content;
+                        }
+                    });
+
+                    setDocumentation(prev => ({
+                        ...prev,
+                        documentation: {
+                            ...prev?.documentation,
+                            ...docsState
+                        }
+                    }));
+
+                    // Handle improvement recommendations specially
+                    const improvementData = generatedSections.improvement_recommendations?.content;
+                    if (improvementData) {
+                        if (improvementData.recommendations) {
+                            // Direct object format
+                            setParsedRecommendations(improvementData.recommendations);
+                        } else if (improvementData.content && improvementData.content.recommendations) {
+                            // New wrapped format
+                            setParsedRecommendations(improvementData.content.recommendations);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('Error loading existing docs:', err);
+                // Don't set error state for this - just log it silently
+                // The user can still generate new docs
+            } finally {
+                setInitialLoadComplete(true);
+                setAllSectionsPreloaded(true);
+            }
+        };
+
+        loadExistingDocs();
+    }, [selectedFile?.collection_name]);
 
     const handleGenerateAllClick = (event) => {
         if (!selectedFile) {
@@ -358,6 +434,21 @@ const DocumentationPage = ({
             setSectionLoading({});
         }
     };
+
+    // Show loading spinner for the entire page until initial load is complete
+    if (!initialLoadComplete) {
+        return (
+            <Box sx={{ 
+                display: 'flex',
+                height: '100vh',
+                bgcolor: theme.palette.background.default,
+                alignItems: 'center',
+                justifyContent: 'center'
+            }}>
+                <LoadingSpinner size={60} />
+            </Box>
+        );
+    }
 
     return (
         <Fade in={true} timeout={800}>
@@ -462,7 +553,7 @@ const DocumentationPage = ({
                 >
                     <Tabs
                         value={activeTab}
-                        onChange={(e, newValue) => setActiveTab(newValue)}
+                        onChange={handleTabChange}
                         variant={showChat ? "standard" : "fullWidth"}
                         sx={{
                             '& .MuiTabs-indicator': {
@@ -532,31 +623,37 @@ const DocumentationPage = ({
                     </Tabs>
                 </Paper>
 
-                {/* Active Section Content */}
+                {/* Pre-rendered Section Content for Fast Switching */}
                 <Box sx={{ maxWidth: '100%', overflow: 'hidden' }}>
                     {sections.map((section, index) => (
-                        activeTab === index && (
-                            <Box key={section.id}>
-                                <DocumentationSection
-                                    section={section}
-                                    content={documentation?.documentation?.[section.id]}
-                                    sectionLoading={sectionLoading}
-                                    editingSection={editingSection}
-                                    editedContent={editedContent}
-                                    onEdit={handleEditContent}
-                                    onSave={handleSaveEdit}
-                                    onCancel={handleCancelEdit}
-                                    onChange={handleContentChange}
-                                    onRegenerate={handleRegenerateClick}
-                                    onExport={handleExportSection}
-                                    onGenerate={handleGenerateSection}
-                                    parsedRecommendations={parsedRecommendations}
-                                    applyingRecommendation={applyingRecommendation}
-                                    onApplyRecommendation={handleApplyRecommendation}
-                                    theme={theme}
-                                />
-                            </Box>
-                        )
+                        <Box 
+                            key={section.id}
+                            sx={{ 
+                                display: activeTab === index ? 'block' : 'none',
+                                minHeight: '400px', // Prevent layout shift
+                                opacity: allSectionsPreloaded ? 1 : 0.7,
+                                transition: 'opacity 0.2s ease-in-out'
+                            }}
+                        >
+                            <DocumentationSection
+                                section={section}
+                                content={documentation?.documentation?.[section.id]}
+                                sectionLoading={sectionLoading}
+                                editingSection={editingSection}
+                                editedContent={editedContent}
+                                onEdit={handleEditContent}
+                                onSave={handleSaveEdit}
+                                onCancel={handleCancelEdit}
+                                onChange={handleContentChange}
+                                onRegenerate={handleRegenerateClick}
+                                onExport={handleExportSection}
+                                onGenerate={handleGenerateSection}
+                                parsedRecommendations={parsedRecommendations}
+                                applyingRecommendation={applyingRecommendation}
+                                onApplyRecommendation={handleApplyRecommendation}
+                                theme={theme}
+                            />
+                        </Box>
                     ))}
                 </Box>
                 </Box>

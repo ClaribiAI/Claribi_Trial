@@ -19,6 +19,15 @@ export const getFileSummaries = async (collectionName) => {
     }
 };
 
+export const getGeneratedDocs = async (collectionName) => {
+    try {
+        const response = await api.get(`/api/powerbi-docs/get-generated-docs/${collectionName}`);
+        return response.data;
+    } catch (error) {
+        throw error.response?.data || error;
+    }
+};
+
 export const analyzePowerBISection = async (collectionName, section, customInstructions = '') => {
     const requestData = {
         collection_name: collectionName,

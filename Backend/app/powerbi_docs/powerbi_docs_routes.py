@@ -6,6 +6,7 @@ from app.core.security import login_required, get_current_user
 from app.powerbi_docs.powerbi_service_pbix import PowerBIPbixService
 from app.powerbi_docs.ai_client import ai_client
 from app.powerbi_docs.services.token_tracking_service import powerbi_docs_token_tracking_service
+from app.powerbi_docs.services.generated_docs_service import generated_docs_service
 import psycopg
 from app.config.settings import config
 from app.powerbi_chat.services.vector_store_service import vector_store_service
@@ -107,6 +108,25 @@ def get_file_summaries(collection_name):
         logger.error(f"Error retrieving summaries for {collection_name}: {e}", exc_info=True)
         return jsonify({'error': 'Failed to retrieve file summaries.'}), 500
 
+@powerbi_docs_bp.route('/api/powerbi-docs/get-generated-docs/<collection_name>', methods=['GET'])
+@login_required
+def get_generated_docs(collection_name):
+    """
+    Endpoint to get all previously generated documentation sections for a collection.
+    """
+    try:
+        generated_sections = generated_docs_service.get_all_generated_sections(collection_name)
+        
+        return jsonify({
+            'collection_name': collection_name,
+            'generated_sections': generated_sections,
+            'status': 'success'
+        })
+
+    except Exception as e:
+        logger.error(f"Error retrieving generated docs for {collection_name}: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to retrieve generated documentation.'}), 500
+
 
 @powerbi_docs_bp.route('/api/powerbi-docs/analyze-section/<section>', methods=['POST'])
 @login_required
@@ -138,6 +158,17 @@ def analyze_pbix_section_route(section):
             section, 
             custom_instructions
         )
+        
+        # Save generated content to database with graceful error handling
+        try:
+            generated_docs_service.save_generated_section(
+                collection_name,
+                section,
+                section_analysis
+            )
+        except Exception as save_error:
+            # Log error but don't fail document generation
+            logger.error(f"Failed to save generated section {section}: {save_error}", exc_info=True)
         
         # Record token usage with graceful error handling
         try:
@@ -190,6 +221,22 @@ def parse_improvement_recommendations_route():
 
         # Parse improvement recommendations using summaries
         recommendations, token_usage = powerbi_docs_service.parse_improvement_recommendations_from_summaries(summaries)
+        
+        # Save generated recommendations to database with graceful error handling
+        try:
+            # Store the recommendations in the same format as other sections
+            recommendations_data = {
+                'recommendations': recommendations,
+                'count': len(recommendations)
+            }
+            generated_docs_service.save_generated_section(
+                collection_name,
+                'improvement_recommendations',
+                recommendations_data
+            )
+        except Exception as save_error:
+            # Log error but don't fail recommendation parsing
+            logger.error(f"Failed to save improvement recommendations: {save_error}", exc_info=True)
         
         # Record token usage with graceful error handling
         try:
