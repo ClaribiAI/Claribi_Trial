@@ -14,8 +14,9 @@ dax(Prism);
 import { vscDarkPlus, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 // --- UI Components ---
-import { Typography, Box, Paper, useTheme, alpha } from '@mui/material';
-import { Lightbulb, Warning, Info, CheckCircle } from '@phosphor-icons/react';
+import { Typography, Box, Paper, useTheme, alpha, Button, Tooltip } from '@mui/material';
+import { Lightbulb, Warning, Info, CheckCircle, Copy } from '@phosphor-icons/react';
+import { useState } from 'react';
 
 const preprocessMarkdown = (text) => {
     if (!text || typeof text !== 'string') return '';
@@ -102,6 +103,88 @@ const getDaxSyntaxTheme = (theme) => {
     };
 };
 
+
+// Code block component with copy functionality
+const CodeBlockWithCopy = ({ children, language, theme, isDax = false }) => {
+    const [copySuccess, setCopySuccess] = useState(false);
+    const [copyButtonHovered, setCopyButtonHovered] = useState(false);
+    
+    const codeContent = String(children).replace(/\n$/, '');
+    
+    const handleCopyCode = async () => {
+        try {
+            await navigator.clipboard.writeText(codeContent);
+            setCopySuccess(true);
+            setCopyButtonHovered(false);
+            setTimeout(() => setCopySuccess(false), 2000);
+        } catch (err) {
+            console.error('Failed to copy code: ', err);
+            // Fallback for older browsers
+            const textArea = document.createElement('textarea');
+            textArea.value = codeContent;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            setCopySuccess(true);
+            setCopyButtonHovered(false);
+            setTimeout(() => setCopySuccess(false), 2000);
+        }
+    };
+
+    const codeBlockStyle = {
+        borderRadius: '8px',
+        padding: '16px',
+        margin: '16px 0',
+        overflow: 'auto',
+        border: theme.palette.mode === 'dark' ? '1px solid #3c3c3c' : '1px solid #e1e4e8',
+        fontSize: '14px',
+        lineHeight: '1.5',
+        fontFamily: 'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace',
+        whiteSpace: 'pre',
+        backgroundColor: theme.palette.mode === 'dark' ? '#1e1e1e' : '#ffffff',
+        color: theme.palette.mode === 'dark' ? '#d4d4d4' : '#000000',
+        position: 'relative'
+    };
+
+    return (
+        <Box sx={{ position: 'relative' }}>
+            <Box sx={codeBlockStyle}>
+                {codeContent}
+            </Box>
+            <Tooltip title={copySuccess ? "Copied!" : `Copy ${isDax ? 'DAX' : language || 'code'}`}>
+                <Button
+                    size="small"
+                    onClick={handleCopyCode}
+                    onMouseEnter={() => setCopyButtonHovered(true)}
+                    onMouseLeave={() => setCopyButtonHovered(false)}
+                    sx={{
+                        position: 'absolute',
+                        top: 8,
+                        right: 8,
+                        minWidth: 'auto',
+                        width: 32,
+                        height: 32,
+                        borderRadius: 1.5,
+                        bgcolor: 'transparent',
+                        color: 'transparent',
+                        p: 0,
+                        '&:hover': {
+                            bgcolor: alpha(theme.palette.primary.main, 0.1),
+                            transform: 'scale(1.05)'
+                        },
+                        transition: 'all 0.2s ease'
+                    }}
+                >
+                    <Copy 
+                        size={16} 
+                        color={copyButtonHovered ? theme.palette.primary.main : theme.palette.text.secondary}
+                    />
+                </Button>
+            </Tooltip>
+        </Box>
+    );
+};
 
 const MarkdownRenderer = ({ content, sx = {} }) => {
     const theme = useTheme();
@@ -234,12 +317,13 @@ const MarkdownRenderer = ({ content, sx = {} }) => {
                         }} 
                         {...props}
                     >
-                        <ReactMarkdown 
-                            remarkPlugins={[remarkGfm]} 
-                            components={components}
+                        <CodeBlockWithCopy 
+                            language="dax" 
+                            theme={theme} 
+                            isDax={true}
                         >
-                            {`\`\`\`dax\n${cleanDaxCode}\n\`\`\``}
-                        </ReactMarkdown>
+                            {cleanDaxCode}
+                        </CodeBlockWithCopy>
                     </Box>
                 );
             }
@@ -319,50 +403,31 @@ const MarkdownRenderer = ({ content, sx = {} }) => {
             const match = /language-(\w+)/.exec(className || '');
             const language = match ? match[1] : '';
 
-            // For DAX code blocks, use simple renderer without syntax highlighting
+            // For DAX code blocks, use CodeBlockWithCopy component
             if (!inline && language === 'dax') {
                 return (
-                    <Box sx={{
-                        borderRadius: '8px',
-                        padding: '16px',
-                        margin: '16px 0',
-                        overflow: 'auto',
-                        border: theme.palette.mode === 'dark' ? '1px solid #3c3c3c' : '1px solid #e1e4e8',
-                        fontSize: '14px',
-                        lineHeight: '1.5',
-                        fontFamily: 'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace',
-                        whiteSpace: 'pre',
-                        backgroundColor: theme.palette.mode === 'dark' ? '#1e1e1e' : '#ffffff',
-                        color: theme.palette.mode === 'dark' ? '#d4d4d4' : '#000000'
-                    }}>
-                        {String(children).replace(/\n$/, '')}
-                    </Box>
+                    <CodeBlockWithCopy 
+                        language={language} 
+                        theme={theme} 
+                        isDax={true}
+                        {...props}
+                    >
+                        {children}
+                    </CodeBlockWithCopy>
                 );
             }
 
-            // For other code blocks, use SyntaxHighlighter
+            // For other code blocks, use CodeBlockWithCopy component
             if (!inline && language) {
                 return (
-                    <SyntaxHighlighter
-                        style={syntaxTheme}
-                        language={language}
-                        PreTag="div"
-                        customStyle={{
-                            backgroundColor: theme.palette.mode === 'dark' ? '#1e1e1e' : '#ffffff',
-                            color: theme.palette.mode === 'dark' ? '#d4d4d4' : '#000000',
-                            borderRadius: '8px',
-                            padding: '16px',
-                            margin: '16px 0',
-                            overflow: 'auto',
-                            border: theme.palette.mode === 'dark' ? '1px solid #3c3c3c' : '1px solid #e1e4e8',
-                            fontSize: '14px',
-                            lineHeight: '1.5',
-                            fontFamily: 'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace'
-                        }}
+                    <CodeBlockWithCopy 
+                        language={language} 
+                        theme={theme} 
+                        isDax={false}
                         {...props}
                     >
-                        {String(children).replace(/\n$/, '')}
-                    </SyntaxHighlighter>
+                        {children}
+                    </CodeBlockWithCopy>
                 );
             }
             

@@ -499,14 +499,14 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
         const [copySuccess, setCopySuccess] = useState(false);
         const [copyButtonHovered, setCopyButtonHovered] = useState(false);
         
-        // Clean text for copying - remove markdown formatting, code blocks, etc.
+        // Clean text for copying - preserve code blocks but remove other markdown formatting
         const cleanTextForCopy = (text) => {
             if (!text) return '';
             
             return text
-                // Remove code blocks (```dax ... ```)
-                .replace(/```[\s\S]*?```/g, '')
-                // Remove inline code (`code`)
+                // Preserve code blocks but remove language specifiers (```dax -> ```)
+                .replace(/```(\w+)?\n?([\s\S]*?)```/g, '```\n$2```')
+                // Remove inline code backticks but keep the content
                 .replace(/`([^`]+)`/g, '$1')
                 // Remove bold/italic markdown
                 .replace(/\*\*([^*]+)\*\*/g, '$1')
