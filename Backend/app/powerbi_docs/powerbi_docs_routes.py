@@ -2,9 +2,10 @@ from flask import request, jsonify
 import logging
 from typing import Dict
 from . import powerbi_docs_bp
-from app.core.security import login_required
+from app.core.security import login_required, get_current_user
 from app.powerbi_docs.powerbi_service_pbix import PowerBIPbixService
 from app.powerbi_docs.ai_client import ai_client
+from app.powerbi_docs.services.token_tracking_service import powerbi_docs_token_tracking_service
 import psycopg
 from app.config.settings import config
 from app.powerbi_chat.services.vector_store_service import vector_store_service
@@ -132,17 +133,33 @@ def analyze_pbix_section_route(section):
             return jsonify({'error': 'File summaries not found'}), 404
 
         # Analyze the specific section using summaries
-        section_analysis = powerbi_docs_service.analyze_from_summaries(
+        section_analysis, token_usage = powerbi_docs_service.analyze_from_summaries(
             summaries, 
             section, 
             custom_instructions
         )
         
+        # Record token usage with graceful error handling
+        try:
+            user = get_current_user()
+            if user and user.get('ms_object_id'):
+                powerbi_docs_token_tracking_service.record_token_usage(
+                    user['ms_object_id'],
+                    collection_name,
+                    section,
+                    token_usage.get('input_tokens', 0),
+                    token_usage.get('output_tokens', 0)
+                )
+        except Exception as tracking_error:
+            # Log error but don't fail document generation
+            logger.error(f"Failed to record token usage for section {section}: {tracking_error}", exc_info=True)
+        
         return jsonify({
             'section': section,
             'analysis': section_analysis,
             'custom_instructions': custom_instructions,
-            'filename': filename
+            'filename': filename,
+            'token_usage': token_usage
         })
 
     except Exception as e:
@@ -172,12 +189,28 @@ def parse_improvement_recommendations_route():
             return jsonify({'error': 'File summaries not found'}), 404
 
         # Parse improvement recommendations using summaries
-        recommendations = powerbi_docs_service.parse_improvement_recommendations_from_summaries(summaries)
+        recommendations, token_usage = powerbi_docs_service.parse_improvement_recommendations_from_summaries(summaries)
+        
+        # Record token usage with graceful error handling
+        try:
+            user = get_current_user()
+            if user and user.get('ms_object_id'):
+                powerbi_docs_token_tracking_service.record_token_usage(
+                    user['ms_object_id'],
+                    collection_name,
+                    'improvement_recommendations',
+                    token_usage.get('input_tokens', 0),
+                    token_usage.get('output_tokens', 0)
+                )
+        except Exception as tracking_error:
+            # Log error but don't fail recommendation parsing
+            logger.error(f"Failed to record token usage for improvement recommendations: {tracking_error}", exc_info=True)
         
         return jsonify({
             'recommendations': recommendations,
             'count': len(recommendations),
-            'filename': filename
+            'filename': filename,
+            'token_usage': token_usage
         })
 
     except Exception as e:

@@ -31,7 +31,7 @@ class AIClient:
     def generate_content(cls,
                          prompt: str,
                          system_instruction: Optional[str] = None,
-                         context: Optional[str] = None) -> str:
+                         context: Optional[str] = None) -> tuple[str, dict]:
         """
         Generates content using the stateless Gemini API, incorporating system instructions into the prompt.
 
@@ -41,7 +41,10 @@ class AIClient:
             context: Optional context for logging purposes (e.g., 'executive_summary').
 
         Returns:
-            The generated text content from the model.
+            Tuple of (generated_text, token_usage_dict) where token_usage_dict contains:
+            - input_tokens: Number of input tokens used
+            - output_tokens: Number of output tokens used
+            - total_tokens: Total tokens used
         
         Raises:
             Exception: If the API call for content generation fails.
@@ -57,17 +60,29 @@ class AIClient:
             
             response = model.generate_content(combined_prompt)
 
+            # Extract token usage metadata
+            token_usage = {
+                'input_tokens': 0,
+                'output_tokens': 0,
+                'total_tokens': 0
+            }
+
             if hasattr(response, 'usage_metadata') and response.usage_metadata:
+                token_usage = {
+                    'input_tokens': response.usage_metadata.prompt_token_count or 0,
+                    'output_tokens': response.usage_metadata.candidates_token_count or 0,
+                    'total_tokens': response.usage_metadata.total_token_count or 0
+                }
                 logger.info(
                     f"Gemini token usage{context_str} - "
-                    f"Input: {response.usage_metadata.prompt_token_count}, "
-                    f"Output: {response.usage_metadata.candidates_token_count}, "
-                    f"Total: {response.usage_metadata.total_token_count}"
+                    f"Input: {token_usage['input_tokens']}, "
+                    f"Output: {token_usage['output_tokens']}, "
+                    f"Total: {token_usage['total_tokens']}"
                 )
             else:
                 logger.warning(f"Token usage metadata not available for this response{context_str}.")
 
-            return response.text
+            return response.text, token_usage
 
         except Exception as e:
             logger.error(f"Error during Gemini content generation{context_str}: {str(e)}", exc_info=True)

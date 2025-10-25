@@ -22,7 +22,7 @@ class PowerBIPbixService:
         """
         self.generator = PowerBIDocumentationGenerator(ai_client_instance)
 
-    def analyze_from_summaries(self, summaries: Dict, section: str, custom_instructions: str = '') -> str:
+    def analyze_from_summaries(self, summaries: Dict, section: str, custom_instructions: str = '') -> tuple[Any, dict]:
         """Analyzes a specific section using file summaries."""
         try:
             logger.info(f"Starting section analysis for: '{section}' using summaries")
@@ -38,7 +38,7 @@ class PowerBIPbixService:
             }
 
             if section in analysis_functions:
-                result = analysis_functions[section](context, custom_instructions)
+                result, token_usage = analysis_functions[section](context, custom_instructions)
                 
                 # Special handling for improvement_recommendations - automatically parse them
                 if section == 'improvement_recommendations':
@@ -49,7 +49,7 @@ class PowerBIPbixService:
                             'raw_text': result,
                             'recommendations': parsed_recommendations,
                             'count': len(parsed_recommendations)
-                        }
+                        }, token_usage
                     except Exception as parse_error:
                         logger.error(f"Error parsing recommendations: {str(parse_error)}")
                         # Return raw text if parsing fails
@@ -58,9 +58,9 @@ class PowerBIPbixService:
                             'recommendations': [],
                             'count': 0,
                             'parse_error': str(parse_error)
-                        }
+                        }, token_usage
                 
-                return result
+                return result, token_usage
             else:
                 raise ValueError(f"Unknown or unsupported section: '{section}'")
                 
@@ -105,7 +105,7 @@ class PowerBIPbixService:
                 })
         return measures
     
-    def parse_improvement_recommendations_from_summaries(self, summaries: Dict) -> List[Dict]:
+    def parse_improvement_recommendations_from_summaries(self, summaries: Dict) -> tuple[List[Dict], dict]:
         """Parse improvement recommendations from summaries."""
         try:
             logger.info("Parsing improvement recommendations from summaries")
@@ -113,10 +113,11 @@ class PowerBIPbixService:
             context = self._prepare_context_from_summaries(summaries)
             
             # Generate the recommendations text
-            recommendations_text = self.generator.generate_improvement_recommendations(context)
+            recommendations_text, token_usage = self.generator.generate_improvement_recommendations(context)
             
             # Parse the recommendations
-            return self.generator.parse_improvement_recommendations(recommendations_text)
+            parsed_recommendations = self.generator.parse_improvement_recommendations(recommendations_text)
+            return parsed_recommendations, token_usage
             
         except Exception as e:
             logger.error(f"Error parsing improvement recommendations from summaries: {str(e)}", exc_info=True)
