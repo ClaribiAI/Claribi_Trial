@@ -14,6 +14,7 @@ class PowerBIFileSummary(Base):
     semantic_model_summary = Column(JSONB, nullable=False)
     power_query_summary = Column(JSONB, nullable=False)
     visuals_summary = Column(JSONB, nullable=False)
+    rls_summary = Column(JSONB, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
     
@@ -30,6 +31,7 @@ class PowerBIFileSummary(Base):
             'semantic_model_summary': self.semantic_model_summary,
             'power_query_summary': self.power_query_summary,
             'visuals_summary': self.visuals_summary,
+            'rls_summary': self.rls_summary,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }

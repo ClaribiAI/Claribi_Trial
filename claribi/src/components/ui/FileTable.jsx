@@ -36,7 +36,9 @@ import {
     Columns,
     ChartBar,
     TreeStructure,
-    Code
+    Code,
+    CaretUp,
+    CaretDown
 } from '@phosphor-icons/react';
 import { deletePowerBISession } from '../../services/powerbiChatService';
 import { useNotification } from '../../contexts/NotificationContext';
@@ -52,6 +54,8 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, actionType =
     const [deletingFile, setDeletingFile] = React.useState(null);
     const [confirmDialogOpen, setConfirmDialogOpen] = React.useState(false);
     const [fileToDelete, setFileToDelete] = React.useState(null);
+    const [sortBy, setSortBy] = React.useState('date');
+    const [sortOrder, setSortOrder] = React.useState('desc');
 
     const formatDate = (dateString) => {
         if (!dateString) return 'Unknown';
@@ -61,6 +65,38 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, actionType =
             month: '2-digit',
             year: '2-digit'
         });
+    };
+
+    const handleSort = (column) => {
+        if (sortBy === column) {
+            setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortBy(column);
+            setSortOrder(column === 'date' ? 'desc' : 'asc');
+        }
+    };
+
+    const getSortedFiles = () => {
+        return [...files].sort((a, b) => {
+            let aValue, bValue;
+            
+            if (sortBy === 'name') {
+                aValue = (a.filename || '').toLowerCase();
+                bValue = (b.filename || '').toLowerCase();
+            } else {
+                aValue = new Date(a.upload_time || 0);
+                bValue = new Date(b.upload_time || 0);
+            }
+            
+            if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1;
+            if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1;
+            return 0;
+        });
+    };
+
+    const getSortIcon = (column) => {
+        if (sortBy !== column) return null;
+        return sortOrder === 'asc' ? <CaretUp size={16} /> : <CaretDown size={16} />;
     };
 
     const handleFileClick = (file) => {
@@ -169,29 +205,57 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, actionType =
                 <Table stickyHeader>
                     <TableHead>
                         <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.02) }}>
-                            <TableCell sx={{ 
-                                fontWeight: 600, 
-                                color: theme.palette.text.primary,
-                                borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                                py: 2,
-                                position: 'sticky',
-                                top: 0,
-                                zIndex: 10,
-                                bgcolor: theme.palette.background.paper
-                            }}>
-                                Name
+                            <TableCell 
+                                onClick={() => handleSort('name')}
+                                sx={{ 
+                                    fontWeight: 600, 
+                                    color: theme.palette.text.primary,
+                                    borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                                    py: 2,
+                                    position: 'sticky',
+                                    top: 0,
+                                    zIndex: 10,
+                                    bgcolor: theme.palette.background.paper,
+                                    cursor: 'pointer',
+                                    userSelect: 'none',
+                                    '&:hover': {
+                                        bgcolor: alpha(theme.palette.primary.main, 0.05)
+                                    },
+                                    transition: 'background-color 0.2s ease'
+                                }}
+                            >
+                                <Box display="flex" alignItems="center" gap={1}>
+                                    Name
+                                    <Box sx={{ width: 16, display: 'flex', justifyContent: 'center' }}>
+                                        {getSortIcon('name')}
+                                    </Box>
+                                </Box>
                             </TableCell>
-                            <TableCell sx={{ 
-                                fontWeight: 600, 
-                                color: theme.palette.text.primary,
-                                borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                                py: 2,
-                                position: 'sticky',
-                                top: 0,
-                                zIndex: 10,
-                                bgcolor: theme.palette.background.paper
-                            }}>
-                                Last Modified
+                            <TableCell 
+                                onClick={() => handleSort('date')}
+                                sx={{ 
+                                    fontWeight: 600, 
+                                    color: theme.palette.text.primary,
+                                    borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                                    py: 2,
+                                    position: 'sticky',
+                                    top: 0,
+                                    zIndex: 10,
+                                    bgcolor: theme.palette.background.paper,
+                                    cursor: 'pointer',
+                                    userSelect: 'none',
+                                    '&:hover': {
+                                        bgcolor: alpha(theme.palette.primary.main, 0.05)
+                                    },
+                                    transition: 'background-color 0.2s ease'
+                                }}
+                            >
+                                <Box display="flex" alignItems="center" gap={1}>
+                                    Last Modified
+                                    <Box sx={{ width: 16, display: 'flex', justifyContent: 'center' }}>
+                                        {getSortIcon('date')}
+                                    </Box>
+                                </Box>
                             </TableCell>
                             <TableCell sx={{ 
                                 fontWeight: 600, 
@@ -210,7 +274,7 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, actionType =
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {files.map((file, index) => (
+                        {getSortedFiles().map((file, index) => (
                             <TableRow
                                 key={file.collection_name || file.filename || index}
                                 onClick={() => handleFileClick(file)}
@@ -223,7 +287,7 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, actionType =
                                             : '0 2px 8px rgba(0,0,0,0.05)'
                                     },
                                     transition: 'all 0.2s ease',
-                                    borderBottom: index < files.length - 1 ? `1px solid ${alpha(theme.palette.divider, 0.05)}` : 'none'
+                                    borderBottom: index < getSortedFiles().length - 1 ? `1px solid ${alpha(theme.palette.divider, 0.05)}` : 'none'
                                 }}
                             >
                                 <TableCell sx={{ 

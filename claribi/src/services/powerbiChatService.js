@@ -58,6 +58,10 @@ export const sendPowerBIQueryWithUpdates = async (query, pbixFile = null, onUpda
         // Use fetch for Server-Sent Events
         console.log('Sending streaming request to /powerbi-chat/query-stream with data:', requestData);
         
+        // Get JWT token for authentication
+        const jwtToken = localStorage.getItem('jwt_token');
+        console.log('JWT token for streaming request:', jwtToken ? 'present' : 'missing');
+        
         // Get CSRF token
         const csrfToken = await csrfService.getToken();
         console.log('CSRF token for streaming request:', csrfToken ? 'present' : 'missing');
@@ -67,6 +71,7 @@ export const sendPowerBIQueryWithUpdates = async (query, pbixFile = null, onUpda
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'text/plain',
+                'Authorization': jwtToken ? `Bearer ${jwtToken}` : '',
                 'X-CSRFToken': csrfToken || ''
             },
             body: JSON.stringify(requestData)

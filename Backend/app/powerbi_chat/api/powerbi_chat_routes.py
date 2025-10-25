@@ -3,7 +3,7 @@
 import logging
 import tempfile
 import json
-from flask import Blueprint, request, jsonify, Response,  current_app
+from flask import Blueprint, request, jsonify, Response, current_app, g
 from threading import Thread
 from queue import Queue, Empty
 import time
@@ -14,6 +14,7 @@ from app.powerbi_chat.services.vector_store_service import vector_store_service
 from app.powerbi_chat.services.rag_orchestration_service import rag_orchestration_service, RAGResult
 from app.powerbi_chat.caching.cache_manager import cache_manager
 from app.powerbi_docs.summary_generation_service import SummaryGenerationService
+from app.auth2.middleware import auth_required
 import psycopg
 from app.config.settings import config
 
@@ -22,6 +23,7 @@ powerbi_chat_bp = Blueprint('powerbi_chat', __name__)
 
 @powerbi_chat_bp.route('/powerbi-chat/query-stream', methods=['POST', 'OPTIONS'])
 @cross_origin()
+@auth_required
 def process_powerbi_query_stream():
     if request.method == 'OPTIONS': return jsonify({'status': 'ok'})
     data = request.get_json()
@@ -29,6 +31,10 @@ def process_powerbi_query_stream():
     conversation_history = data.get('conversation_history', [])
     response_mode = data.get('response_mode', 'detailed')
     if not query or not session_id: return jsonify({'error': 'Query and session_id are required'}), 400
+    
+    # Extract user information from authentication
+    user = g.current_user
+    user_ms_object_id = user.get('ms_object_id') if user else None
 
     def generate_updates():
         try:
@@ -50,7 +56,8 @@ def process_powerbi_query_stream():
                         query,
                         update_callback=update_callback,
                         conversation_history=conversation_history,
-                        response_mode=response_mode
+                        response_mode=response_mode,
+                        user_ms_object_id=user_ms_object_id
                     )
                     result_container['result'] = result
                 finally:
@@ -99,23 +106,29 @@ def process_powerbi_query_stream():
 
 @powerbi_chat_bp.route('/powerbi-chat/clarification', methods=['POST', 'OPTIONS'])
 @cross_origin()
+@auth_required
 def process_user_clarification():
     if request.method == 'OPTIONS': return jsonify({'status': 'ok'})
     data = request.get_json()
     key, clarifications = data.get('clarification_session_key'), data.get('clarifications')
     if not key or not clarifications: return jsonify({'error': 'Key and clarifications required'}), 400
+    
+    # Extract user information from authentication
+    user = g.current_user
+    user_ms_object_id = user.get('ms_object_id') if user else None
         
     context = cache_manager.get(key)
     if not context: return jsonify({'error': 'Invalid or expired session.'}), 400
 
     # We can also add updates to the clarification flow if needed in the future
-    result = rag_orchestration_service.continue_with_clarifications(context, clarifications)
+    result = rag_orchestration_service.continue_with_clarifications(context, clarifications, user_ms_object_id=user_ms_object_id)
     if result.status == "COMPLETE": return jsonify({'answer': result.data['answer'], 'status': 'success'})
     return jsonify({'error': 'Failed to generate a final response.'}), 500
 
 # ... (The /upload and /list-files routes remain unchanged) ...
 @powerbi_chat_bp.route('/powerbi-chat/upload', methods=['POST', 'OPTIONS'])
 @cross_origin()
+@auth_required
 def upload_powerbi_file():
     if request.method == 'OPTIONS': return jsonify({'status': 'ok'})
     if 'pbix_file' not in request.files: return jsonify({'error': 'PBIX file is required'}), 400
@@ -200,15 +213,16 @@ def upload_powerbi_file():
                     # Insert summary record using raw SQL
                     cursor.execute("""
                         INSERT INTO powerbi_file_summaries 
-                        (collection_name, filename, upload_time, semantic_model_summary, power_query_summary, visuals_summary)
-                        VALUES (%s, %s, %s, %s, %s, %s)
+                        (collection_name, filename, upload_time, semantic_model_summary, power_query_summary, visuals_summary, rls_summary)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
                     """, (
                         collection_name,
                         file.filename,
                         upload_time,
                         json.dumps(summaries['semantic_model_summary']),
                         json.dumps(summaries['power_query_summary']),
-                        json.dumps(summaries['visuals_summary'])
+                        json.dumps(summaries['visuals_summary']),
+                        json.dumps(summaries.get('rls_summary', {}))
                     ))
                     
                     conn.commit()
@@ -245,6 +259,7 @@ def upload_powerbi_file():
 
 @powerbi_chat_bp.route('/powerbi-chat/list-files', methods=['GET', 'OPTIONS'])
 @cross_origin()
+@auth_required
 def list_uploaded_files():
     if request.method == 'OPTIONS':
         return jsonify({'status': 'ok'})
@@ -263,6 +278,7 @@ def list_uploaded_files():
 
 @powerbi_chat_bp.route('/powerbi-chat/delete-session', methods=['DELETE', 'OPTIONS'])
 @cross_origin()
+@auth_required
 def delete_powerbi_session():
     if request.method == 'OPTIONS':
         return jsonify({'status': 'ok'})

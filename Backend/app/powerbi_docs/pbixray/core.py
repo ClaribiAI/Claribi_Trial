@@ -73,3 +73,7 @@ class PBIXRay:
     @property
     def visuals(self):
         return self._metadata_handler.visuals
+    
+    @property
+    def rls_roles(self):
+        return self._metadata_handler.metadata.rls_roles_df

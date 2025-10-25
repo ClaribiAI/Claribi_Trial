@@ -86,7 +86,8 @@ class PowerBIPbixService:
                 "tables": semantic_model.get('tables', []),
                 "measures": self._extract_measures_from_tables(semantic_model.get('tables', [])),
                 "relationships": semantic_model.get('relationships', []),
-                "expressions": power_query.get('scripts', [])
+                "expressions": power_query.get('scripts', []),
+                "rls_roles": summaries.get('rls_summary', {}).get('roles', [])
             }
         }
     

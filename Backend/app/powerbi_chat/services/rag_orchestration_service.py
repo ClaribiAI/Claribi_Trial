@@ -11,6 +11,7 @@ from langchain_core.prompts import PromptTemplate
 
 from app.powerbi_chat.services.llm_service import llm_service
 from app.powerbi_chat.services.vector_store_service import vector_store_service
+from app.powerbi_chat.services.token_tracking_service import token_tracking_service
 from app.powerbi_chat.prompts import CONTEXT_ANALYSIS_PROMPT, FINAL_RESPONSE_PROMPT, FINAL_RESPONSE_PROMPT_CONCISE
 from app.powerbi_chat.caching.cache_manager import cache_manager
 
@@ -39,7 +40,7 @@ class RAGOrchestrationService:
             'total_documents_retrieved': 0
         }
 
-    def start_query(self, collection_name: str, query: str, update_callback: Callable = None, conversation_history: List[Dict] = None, response_mode: str = 'detailed') -> RAGResult:
+    def start_query(self, collection_name: str, query: str, update_callback: Callable = None, conversation_history: List[Dict] = None, response_mode: str = 'detailed', user_ms_object_id: str = None) -> RAGResult:
         """
         Starts the RAG process and uses a callback to send real-time updates.
         """
@@ -178,12 +179,21 @@ class RAGOrchestrationService:
         # Log comprehensive token usage summary
         self._log_token_usage_summary("query_completion")
         
+        # Record token usage if user is provided
+        if user_ms_object_id:
+            try:
+                token_tracking_service.record_token_usage(user_ms_object_id, self.token_usage_tracker)
+                logger.info(f"Recorded token usage for user {user_ms_object_id}")
+            except Exception as e:
+                logger.error(f"Failed to record token usage for user {user_ms_object_id}: {e}")
+                # Don't fail the query if token tracking fails
+        
         return RAGResult("COMPLETE", {
             "answer": final_answer,
             "rag_context_key": rag_context_key
         })
 
-    def continue_with_clarifications(self, context: Dict[str, Any], clarifications: Dict[str, str], update_callback: Callable = None) -> RAGResult:
+    def continue_with_clarifications(self, context: Dict[str, Any], clarifications: Dict[str, str], update_callback: Callable = None, user_ms_object_id: str = None) -> RAGResult:
         """
         Continues the RAG process after clarifications and sends updates.
         """
@@ -216,6 +226,15 @@ class RAGOrchestrationService:
         
         # Log comprehensive token usage summary for clarification processing
         self._log_token_usage_summary("clarification_processing")
+        
+        # Record token usage if user is provided
+        if user_ms_object_id:
+            try:
+                token_tracking_service.record_token_usage(user_ms_object_id, self.token_usage_tracker)
+                logger.info(f"Recorded token usage for clarification processing for user {user_ms_object_id}")
+            except Exception as e:
+                logger.error(f"Failed to record token usage for clarification processing for user {user_ms_object_id}: {e}")
+                # Don't fail the query if token tracking fails
         
         return RAGResult("COMPLETE", {
             "answer": final_response,

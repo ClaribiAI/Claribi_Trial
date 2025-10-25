@@ -63,6 +63,18 @@ class DatasetSummaryService:
         else:
             summary_content += "- No measures found\n"
         
+        # Add RLS roles
+        rls_roles = structured_metadata.get("rls_roles", [])
+        role_names = [role.get("role_name", "") for role in rls_roles if role.get("role_name")]
+        
+        summary_content += "\n"
+        summary_content += f"RLS ROLES ({len(role_names)}):\n"
+        if role_names:
+            for role_name in sorted(role_names):
+                summary_content += f"- {role_name}\n"
+        else:
+            summary_content += "- No RLS roles found\n"
+        
         # Create the document
         summary_document = Document(
             page_content=summary_content,

@@ -12,6 +12,7 @@ class MetadataQuery:
         self.dax_columns_df = self.__populate_dax_columns()
         self.metadata_df = self.__populate_metadata()
         self.relationships_df = self.__populate_relationships()
+        self.rls_roles_df = self.__populate_rls_roles()
         self.handler.close_connection()
 
     def __populate_schema(self):
@@ -147,5 +148,30 @@ class MetadataQuery:
             LEFT JOIN RelationshipIndexStorage rid ON rs.RelationshipIndexStorageID = rid.id
             LEFT JOIN RelationshipStorage rs2 ON rs2.id = rel.RelationshipStorage2ID
             LEFT JOIN RelationshipIndexStorage rid2 ON rs2.RelationshipIndexStorageID = rid2.id
+        """
+        return self.handler.execute_query(sql)
+    
+    def __populate_rls_roles(self):
+        # Check if Role table exists first
+        check_table_sql = """
+        SELECT name FROM sqlite_master 
+        WHERE type='table' AND name='Role'
+        """
+        table_exists = self.handler.execute_query(check_table_sql)
+        
+        if table_exists.empty:
+            # Return empty DataFrame if Role table doesn't exist
+            return self.handler.execute_query("SELECT 1 LIMIT 0")
+        
+        sql = """
+        SELECT 
+            r.Name AS RoleName,
+            r.Description AS RoleDescription,
+            tp.FilterExpression AS DAXFilter,
+            t.Name AS TableName
+        FROM Role r
+        LEFT JOIN TablePermission tp ON tp.RoleID = r.ID
+        LEFT JOIN [Table] t ON tp.TableID = t.ID
+        ORDER BY r.Name, t.Name
         """
         return self.handler.execute_query(sql)

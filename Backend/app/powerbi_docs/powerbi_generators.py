@@ -2,6 +2,14 @@ import json
 import logging
 from typing import Dict, Any, List
 
+from .prompts import (
+    get_executive_summary_prompt,
+    get_data_model_analysis_prompt,
+    get_visualization_analysis_prompt,
+    get_security_analysis_prompt,
+    get_improvement_recommendations_prompt
+)
+
 logger = logging.getLogger(__name__)
 
 class PowerBIDocumentationGenerator:
@@ -18,94 +26,23 @@ class PowerBIDocumentationGenerator:
             client: An instance of an AI client that has a `generate_content` method.
         """
         self.client = client
-        self.system_prompt = """
-        You are a world-class Power BI expert and technical writer. Your purpose is to analyze Power BI report metadata and generate clear, concise, and professional documentation for a business audience.
 
-        IMPORTANT CORE RULES:
-        1.  Preserve all special characters, accents, and non-English text exactly as it appears in the provided JSON data (e.g., ñ, á, é, í, ó, ú).
-        2.  Maintain the original language and technical terminology (table names, column names, measures) used in the data.
-        3.  Use formal business language. Avoid jargon where possible, but use correct technical terms when necessary, explaining them simply.
-        4.  Your analysis must be based *only* on the JSON data provided. Do not invent details.
-        5.  Unless specifically asked for recommendations, your role is to document what currently exists, not to critique it.
-        """
-
-    def _generate_content(self, user_prompt: str, context_str: str, custom_instructions: str = '') -> str:
-        """
-        A centralized, private method to handle all interactions with the AI client.
-
-        Args:
-            user_prompt: The user-facing prompt with the specific task and data.
-            context_str: A string identifier for logging (e.g., 'executive_summary').
-            custom_instructions: Optional user-defined instructions to append.
-
-        Returns:
-            The generated text from the AI or an error message string.
-        """
-        try:
-            final_user_prompt = user_prompt
-            if custom_instructions and custom_instructions.strip():
-                final_user_prompt += f"""
-                
-                ADDITIONAL CUSTOM INSTRUCTIONS:
-                {custom_instructions}
-                
-                Please incorporate these specific requirements into your response while maintaining the overall structure and professional tone.
-                """
-            
-            logger.info(f"Generating '{context_str}' with Gemini.")
-            return self.client.generate_content(
-                prompt=final_user_prompt,
-                system_instruction=self.system_prompt,
-                context=context_str
-            )
-
-        except Exception as e:
-            logger.error(f"Error in generator for '{context_str}': {str(e)}", exc_info=True)
-            return f"An error occurred while generating the {context_str.replace('_', ' ')}."
 
     def generate_executive_summary(self, context: Dict, custom_instructions: str = '') -> str:
         """Generates the executive summary of the report."""
-        # System instruction specific to executive summary generation
-        executive_summary_system_instruction = self.system_prompt + """
-        
-        TASK: Generate Executive Summary
-        You are tasked with creating a concise executive summary (2-3 paragraphs) that answers these key questions:
-        - What is the primary purpose of this report?
-        - What business domain does it serve?
-        - What are the key metrics and KPIs being tracked?
-        - Who are the typical users of this report?
-
-        Focus on business value and purpose, not technical implementation details.
-        """
-        
-        user_prompt = f"""
-        Data Model Structure:
-        ```json
-        {json.dumps(context['model'], indent=2, ensure_ascii=False)}
-        ```
-
-        Report Visuals:
-        ```json
-        {json.dumps(context['report'], indent=2, ensure_ascii=False)}
-        ```
-        """
-        
-        # Use the specialized system instruction for this task
         try:
-            final_user_prompt = user_prompt
-            if custom_instructions and custom_instructions.strip():
-                final_user_prompt += f"""
-                
-                ADDITIONAL CUSTOM INSTRUCTIONS:
-                {custom_instructions}
-                
-                Please incorporate these specific requirements into your response while maintaining the overall structure and professional tone.
-                """
+            # Format context for JSON serialization
+            formatted_context = {
+                'model': json.dumps(context['model'], indent=2, ensure_ascii=False),
+                'report': json.dumps(context['report'], indent=2, ensure_ascii=False)
+            }
+            
+            system_instruction, user_prompt = get_executive_summary_prompt(formatted_context, custom_instructions)
             
             logger.info("Generating 'executive_summary' with Gemini.")
             return self.client.generate_content(
-                prompt=final_user_prompt,
-                system_instruction=executive_summary_system_instruction,
+                prompt=user_prompt,
+                system_instruction=system_instruction,
                 context='executive_summary'
             )
 
@@ -115,41 +52,18 @@ class PowerBIDocumentationGenerator:
 
     def generate_data_model_analysis(self, context: Dict, custom_instructions: str = '') -> str:
         """Generates the detailed data model analysis."""
-        # System instruction specific to data model analysis
-        data_model_system_instruction = self.system_prompt + """
-        
-        TASK: Generate Data Model Analysis
-        You are tasked with providing a comprehensive data model overview covering:
-        1.  **Table Analysis**: For each table, describe its purpose, key columns, and granularity (fact vs. dimension).
-        2.  **Measures Analysis**: For each measure, explain its business purpose, the calculation it performs, and the insights it provides.
-        3.  **Relationships**: Analyze table-to-table connections, their cardinality, and cross-filter directions.
-        4.  **Data Transformation Logic**: Based on the Power Query expressions, describe data sources and key transformation steps.
-
-        Focus on how data flows from the source to the final model. Be specific about DAX formulas and business logic.
-        """
-        
-        user_prompt = f"""
-        Data Model Structure:
-        ```json
-        {json.dumps(context['model'], indent=2, ensure_ascii=False)}
-        ```
-        """
-        
         try:
-            final_user_prompt = user_prompt
-            if custom_instructions and custom_instructions.strip():
-                final_user_prompt += f"""
-                
-                ADDITIONAL CUSTOM INSTRUCTIONS:
-                {custom_instructions}
-                
-                Please incorporate these specific requirements into your response while maintaining the overall structure and professional tone.
-                """
+            # Format context for JSON serialization
+            formatted_context = {
+                'model': json.dumps(context['model'], indent=2, ensure_ascii=False)
+            }
+            
+            system_instruction, user_prompt = get_data_model_analysis_prompt(formatted_context, custom_instructions)
             
             logger.info("Generating 'data_model_analysis' with Gemini.")
             return self.client.generate_content(
-                prompt=final_user_prompt,
-                system_instruction=data_model_system_instruction,
+                prompt=user_prompt,
+                system_instruction=system_instruction,
                 context='data_model_analysis'
             )
 
@@ -159,45 +73,19 @@ class PowerBIDocumentationGenerator:
 
     def generate_visualization_analysis(self, context: Dict, custom_instructions: str = '') -> str:
         """Generates the detailed visualization analysis."""
-        # System instruction specific to visualization analysis
-        visualization_system_instruction = self.system_prompt + """
-        
-        TASK: Generate Visualization Analysis
-        You are tasked with providing a detailed visualization overview covering:
-        1.  **Page Structure**: Infer and group visuals by likely report pages based on their data and purpose.
-        2.  **Visual Analysis**: For each major visual, explain the data story it tells, the insights users can gain, and how it supports decision-making.
-        3.  **Overall Design**: Analyze how the visuals work together to form a cohesive narrative for the user.
-
-        Focus on the business value each visual provides and how they support analytical workflows.
-        """
-        
-        user_prompt = f"""
-        Report Visuals:
-        ```json
-        {json.dumps(context['report'], indent=2, ensure_ascii=False)}
-        ```
-
-        Data Model (for context):
-        ```json
-        {json.dumps(context['model'], indent=2, ensure_ascii=False)}
-        ```
-        """
-        
         try:
-            final_user_prompt = user_prompt
-            if custom_instructions and custom_instructions.strip():
-                final_user_prompt += f"""
-                
-                ADDITIONAL CUSTOM INSTRUCTIONS:
-                {custom_instructions}
-                
-                Please incorporate these specific requirements into your response while maintaining the overall structure and professional tone.
-                """
+            # Format context for JSON serialization
+            formatted_context = {
+                'report': json.dumps(context['report'], indent=2, ensure_ascii=False),
+                'model': json.dumps(context['model'], indent=2, ensure_ascii=False)
+            }
+            
+            system_instruction, user_prompt = get_visualization_analysis_prompt(formatted_context, custom_instructions)
             
             logger.info("Generating 'visualization_analysis' with Gemini.")
             return self.client.generate_content(
-                prompt=final_user_prompt,
-                system_instruction=visualization_system_instruction,
+                prompt=user_prompt,
+                system_instruction=system_instruction,
                 context='visualization_analysis'
             )
 
@@ -207,62 +95,20 @@ class PowerBIDocumentationGenerator:
 
     def generate_security_analysis(self, context: Dict, custom_instructions: str = '') -> str:
         """Generate security and access control analysis"""
-        # System instruction specific to security analysis
-        security_system_instruction = self.system_prompt + """
-        
-        TASK: Generate Security Analysis
-        You are a Power BI security expert. Analyze this report for security considerations and provide a security overview covering:
-
-        1. **Row-Level Security (RLS)**:
-           - Look for patterns in tables that suggest RLS implementation
-           - Identify dimension tables that might control access (like users, departments, regions)
-           - Assess if security filters are likely in place
-
-        2. **Data Sensitivity**:
-           - Identify potentially sensitive data elements
-           - Assess what level of access control might be needed
-           - Recommend security considerations
-
-        3. **Access Patterns**:
-           - Who should have access to this report?
-           - What different permission levels might be appropriate?
-           - Any data that requires special protection?
-
-        4. **Security Recommendations**:
-           - Suggested RLS implementation if not present
-           - Data governance considerations
-           - Best practices for this type of report
-
-        If no obvious security measures are detected, explain what should be considered.
-        """
-        
-        user_prompt = f"""
-        Data Model Structure:
-        ```json
-        {json.dumps(context['model'], indent=2, ensure_ascii=False)}
-        ```
-
-        Report Structure:
-        ```json
-        {json.dumps(context['report'], indent=2, ensure_ascii=False)}
-        ```
-        """
-        
         try:
-            final_user_prompt = user_prompt
-            if custom_instructions and custom_instructions.strip():
-                final_user_prompt += f"""
-                
-                ADDITIONAL CUSTOM INSTRUCTIONS:
-                {custom_instructions}
-                
-                Please incorporate these specific requirements into your response while maintaining the overall structure and professional tone.
-                """
+            # Format context for JSON serialization
+            formatted_context = {
+                'model': json.dumps(context['model'], indent=2, ensure_ascii=False),
+                'report': json.dumps(context['report'], indent=2, ensure_ascii=False),
+                'rls_roles': json.dumps(context.get('model', {}).get('rls_roles', []), indent=2, ensure_ascii=False)
+            }
+            
+            system_instruction, user_prompt = get_security_analysis_prompt(formatted_context, custom_instructions)
             
             logger.info("Generating 'security_analysis' with Gemini.")
             return self.client.generate_content(
-                prompt=final_user_prompt,
-                system_instruction=security_system_instruction,
+                prompt=user_prompt,
+                system_instruction=system_instruction,
                 context='security_analysis'
             )
 
@@ -272,69 +118,21 @@ class PowerBIDocumentationGenerator:
 
     def generate_improvement_recommendations(self, context: Dict, custom_instructions: str = '') -> str:
         """Generate data model improvement recommendations"""
-        # System instruction specific to improvement recommendations
-        improvement_system_instruction = self.system_prompt + """
-        
-        TASK: Generate Improvement Recommendations
-        You are a Power BI data modeling expert and consultant. Analyze this data model and provide actionable improvement recommendations following best practices.
-
-        IMPORTANT: Return your response as a simple JSON array. Do not use any markdown formatting, code blocks, or base64 encoding.
-
-        Return exactly this format:
-        [
-          {
-            "category": "Category Name",
-            "title": "Brief descriptive title",
-            "priority": "high" | "medium" | "low",
-            "complexity": "high" | "medium" | "low", 
-            "applicable_files": ["semantic_model"] | ["report"] | ["semantic_model", "report"],
-            "description": "Detailed description of the improvement and why it's needed. Include implementation steps here."
-          }
-        ]
-
-        Categories to consider:
-        - Data Model Optimization
-        - DAX and Measure Improvements  
-        - Relationship Enhancements
-        - Data Transformation Optimization
-        - Performance Optimizations
-        - User Experience Improvements
-        - Data Quality and Governance
-
-        Return only the JSON array, nothing else. No explanatory text, no markdown, no code blocks. Sort the recommendations by priority.
-        """
-        
-        user_prompt = f"""
-        Data Model Structure:
-        ```json
-        {json.dumps(context['model'], indent=2, ensure_ascii=False)}
-        ```
-
-        Report Structure:
-        ```json
-        {json.dumps(context['report'], indent=2, ensure_ascii=False)}
-        ```
-        """
-        
         try:
-            final_user_prompt = user_prompt
-            if custom_instructions and custom_instructions.strip():
-                final_user_prompt += f"""
-                
-                ADDITIONAL CUSTOM INSTRUCTIONS:
-                {custom_instructions}
-                
-                Please incorporate these specific requirements into your improvement recommendations while maintaining the JSON format structure.
-                """
+            # Format context for JSON serialization
+            formatted_context = {
+                'model': json.dumps(context['model'], indent=2, ensure_ascii=False),
+                'report': json.dumps(context['report'], indent=2, ensure_ascii=False)
+            }
+            
+            system_instruction, user_prompt = get_improvement_recommendations_prompt(formatted_context, custom_instructions)
             
             logger.info("Generating improvement recommendations with simple JSON format")
             response = self.client.generate_content(
-                prompt=final_user_prompt,
-                system_instruction=improvement_system_instruction,
+                prompt=user_prompt,
+                system_instruction=system_instruction,
                 context='improvement_recommendations'
             )
-           #
-           #  logger.info(f"Gemini response: {response}")
             return response
 
         except Exception as e:

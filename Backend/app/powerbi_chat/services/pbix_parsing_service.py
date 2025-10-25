@@ -415,6 +415,20 @@ class PBIXParsingService:
 
             extracted_data["visuals"] = []
 
+        # Extract RLS roles
+
+        try:
+
+            rls_roles = pbix_model.rls_roles
+
+            extracted_data["rls_roles"] = safe_to_list(rls_roles)
+
+        except Exception as e:
+
+            logger.warning(f"Could not extract RLS roles: {str(e)}")
+
+            extracted_data["rls_roles"] = []
+
         return extracted_data
 
     @staticmethod
@@ -902,12 +916,58 @@ class PBIXParsingService:
                 1 for v in visuals if v["section_name"] == page["name"]
             )
 
+        # 7. Process RLS roles
+
+        rls_roles = []
+
+        raw_rls_roles = raw_data.get("rls_roles", [])
+
+        # Group RLS data by role name
+
+        role_groups = {}
+
+        for rls_data in raw_rls_roles:
+
+            if isinstance(rls_data, dict):
+
+                role_name = rls_data.get("RoleName", "")
+
+                if role_name:
+
+                    if role_name not in role_groups:
+
+                        role_groups[role_name] = {
+                            "role_name": role_name,
+                            "description": rls_data.get("RoleDescription", ""),
+                            "table_filters": []
+                        }
+
+                    # Add table filter if DAX filter exists
+
+                    table_name = rls_data.get("TableName", "")
+
+                    dax_filter = rls_data.get("DAXFilter", "")
+
+                    if table_name and dax_filter:
+
+                        role_groups[role_name]["table_filters"].append({
+                            "table": table_name,
+                            "dax_filter": dax_filter
+                        })
+
+        # Convert grouped data to list
+
+        for role_data in role_groups.values():
+
+            rls_roles.append(role_data)
+
         return {
             "tables": tables,
             "relationships": relationships,
             "power_query_scripts": power_query_scripts,
             "visuals": visuals,
             "pages": pages,
+            "rls_roles": rls_roles,
         }
 
     @staticmethod
@@ -934,6 +994,8 @@ class PBIXParsingService:
         visuals = metadata.get("visuals", [])
 
         pages = metadata.get("pages", [])
+
+        rls_roles = metadata.get("rls_roles", [])
 
         # 1. Create comprehensive table documents with all details (like old implementation)
 
@@ -1356,6 +1418,72 @@ class PBIXParsingService:
                     },
                 )
             )
+
+        # 9. Create RLS role documents
+
+        for role in rls_roles:
+
+            role_name = role.get("role_name", "Unknown")
+
+            description = role.get("description", "")
+
+            table_filters = role.get("table_filters", [])
+
+            if role_name:
+
+                # Create RLS role document
+
+                rls_doc = f"Row-Level Security Role: {role_name}\n"
+
+                if description:
+
+                    rls_doc += f"Description: {description}\n"
+
+                rls_doc += "\n"
+
+                if table_filters:
+
+                    rls_doc += "Table Filters:\n"
+
+                    for filter_data in table_filters:
+
+                        table_name = filter_data.get("table", "")
+
+                        dax_filter = filter_data.get("dax_filter", "")
+
+                        if table_name and dax_filter:
+
+                            rls_doc += f"- Table: {table_name}\n"
+
+                            rls_doc += f"  DAX Filter: {dax_filter}\n"
+
+                else:
+
+                    rls_doc += "No table filters defined\n"
+
+                # Add affected tables list
+
+                affected_tables = [f.get("table", "") for f in table_filters if f.get("table")]
+
+                if affected_tables:
+
+                    rls_doc += f"\nAffected Tables: {', '.join(affected_tables)}"
+
+                else:
+
+                    rls_doc += "\nAffected Tables: None"
+
+                documents.append(
+                    Document(
+                        page_content=rls_doc,
+                        metadata={
+                            "source": "rls_role",
+                            "role_name": role_name,
+                            "type": "security",
+                            "affected_tables": affected_tables,
+                        },
+                    )
+                )
 
         logger.info(f"Created {len(documents)} document chunks from metadata")
 

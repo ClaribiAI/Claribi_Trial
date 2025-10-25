@@ -38,10 +38,16 @@ class SummaryGenerationService:
                 structured_metadata
             )
             
+            # Generate RLS summary
+            rls_summary = SummaryGenerationService._generate_rls_summary(
+                structured_metadata
+            )
+            
             return {
                 'semantic_model_summary': semantic_model_summary,
                 'power_query_summary': power_query_summary,
-                'visuals_summary': visuals_summary
+                'visuals_summary': visuals_summary,
+                'rls_summary': rls_summary
             }
             
         except Exception as e:
@@ -209,6 +215,55 @@ class SummaryGenerationService:
             'visual_types': all_visual_types,
             'data_sources': unique_data_sources,
             'total_data_sources': len(unique_data_sources)
+        }
+    
+    @staticmethod
+    def _generate_rls_summary(metadata: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate RLS summary with roles, filters, and affected tables."""
+        rls_roles = metadata.get('rls_roles', [])
+        
+        # Process RLS roles
+        roles_summary = []
+        for role in rls_roles:
+            role_name = role.get('role_name', 'Unknown')
+            description = role.get('description', '')
+            table_filters = role.get('table_filters', [])
+            
+            # Process table filters
+            filters_summary = []
+            affected_tables = []
+            
+            for filter_data in table_filters:
+                table_name = filter_data.get('table', '')
+                dax_filter = filter_data.get('dax_filter', '')
+                
+                if table_name and dax_filter:
+                    filters_summary.append({
+                        'table': table_name,
+                        'dax_filter': dax_filter
+                    })
+                    affected_tables.append(table_name)
+            
+            roles_summary.append({
+                'role_name': role_name,
+                'description': description,
+                'table_filters': filters_summary,
+                'affected_tables': affected_tables,
+                'filter_count': len(filters_summary)
+            })
+        
+        # Generate summary statistics
+        all_affected_tables = []
+        for role in roles_summary:
+            all_affected_tables.extend(role['affected_tables'])
+        unique_affected_tables = list(set(all_affected_tables))
+        
+        return {
+            'roles': roles_summary,
+            'total_roles': len(roles_summary),
+            'total_filters': sum(role['filter_count'] for role in roles_summary),
+            'affected_tables': unique_affected_tables,
+            'total_affected_tables': len(unique_affected_tables)
         }
 
 

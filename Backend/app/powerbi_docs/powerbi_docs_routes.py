@@ -26,7 +26,7 @@ def _get_summaries_by_collection(collection_name: str) -> tuple[Dict, str]:
         with psycopg.connect(config.NEON_CONNECTION_STRING) as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
-                    SELECT semantic_model_summary, power_query_summary, visuals_summary, filename
+                    SELECT semantic_model_summary, power_query_summary, visuals_summary, rls_summary, filename
                     FROM powerbi_file_summaries 
                     WHERE collection_name = %s
                 """, (collection_name,))
@@ -36,12 +36,13 @@ def _get_summaries_by_collection(collection_name: str) -> tuple[Dict, str]:
                 if not result:
                     return None, None
                 
-                semantic_model_summary, power_query_summary, visuals_summary, filename = result
+                semantic_model_summary, power_query_summary, visuals_summary, rls_summary, filename = result
                 
                 summaries = {
                     'semantic_model_summary': semantic_model_summary,
                     'power_query_summary': power_query_summary,
-                    'visuals_summary': visuals_summary
+                    'visuals_summary': visuals_summary,
+                    'rls_summary': rls_summary or {}
                 }
                 
                 return summaries, filename
