@@ -15,6 +15,7 @@ import {
     Trash,
     X
 } from '@phosphor-icons/react';
+import LoadingSpinner from './LoadingSpinner';
 
 const ConfirmationDialog = ({ 
     open, 
@@ -65,7 +66,7 @@ const ConfirmationDialog = ({
     return (
         <Dialog
             open={open}
-            onClose={onClose}
+            onClose={isLoading ? undefined : onClose}
             maxWidth="sm"
             fullWidth
             PaperProps={{
@@ -182,7 +183,12 @@ const ConfirmationDialog = ({
                         transition: 'all 0.2s ease'
                     }}
                 >
-                    {isLoading ? 'Processing...' : confirmText}
+                    {isLoading ? (
+                        <Box display="flex" alignItems="center" gap={1}>
+                            <LoadingSpinner size={20} compact />
+                            <span>Deleting...</span>
+                        </Box>
+                    ) : confirmText}
                 </Button>
             </DialogActions>
         </Dialog>

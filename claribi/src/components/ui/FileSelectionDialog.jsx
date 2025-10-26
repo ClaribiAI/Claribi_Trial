@@ -91,17 +91,18 @@ const FileSelectionDialog = ({ open, onClose, onFileSelect, onUploadNew }) => {
     const handleConfirmDelete = async () => {
         if (!fileToDelete) return;
 
-        setConfirmDialogOpen(false);
         setDeletingFile(fileToDelete.collection_name);
         
         try {
             await deletePowerBISession(fileToDelete.collection_name);
             setFiles(prev => prev.filter(f => f.collection_name !== fileToDelete.collection_name));
             showNotification(`File "${fileToDelete.filename}" deleted successfully!`, 'success');
+            setConfirmDialogOpen(false);
         } catch (err) {
             console.error('Error deleting file:', err);
             setError(err.message || 'Failed to delete file');
             showNotification(`Failed to delete "${fileToDelete.filename}". ${err.message || 'Please try again.'}`, 'error');
+            setConfirmDialogOpen(false);
         } finally {
             setDeletingFile(null);
             setFileToDelete(null);

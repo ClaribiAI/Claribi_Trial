@@ -124,7 +124,6 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, actionType =
     const handleConfirmDelete = async () => {
         if (!fileToDelete) return;
 
-        setConfirmDialogOpen(false);
         setDeletingFile(fileToDelete.collection_name);
         
         try {
@@ -135,9 +134,11 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, actionType =
             if (onFileDelete) {
                 onFileDelete(fileToDelete);
             }
+            setConfirmDialogOpen(false);
         } catch (err) {
             console.error('Error deleting file:', err);
             showNotification(`Failed to delete "${fileToDelete.filename}". ${err.message || 'Please try again.'}`, 'error');
+            setConfirmDialogOpen(false);
         } finally {
             setDeletingFile(null);
             setFileToDelete(null);

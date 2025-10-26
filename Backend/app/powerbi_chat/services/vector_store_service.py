@@ -68,18 +68,52 @@ class VectorStoreService:
         logger.info(f"🔍 {operation}: {results_count} results")
 
     def delete_collection(self, collection_name: str) -> bool:
-        """Deletes a collection."""
+        """Deletes a collection and all associated database records."""
         try:
-            store = PGVector(
-                collection_name=collection_name,
-                connection=self.connection_string,
-                embeddings=self.embedding_model,
-            )
-            store.delete_collection()
-            logger.info(f"Deleted collection: {collection_name}")
+            # Delete embeddings and collection metadata from LangChain tables
+            with psycopg.connect(self.connection_string) as conn:
+                with conn.cursor() as cursor:
+                    # First, get the collection UUID to delete embeddings
+                    cursor.execute(
+                        "SELECT uuid FROM langchain_pg_collection WHERE name = %s",
+                        (collection_name,)
+                    )
+                    result = cursor.fetchone()
+                    
+                    if result:
+                        collection_uuid = result[0]
+                        # Delete all embeddings for this collection
+                        cursor.execute(
+                            "DELETE FROM langchain_pg_embedding WHERE collection_id = %s",
+                            (collection_uuid,)
+                        )
+                        logger.info(f"Deleted embeddings for collection: {collection_name}")
+                        
+                        # Delete the collection metadata
+                        cursor.execute(
+                            "DELETE FROM langchain_pg_collection WHERE name = %s",
+                            (collection_name,)
+                        )
+                        logger.info(f"Deleted collection metadata for: {collection_name}")
+                    
+                    # Delete from powerbi_file_summaries
+                    cursor.execute(
+                        "DELETE FROM powerbi_file_summaries WHERE collection_name = %s",
+                        (collection_name,)
+                    )
+                    
+                    # Delete from powerbi_generated_docs
+                    cursor.execute(
+                        "DELETE FROM powerbi_generated_docs WHERE collection_name = %s",
+                        (collection_name,)
+                    )
+                    
+                    conn.commit()
+                    logger.info(f"Deleted all database records for collection: {collection_name}")
+            
             return True
         except Exception as e:
-            logger.error(f"Error deleting collection {collection_name}: {e}")
+            logger.error(f"Error deleting collection {collection_name}: {e}", exc_info=True)
             return False
 
     def list_collections_with_details(self) -> List[Dict[str, Any]]:

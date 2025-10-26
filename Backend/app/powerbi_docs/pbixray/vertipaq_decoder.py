@@ -40,146 +40,192 @@ class VertiPaqDecoder:
 
     def _read_rle_bit_packed_hybrid(self,buffer, entries, min_data_id, bit_width ):
         """Reads RLE bit packed hybrid values from a buffer."""
-        with io.BytesIO(buffer) as f:
-            # Parse the binary data
-            column_data = ColumnDataIdf(KaitaiStream(f))
-            
-            bitpacked_values = []
-            vector = []
-            bit_packed_entries = None
-            bit_packed_offset = 0
-            
-            if entries > 0:
-                # Get bit width
-                size = column_data.segments[0].sub_segment_size
-                # case if it's a column with empty strings
-                if column_data.segments[0].sub_segment[-1].bit_length() == 0 and size == 1:
-                    bitpacked_values = [min_data_id] * entries
-                else:
-                    # read the bitpacked values from the sub_segment
-                    bitpacked_values = self._read_bitpacked(column_data.segments[0].sub_segment,bit_width, min_data_id)
+        try:
+            with io.BytesIO(buffer) as f:
+                # Parse the binary data
+                column_data = ColumnDataIdf(KaitaiStream(f))
+                
+                bitpacked_values = []
+                vector = []
+                bit_packed_entries = None
+                bit_packed_offset = 0
+                
+                if entries > 0:
+                    # Get bit width
+                    size = column_data.segments[0].sub_segment_size
+                    # case if it's a column with empty strings
+                    if column_data.segments[0].sub_segment[-1].bit_length() == 0 and size == 1:
+                        bitpacked_values = [min_data_id] * entries
+                    else:
+                        # read the bitpacked values from the sub_segment
+                        bitpacked_values = self._read_bitpacked(column_data.segments[0].sub_segment,bit_width, min_data_id)
 
-            # consider only the first primary segment + sub segment combination
-            # for segment in column_data.segments: 
-            for entry in column_data.segments[0].primary_segment:
-                if entry.data_value+bit_packed_offset== 0xFFFFFFFF: # bit pack marker
-                    bit_packed_entries = entry.repeat_value
-                    bitpacked_values_slice = bitpacked_values[bit_packed_offset:bit_packed_offset+bit_packed_entries]
-                    bit_packed_offset += bit_packed_entries
-                    vector+=bitpacked_values_slice
-                else:
-                    rle = [entry.data_value] * entry.repeat_value
-                    vector+=rle
+                # consider only the first primary segment + sub segment combination
+                # for segment in column_data.segments: 
+                for entry in column_data.segments[0].primary_segment:
+                    if entry.data_value+bit_packed_offset== 0xFFFFFFFF: # bit pack marker
+                        bit_packed_entries = entry.repeat_value
+                        bitpacked_values_slice = bitpacked_values[bit_packed_offset:bit_packed_offset+bit_packed_entries]
+                        bit_packed_offset += bit_packed_entries
+                        vector+=bitpacked_values_slice
+                    else:
+                        rle = [entry.data_value] * entry.repeat_value
+                        vector+=rle
 
-            return vector
+                return vector
+        except Exception as e:
+            # If parsing fails, return empty data instead of crashing
+            print(f"Warning: Failed to parse RLE bit packed hybrid data: {e}")
+            return []
 
     def _read_idfmeta(self,buffer):
         """Reads idfmeta from a buffer."""
-        # Use io.BytesIO to wrap the bytearray
-        with io.BytesIO(buffer) as f:
-            metadata = IdfmetaParser.from_io(f)
-            
-            # Extract the necessary data from the Kaitai Struct
-            row_data = {
-                'min_data_id': metadata.blocks.cp.cs.ss.min_data_id,
-                'count_bit_packed': metadata.blocks.cp.cs.cs.count_bit_packed,
-                'bit_width': metadata.bit_width,
+        try:
+            # Use io.BytesIO to wrap the bytearray
+            with io.BytesIO(buffer) as f:
+                metadata = IdfmetaParser.from_io(f)
+                
+                # Extract the necessary data from the Kaitai Struct
+                row_data = {
+                    'min_data_id': metadata.blocks.cp.cs.ss.min_data_id,
+                    'count_bit_packed': metadata.blocks.cp.cs.cs.count_bit_packed,
+                    'bit_width': metadata.bit_width,
+                }
+                
+                return row_data
+        except Exception as e:
+            # If parsing fails, return default values instead of crashing
+            print(f"Warning: Failed to parse IDF metadata: {e}")
+            return {
+                'min_data_id': 0,
+                'count_bit_packed': 0,
+                'bit_width': 0,
             }
-            
-            return row_data
 
     def _read_hash_table(self,buffer):
         """Reads a hash table from a buffer."""
-        with io.BytesIO(buffer) as f:
-            # Parse the .hidx file using the Kaitai Struct
-            parsed_hidx = ColumnDataHidx.from_io(f)
+        try:
+            with io.BytesIO(buffer) as f:
+                # Parse the .hidx file using the Kaitai Struct
+                parsed_hidx = ColumnDataHidx.from_io(f)
 
-            # Create a hash table to store the results
-            result_hash_table = {}
+                # Create a hash table to store the results
+                result_hash_table = {}
 
-            # Iterate over each hash_bin entry
-            for hash_bin in parsed_hidx.hash_bin_entries:
-                # Iterate over each m_rg_local_entry inside hash_bin
-                for local_entry in hash_bin.m_rg_local_entries:
+                # Iterate over each hash_bin entry
+                for hash_bin in parsed_hidx.hash_bin_entries:
+                    # Iterate over each m_rg_local_entry inside hash_bin
+                    for local_entry in hash_bin.m_rg_local_entries:
+                        # If the m_hash is non-zero, add it to the result hash table
+                        if local_entry.m_hash != 0:
+                            result_hash_table[local_entry.m_hash] =  local_entry.m_key
+                
+                # Iterate over the overflow_hash_entries
+                for overflow_entry in parsed_hidx.overflow_hash_entries:
                     # If the m_hash is non-zero, add it to the result hash table
-                    if local_entry.m_hash != 0:
-                        result_hash_table[local_entry.m_hash] =  local_entry.m_key
-            
-            # Iterate over the overflow_hash_entries
-            for overflow_entry in parsed_hidx.overflow_hash_entries:
-                # If the m_hash is non-zero, add it to the result hash table
-                if overflow_entry.m_hash != 0:
-                    result_hash_table[overflow_entry.m_hash] = overflow_entry.m_key 
+                    if overflow_entry.m_hash != 0:
+                        result_hash_table[overflow_entry.m_hash] = overflow_entry.m_key 
 
-            return result_hash_table
+                return result_hash_table
+        except Exception as e:
+            # If parsing fails, return empty hash table instead of crashing
+            print(f"Warning: Failed to parse hash table: {e}")
+            return {}
 
  
     def _read_dictionary(self, buffer, min_data_id):
         """Reads a dictionary from a buffer."""
-        with io.BytesIO(buffer) as f:
-            dictionary = ColumnDataDictionary.from_io(f)
+        try:
+            with io.BytesIO(buffer) as f:
+                dictionary = ColumnDataDictionary.from_io(f)
 
-        if dictionary.dictionary_type == ColumnDataDictionary.DictionaryTypes.xm_type_string:
-            hashtable = {}
-            index = min_data_id
+            if dictionary.dictionary_type == ColumnDataDictionary.DictionaryTypes.xm_type_string:
+                hashtable = {}
+                index = min_data_id
 
-            pages = dictionary.data.dictionary_pages
-            record_handles = dictionary.data.dictionary_record_handles_vector_info.vector_of_record_handle_structures
-            record_handles_map = defaultdict(list)
+                pages = dictionary.data.dictionary_pages
+                record_handles = dictionary.data.dictionary_record_handles_vector_info.vector_of_record_handle_structures
+                record_handles_map = defaultdict(list)
 
-            for handle in record_handles:
-                record_handles_map[handle.page_id].append(handle.bit_or_byte_offset)
+                for handle in record_handles:
+                    record_handles_map[handle.page_id].append(handle.bit_or_byte_offset)
 
-            for page_id, page in enumerate(pages):
-                if page.page_compressed:
-                    compressed_store = page.string_store
-                    encode_array = compressed_store.encode_array
-                    store_total_bits = compressed_store.store_total_bits
-                    compressed_string_buffer = compressed_store.compressed_string_buffer
-                    ui_decode_bits = compressed_store.ui_decode_bits
+                for page_id, page in enumerate(pages):
+                    if page.page_compressed:
+                        compressed_store = page.string_store
+                        encode_array = compressed_store.encode_array
+                        store_total_bits = compressed_store.store_total_bits
+                        compressed_string_buffer = compressed_store.compressed_string_buffer
+                        ui_decode_bits = compressed_store.ui_decode_bits
 
-                    full_encode_array = decompress_encode_array(encode_array)
-                    huffman_tree = build_huffman_tree(full_encode_array)
+                        full_encode_array = decompress_encode_array(encode_array)
+                        huffman_tree = build_huffman_tree(full_encode_array)
 
-                    if page_id in record_handles_map:
-                        offsets = record_handles_map[page_id]
-                        for i in range(len(offsets)):
-                            start_bit = offsets[i]
-                            end_bit = offsets[i + 1] if i + 1 < len(offsets) else store_total_bits
-                            decompressed = decode_substring(compressed_string_buffer, huffman_tree, start_bit, end_bit)
-                            hashtable[index] = decompressed
+                        if page_id in record_handles_map:
+                            offsets = record_handles_map[page_id]
+                            for i in range(len(offsets)):
+                                start_bit = offsets[i]
+                                end_bit = offsets[i + 1] if i + 1 < len(offsets) else store_total_bits
+                                decompressed = decode_substring(compressed_string_buffer, huffman_tree, start_bit, end_bit)
+                                hashtable[index] = decompressed
+                                index += 1
+                        del huffman_tree
+                    else:
+                        uncompressed_store = page.string_store
+                        uncompressed = uncompressed_store.uncompressed_character_buffer
+                        strings = self._extract_strings(uncompressed)
+                        for i, token in enumerate(strings):
+                            hashtable[index] = token
                             index += 1
-                    del huffman_tree
-                else:
-                    uncompressed_store = page.string_store
-                    uncompressed = uncompressed_store.uncompressed_character_buffer
-                    strings = self._extract_strings(uncompressed)
-                    for i, token in enumerate(strings):
-                        hashtable[index] = token
-                        index += 1
 
-            return hashtable
-        elif dictionary.dictionary_type in [ColumnDataDictionary.DictionaryTypes.xm_type_long, ColumnDataDictionary.DictionaryTypes.xm_type_real]:
-            vector_values = dictionary.data.vector_of_vectors_info.values
-            return {i: val for i, val in enumerate(vector_values, start=min_data_id)}
+                return hashtable
+            elif dictionary.dictionary_type in [ColumnDataDictionary.DictionaryTypes.xm_type_long, ColumnDataDictionary.DictionaryTypes.xm_type_real]:
+                vector_values = dictionary.data.vector_of_vectors_info.values
+                return {i: val for i, val in enumerate(vector_values, start=min_data_id)}
 
-        return None    
+            return None
+        except Exception as e:
+            # If parsing fails, return None instead of crashing
+            print(f"Warning: Failed to parse dictionary: {e}")
+            return None    
         
     def _get_column_data(self, column_metadata, meta):
         """Extracts column data based on the given column metadata and meta information."""
-        if pd.notnull(column_metadata["Dictionary"]):
-            dictionary_buffer = get_data_slice(self._data_model,column_metadata["Dictionary"])
-            null_adjustment = 1 if column_metadata["IsNullable"] else 0
-            # Read and construct the dictionary with appropriate minimum data ID
-            min_data_id_adj = meta['min_data_id'] - null_adjustment
-            dictionary = self._read_dictionary(dictionary_buffer, min_data_id=meta['min_data_id'])
-            data_slice = get_data_slice(self._data_model,column_metadata["IDF"])
-            return pd.Series(self._read_rle_bit_packed_hybrid(data_slice, meta['count_bit_packed'], min_data_id_adj , meta['bit_width'])).map(dictionary)
-        elif pd.notnull(column_metadata["HIDX"]):
-            data_slice = get_data_slice(self._data_model,column_metadata["IDF"])
-            return pd.Series(self._read_rle_bit_packed_hybrid(data_slice, meta['count_bit_packed'], meta['min_data_id'], meta['bit_width'])).add(column_metadata["BaseId"]) / column_metadata["Magnitude"]
-        else:
-            raise ValueError(f"Neither dictionary nor hidx found for column {column_metadata['ColumnName']} in table.")
+        try:
+            if pd.notnull(column_metadata["Dictionary"]):
+                dictionary_buffer = get_data_slice(self._data_model,column_metadata["Dictionary"])
+                null_adjustment = 1 if column_metadata["IsNullable"] else 0
+                # Read and construct the dictionary with appropriate minimum data ID
+                min_data_id_adj = meta['min_data_id'] - null_adjustment
+                dictionary = self._read_dictionary(dictionary_buffer, min_data_id=meta['min_data_id'])
+                
+                if dictionary is None:
+                    # If dictionary parsing failed, return empty series
+                    return pd.Series([], dtype='object')
+                    
+                data_slice = get_data_slice(self._data_model,column_metadata["IDF"])
+                column_data = self._read_rle_bit_packed_hybrid(data_slice, meta['count_bit_packed'], min_data_id_adj , meta['bit_width'])
+                
+                if not column_data:
+                    # If RLE parsing failed, return empty series
+                    return pd.Series([], dtype='object')
+                    
+                return pd.Series(column_data).map(dictionary)
+            elif pd.notnull(column_metadata["HIDX"]):
+                data_slice = get_data_slice(self._data_model,column_metadata["IDF"])
+                column_data = self._read_rle_bit_packed_hybrid(data_slice, meta['count_bit_packed'], meta['min_data_id'], meta['bit_width'])
+                
+                if not column_data:
+                    # If RLE parsing failed, return empty series
+                    return pd.Series([], dtype='object')
+                    
+                return pd.Series(column_data).add(column_metadata["BaseId"]) / column_metadata["Magnitude"]
+            else:
+                raise ValueError(f"Neither dictionary nor hidx found for column {column_metadata['ColumnName']} in table.")
+        except Exception as e:
+            # If any step fails, return empty series instead of crashing
+            print(f"Warning: Failed to extract column data for {column_metadata.get('ColumnName', 'unknown')}: {e}")
+            return pd.Series([], dtype='object')
         
     def _handle_special_cases(self, column_data, data_type):
         if data_type == 9:
@@ -192,22 +238,36 @@ class VertiPaqDecoder:
         
     def get_table(self, table_name):
         """Generates a DataFrame representation of the specified table."""
-        table_metadata_df = self._meta.schema_df[self._meta.schema_df['TableName'] == table_name]
-        dataframe_data = {}
+        try:
+            table_metadata_df = self._meta.schema_df[self._meta.schema_df['TableName'] == table_name]
+            dataframe_data = {}
 
-        for _, column_metadata in table_metadata_df.iterrows():
-            idfmeta_buffer = get_data_slice(self._data_model,column_metadata["IDF"] + 'meta')
-            meta = self._read_idfmeta(idfmeta_buffer)
-            
-            column_data = self._get_column_data(column_metadata, meta)
-            # Handle special cases for certain data types
-            column_data = self._handle_special_cases(column_data, column_metadata["DataType"])
-            
-            pandas_dtype = AMO_PANDAS_TYPE_MAPPING.get(column_metadata["DataType"], "object")  # default to object if no mapping is found
-            
-            # If it's a decimal type, keep it as object since pandas doesn't support Decimal natively
-            if pandas_dtype == 'decimal.Decimal':
-                pandas_dtype = 'object'
-            dataframe_data[column_metadata["ColumnName"]] = column_data.astype(pandas_dtype)
+            for _, column_metadata in table_metadata_df.iterrows():
+                try:
+                    idfmeta_buffer = get_data_slice(self._data_model,column_metadata["IDF"] + 'meta')
+                    meta = self._read_idfmeta(idfmeta_buffer)
+                    
+                    column_data = self._get_column_data(column_metadata, meta)
+                    
+                    # Skip empty columns
+                    if column_data.empty:
+                        print(f"Warning: Skipping empty column {column_metadata['ColumnName']} in table {table_name}")
+                        continue
+                    
+                    # Handle special cases for certain data types
+                    column_data = self._handle_special_cases(column_data, column_metadata["DataType"])
+                    
+                    pandas_dtype = AMO_PANDAS_TYPE_MAPPING.get(column_metadata["DataType"], "object")  # default to object if no mapping is found
+                    
+                    # If it's a decimal type, keep it as object since pandas doesn't support Decimal natively
+                    if pandas_dtype == 'decimal.Decimal':
+                        pandas_dtype = 'object'
+                    dataframe_data[column_metadata["ColumnName"]] = column_data.astype(pandas_dtype)
+                except Exception as e:
+                    print(f"Warning: Failed to process column {column_metadata.get('ColumnName', 'unknown')} in table {table_name}: {e}")
+                    continue
 
-        return pd.DataFrame(dataframe_data)
+            return pd.DataFrame(dataframe_data)
+        except Exception as e:
+            print(f"Warning: Failed to extract table {table_name}: {e}")
+            return pd.DataFrame()
