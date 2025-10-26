@@ -16,6 +16,7 @@ IMPORTANT CORE RULES:
 3.  Use formal business language. Avoid jargon where possible, but use correct technical terms when necessary, explaining them simply.
 4.  Your analysis must be based *only* on the JSON data provided. Do not invent details.
 5.  Unless specifically asked for recommendations, your role is to document what currently exists, not to critique it.
+6.  Start the response with the final requested output without any prior text responding to the prompt. 
 """
 
 # Executive Summary Generation
@@ -121,11 +122,6 @@ def get_security_analysis_user_prompt(context: dict) -> str:
 Data Model Structure:
 ```json
 {context['model']}
-```
-
-Report Structure:
-```json
-{context['report']}
 ```
 
 Row-Level Security (RLS) Configuration:
