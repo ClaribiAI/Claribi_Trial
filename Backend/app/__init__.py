@@ -133,29 +133,25 @@ def create_app():
     def apply_security_headers(response):
         return SecurityHeaders.apply_security_headers(response)
 
-    # Add custom error handler for RLS violations
-    from app.core.exceptions import RLSPolicyViolationError
-    
+    # Centralized error handling using standardized error envelope
+    from app.core.responses import error_response
+    from app.core.exceptions import AppError, RLSPolicyViolationError
+
     @app.errorhandler(RLSPolicyViolationError)
     def handle_rls_violation(error):
-        """Handle RLS policy violations with proper HTTP response."""
         app.logger.warning(f"RLS policy violation: {str(error)}")
-        return jsonify({
-            'error': 'Access denied',
-            'message': 'You do not have permission to access this resource',
-            'type': 'authorization_error'
-        }), 403
+        # Map to 403 with consistent envelope
+        return error_response(403, "You do not have permission to access this resource", None, "403")
 
-    # Add global error handler for unhandled exceptions
+    @app.errorhandler(AppError)
+    def handle_app_error(error: AppError):
+        # Use the code/message carried by the exception
+        return error_response(error.code or 500, error.message or "An unexpected error occurred", None, str(error.code or 500))
+
     @app.errorhandler(Exception)
     def handle_unhandled_exception(error):
-        """Handle unhandled exceptions with proper logging."""
         app.logger.error(f"Unhandled exception: {str(error)}", exc_info=True)
-        return jsonify({
-            'error': 'An internal server error occurred',
-            'message': 'Please try again later',
-            'type': 'internal_error'
-        }), 500
+        return error_response(500, "An unexpected error occurred")
 
     # Import blueprints - only the ones that actually exist
     from app.auth2 import auth2_bp  # Authentication system

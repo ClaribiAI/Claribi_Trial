@@ -7,6 +7,7 @@ from app.powerbi_docs.powerbi_service_pbix import PowerBIPbixService
 from app.powerbi_docs.ai_client import ai_client
 from app.powerbi_docs.services.token_tracking_service import powerbi_docs_token_tracking_service
 from app.powerbi_docs.services.generated_docs_service import generated_docs_service
+from app.core.responses import error_response
 import psycopg
 from app.config.settings import config
 from app.powerbi_chat.services.vector_store_service import vector_store_service
@@ -70,7 +71,7 @@ def list_uploaded_files():
         })
     except Exception as e:
         logger.error(f"Error retrieving list of uploaded files: {e}", exc_info=True)
-        return jsonify({'error': 'Failed to retrieve uploaded files.'}), 500
+        return error_response(500, 'Failed to retrieve uploaded files.')
 
 @powerbi_docs_bp.route('/api/powerbi-docs/get-summaries/<collection_name>', methods=['GET'])
 @login_required
@@ -82,7 +83,7 @@ def get_file_summaries(collection_name):
         summaries, filename = _get_summaries_by_collection(collection_name)
         
         if not summaries:
-            return jsonify({'error': 'File summaries not found'}), 404
+            return error_response(404, 'File summaries not found')
         
         # Get upload_time separately since it's not in the helper
         with psycopg.connect(config.NEON_CONNECTION_STRING) as conn:
@@ -106,7 +107,7 @@ def get_file_summaries(collection_name):
 
     except Exception as e:
         logger.error(f"Error retrieving summaries for {collection_name}: {e}", exc_info=True)
-        return jsonify({'error': 'Failed to retrieve file summaries.'}), 500
+        return error_response(500, 'Failed to retrieve file summaries.')
 
 @powerbi_docs_bp.route('/api/powerbi-docs/get-generated-docs/<collection_name>', methods=['GET'])
 @login_required
@@ -138,11 +139,11 @@ def analyze_pbix_section_route(section):
     try:
         data = request.get_json()
         if not data:
-            return jsonify({'error': 'JSON data is required'}), 400
+            return error_response(400, 'JSON data is required')
             
         collection_name = data.get('collection_name')
         if not collection_name:
-            return jsonify({'error': 'collection_name is required'}), 400
+            return error_response(400, 'collection_name is required')
             
         custom_instructions = data.get('custom_instructions', '')
 
@@ -150,7 +151,7 @@ def analyze_pbix_section_route(section):
         summaries, filename = _get_summaries_by_collection(collection_name)
         
         if not summaries:
-            return jsonify({'error': 'File summaries not found'}), 404
+            return error_response(404, 'File summaries not found')
 
         # Analyze the specific section using summaries
         section_analysis, token_usage = powerbi_docs_service.analyze_from_summaries(
@@ -195,7 +196,7 @@ def analyze_pbix_section_route(section):
 
     except Exception as e:
         logger.error(f"Error analyzing section {section}: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
+        return error_response(500, 'Failed to analyze section')
 
 @powerbi_docs_bp.route('/api/powerbi-docs/parse-recommendations', methods=['POST'])
 @login_required
@@ -207,17 +208,17 @@ def parse_improvement_recommendations_route():
     try:
         data = request.get_json()
         if not data:
-            return jsonify({'error': 'JSON data is required'}), 400
+            return error_response(400, 'JSON data is required')
             
         collection_name = data.get('collection_name')
         if not collection_name:
-            return jsonify({'error': 'collection_name is required'}), 400
+            return error_response(400, 'collection_name is required')
 
         # Get summaries from database using helper
         summaries, filename = _get_summaries_by_collection(collection_name)
         
         if not summaries:
-            return jsonify({'error': 'File summaries not found'}), 404
+            return error_response(404, 'File summaries not found')
 
         # Parse improvement recommendations using summaries
         recommendations, token_usage = powerbi_docs_service.parse_improvement_recommendations_from_summaries(summaries)
@@ -262,4 +263,4 @@ def parse_improvement_recommendations_route():
 
     except Exception as e:
         logger.error(f"Error parsing recommendations: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
+        return error_response(500, 'Failed to parse improvement recommendations')

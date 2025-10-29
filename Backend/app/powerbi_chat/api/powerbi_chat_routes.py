@@ -17,6 +17,7 @@ from app.powerbi_docs.summary_generation_service import SummaryGenerationService
 from app.auth2.middleware import auth_required
 import psycopg
 from app.config.settings import config
+from app.core.responses import error_response
 
 logger = logging.getLogger(__name__)
 powerbi_chat_bp = Blueprint('powerbi_chat', __name__)
@@ -30,7 +31,7 @@ def process_powerbi_query_stream():
     query, session_id = data.get('query'), data.get('session_id')
     conversation_history = data.get('conversation_history', [])
     response_mode = data.get('response_mode', 'detailed')
-    if not query or not session_id: return jsonify({'error': 'Query and session_id are required'}), 400
+    if not query or not session_id: return error_response(400, 'Query and session_id are required')
     
     # Extract user information from authentication
     user = g.current_user
@@ -111,19 +112,19 @@ def process_user_clarification():
     if request.method == 'OPTIONS': return jsonify({'status': 'ok'})
     data = request.get_json()
     key, clarifications = data.get('clarification_session_key'), data.get('clarifications')
-    if not key or not clarifications: return jsonify({'error': 'Key and clarifications required'}), 400
+    if not key or not clarifications: return error_response(400, 'Key and clarifications required')
     
     # Extract user information from authentication
     user = g.current_user
     user_ms_object_id = user.get('ms_object_id') if user else None
         
     context = cache_manager.get(key)
-    if not context: return jsonify({'error': 'Invalid or expired session.'}), 400
+    if not context: return error_response(400, 'Invalid or expired session.')
 
     # We can also add updates to the clarification flow if needed in the future
     result = rag_orchestration_service.continue_with_clarifications(context, clarifications, user_ms_object_id=user_ms_object_id)
     if result.status == "COMPLETE": return jsonify({'answer': result.data['answer'], 'status': 'success'})
-    return jsonify({'error': 'Failed to generate a final response.'}), 500
+    return error_response(500, 'Failed to generate a final response.')
 
 # ... (The /upload and /list-files routes remain unchanged) ...
 @powerbi_chat_bp.route('/powerbi-chat/upload', methods=['POST', 'OPTIONS'])
@@ -131,13 +132,13 @@ def process_user_clarification():
 @auth_required
 def upload_powerbi_file():
     if request.method == 'OPTIONS': return jsonify({'status': 'ok'})
-    if 'pbix_file' not in request.files: return jsonify({'error': 'PBIX file is required'}), 400
+    if 'pbix_file' not in request.files: return error_response(400, 'PBIX file is required')
 
     file = request.files['pbix_file']
     
     # Enhanced file validation
     if not file.filename:
-        return jsonify({'error': 'No file selected'}), 400
+        return error_response(400, 'No file selected')
     
     # Check file size before processing
     file.seek(0, 2)  # Seek to end
@@ -145,10 +146,10 @@ def upload_powerbi_file():
     file.seek(0)  # Reset to beginning
     
     if file_size > config.MAX_CONTENT_LENGTH:
-        return jsonify({'error': f'File too large. Maximum size is {config.MAX_CONTENT_LENGTH // (1024*1024)}MB'}), 413
+        return error_response(413, f'File too large. Maximum size is {config.MAX_CONTENT_LENGTH // (1024*1024)}MB')
     
     if file_size == 0:
-        return jsonify({'error': 'Empty file not allowed'}), 400
+        return error_response(400, 'Empty file not allowed')
 
     temp_dir = os.path.join(current_app.instance_path, 'temp_uploads')
     os.makedirs(temp_dir, exist_ok=True)
@@ -173,10 +174,10 @@ def upload_powerbi_file():
             logger.info(f"Successfully extracted {len(documents)} documents from PBIX file")
         except MemoryError as e:
             logger.error(f"Memory error processing PBIX file {file.filename}: {e}")
-            return jsonify({'error': 'File too large to process. Please try with a smaller file.'}), 413
+            return error_response(413, 'File too large to process. Please try with a smaller file.')
         except Exception as e:
             logger.error(f"Error extracting PBIX file {file.filename}: {e}")
-            return jsonify({'error': 'Failed to process PBIX file. The file may be corrupted or in an unsupported format.'}), 400
+            return error_response(400, 'Failed to process PBIX file. The file may be corrupted or in an unsupported format.')
         
         # Generate summaries using the powerbi_docs service
         try:
@@ -194,7 +195,7 @@ def upload_powerbi_file():
             logger.info(f"Successfully created vector collection: {collection_name}")
         except Exception as e:
             logger.error(f"Error creating vector collection for {file.filename}: {e}")
-            return jsonify({'error': 'Failed to create vector collection. Please try again.'}), 500
+            return error_response(500, 'Failed to create vector collection. Please try again.')
 
         # Save summaries to database
         try:
@@ -241,7 +242,7 @@ def upload_powerbi_file():
         })
     except Exception as e:
         logger.error(f"Failed to process uploaded PBIX file: {e}", exc_info=True)
-        return jsonify({'error': 'Failed to analyze the PBIX file.'}), 500
+        return error_response(500, 'Failed to analyze the PBIX file.')
     finally:
         # Memory cleanup and file cleanup
         try:
@@ -273,7 +274,7 @@ def list_uploaded_files():
         })
     except Exception as e:
         logger.error(f"Error retrieving list of uploaded files: {e}", exc_info=True)
-        return jsonify({'error': 'Failed to retrieve uploaded files.'}), 500
+        return error_response(500, 'Failed to retrieve uploaded files.')
 
 
 @powerbi_chat_bp.route('/powerbi-chat/delete-session', methods=['DELETE', 'OPTIONS'])
@@ -287,7 +288,7 @@ def delete_powerbi_session():
     session_id = data.get('session_id')
     
     if not session_id:
-        return jsonify({'error': 'Session ID is required'}), 400
+        return error_response(400, 'Session ID is required')
     
     try:
         success = vector_store_service.delete_collection(session_id)
@@ -297,7 +298,7 @@ def delete_powerbi_session():
                 'status': 'success'
             })
         else:
-            return jsonify({'error': 'Failed to delete session'}), 500
+            return error_response(500, 'Failed to delete session')
     except Exception as e:
         logger.error(f"Error deleting Power BI session {session_id}: {e}", exc_info=True)
-        return jsonify({'error': 'Failed to delete session'}), 500
+        return error_response(500, 'Failed to delete session')

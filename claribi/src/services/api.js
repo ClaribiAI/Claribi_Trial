@@ -1,9 +1,13 @@
 import axios from 'axios';
 import csrfService from './csrfService';
+import { normalizeApiError } from './errorUtils';
+import { notify } from '../contexts/notificationBus';
+
+const isDev = import.meta.env && import.meta.env.DEV;
 
 // Create an axios instance with default config
 const api = axios.create({
-  baseURL: '/', // Base URL will be the current domain (thanks to the Vite proxy)
+  baseURL: import.meta.env?.VITE_BACKEND_URL || '/', // Use backend URL in prod; dev falls back to proxy
   withCredentials: true, // Important for sending/receiving cookies for auth
   headers: {
     'Content-Type': 'application/json',
@@ -20,22 +24,22 @@ api.interceptors.request.use(
     const token = localStorage.getItem('jwt_token');
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
-      console.log(`🔐 JWT token added to ${config.method.toUpperCase()} request to ${config.url}`);
+      if (isDev) console.log(`🔐 JWT token added to ${config.method.toUpperCase()} request to ${config.url}`);
     } else {
-      console.log(`⚠️ No JWT token available for ${config.method.toUpperCase()} request to ${config.url}`);
+      if (isDev) console.log(`⚠️ No JWT token available for ${config.method.toUpperCase()} request to ${config.url}`);
     }
 
     // Include CSRF token in POST, PUT, DELETE requests
     if (['post', 'put', 'delete', 'patch'].includes(config.method.toLowerCase())) {
-      console.log(`🔒 Adding CSRF token to ${config.method.toUpperCase()} request to ${config.url}`);
+      if (isDev) console.log(`🔒 Adding CSRF token to ${config.method.toUpperCase()} request to ${config.url}`);
       
       const csrfToken = await csrfService.getToken();
       
       if (csrfToken) {
         config.headers['X-CSRFToken'] = csrfToken;  // Flask-WTF expects X-CSRFToken
-        console.log(`🔑 CSRF token added: ${csrfToken.substring(0, 8)}...`);
+        if (isDev) console.log(`🔑 CSRF token added: ${csrfToken.substring(0, 8)}...`);
       } else {
-        console.warn('⚠️ No CSRF token available for request');
+        if (isDev) console.warn('⚠️ No CSRF token available for request');
       }
       
       // Set appropriate Content-Type header based on data type
@@ -50,7 +54,7 @@ api.interceptors.request.use(
     }
 
     // Log outgoing requests in development
-    if (process.env.NODE_ENV !== 'production') {
+    if (isDev) {
       console.log(`API Request: ${config.method.toUpperCase()} ${config.url}`, config.data || {});
     }
     
@@ -58,7 +62,7 @@ api.interceptors.request.use(
   },
   error => {
     // Handle request errors
-    console.error('API Request Error:', error);
+    if (isDev) console.error('API Request Error:', error);
     return Promise.reject(error);
   }
 );
@@ -67,7 +71,7 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   response => {
     // Any successful response handling
-    if (process.env.NODE_ENV !== 'production') {
+    if (isDev) {
       console.log(`API Response from ${response.config.url}:`, response.data);
     }
 
@@ -76,7 +80,7 @@ api.interceptors.response.use(
       try {
         response.data = JSON.parse(response.data);
       } catch (e) {
-        console.warn('Response is not valid JSON, using as is:', response.data);
+        if (isDev) console.warn('Response is not valid JSON, using as is:', response.data);
         // Wrap non-JSON responses in a data object for consistency
         response.data = { 
           text: response.data,
@@ -89,13 +93,14 @@ api.interceptors.response.use(
   },
   async error => {
     // Log and handle errors
-    console.error('API Response Error:', error);
+    if (isDev) console.error('API Response Error:', error);
     
     // Format error response for better handling
     if (error.response) {
       const { status, data } = error.response;
+      const config = error.config || {};
       
-      console.error(`HTTP Error ${status}:`, data);
+      if (isDev) console.error(`HTTP Error ${status}:`, data);
       
       // Handle authentication errors
       if (status === 401) {
@@ -108,25 +113,25 @@ api.interceptors.response.use(
         
         // Don't retry if this request already failed after refresh
         if (config._retry) {
-          console.log('Token refresh already attempted, redirecting to login');
+          if (isDev) console.log('Token refresh already attempted, redirecting to login');
           window.location.href = '/login';
           return Promise.reject(error);
         }
         
         // Attempt token refresh before redirecting to login
         try {
-          console.log('401 error detected, attempting token refresh...');
+          if (isDev) console.log('401 error detected, attempting token refresh...');
           config._retry = true;
           
           // Import authService dynamically to avoid circular dependency
           const authService = (await import('./auth')).default;
           await authService.refreshAccessToken();
           
-          console.log('Token refreshed successfully, retrying original request');
+          if (isDev) console.log('Token refreshed successfully, retrying original request');
           // Retry the original request with the new token
           return api.request(config);
         } catch (refreshError) {
-          console.error('Token refresh failed, redirecting to login:', refreshError);
+          if (isDev) console.error('Token refresh failed, redirecting to login:', refreshError);
           // Only redirect to login if refresh fails
           window.location.href = '/login';
           return Promise.reject(error);
@@ -139,12 +144,12 @@ api.interceptors.response.use(
             (data.error === 'organization_not_allowed' || 
              data.message?.toLowerCase().includes('organization') ||
              data.message?.toLowerCase().includes('plan'))) {
-          console.error('Organization access restricted:', data.message || data.error);
+          if (isDev) console.error('Organization access restricted:', data.message || data.error);
           // For organization errors, we want to let the error propagate to the component
           // Don't modify the error, just log it
         } else {
           // Forbidden - user doesn't have access
-          console.error('You do not have permission to access this resource');
+          if (isDev) console.error('You do not have permission to access this resource');
         }
       }
       
@@ -153,59 +158,32 @@ api.interceptors.response.use(
            data.error?.toLowerCase().includes('csrf') ||
            data.message?.toLowerCase().includes('referer'))) {
         // CSRF token error - clear token and retry once
-        console.warn('CSRF validation failed:', data.message || data.error);
-        console.warn('Clearing CSRF token and will retry on next request');
+        if (isDev) console.warn('CSRF validation failed:', data.message || data.error);
+        if (isDev) console.warn('Clearing CSRF token and will retry on next request');
         csrfService.clearToken();
       }
 
       // Try to extract more useful error info
-      error.userMessage = getErrorMessage(error);
+      const normalized = normalizeApiError(error);
+      error.userMessage = normalized.message;
+      // Show global toast unless suppressed
+      if (!config._suppressToast) {
+        notify(normalized.message, 'error');
+      }
     } else if (error.request) {
       // Request was made but no response received
-      console.error('No response received from server');
+      if (isDev) console.error('No response received from server');
       error.userMessage = 'The server did not respond. Please check your connection and try again.';
+      notify(error.userMessage, 'error');
     } else {
       // Something else happened in setting up the request
-      console.error('Error in request setup:', error.message);
+      if (isDev) console.error('Error in request setup:', error.message);
       error.userMessage = 'An error occurred while setting up the request.';
+      notify(error.userMessage, 'error');
     }
     
     return Promise.reject(error);
   }
 );
-
-// Helper function to extract user-friendly error messages
-function getErrorMessage(error) {
-  if (!error.response) {
-    return 'Network error. Please check your connection.';
-  }
-  
-  const { data, status } = error.response;
-  
-  // Try to extract message from various data formats
-  if (data) {
-    if (typeof data === 'string') {
-      return data;
-    }
-    
-    if (data.message) {
-      return data.message;
-    }
-    
-    if (data.error) {
-      return typeof data.error === 'string' ? data.error : JSON.stringify(data.error);
-    }
-  }
-  
-  // Default messages based on status code
-  switch (status) {
-    case 400: return 'Bad request. Please check your input.';
-    case 401: return 'You are not authorized. Please log in again.';
-    case 403: return 'You do not have permission to access this resource.';
-    case 404: return 'The requested resource was not found.';
-    case 500: return 'Server error. Please try again later.';
-    default: return `Error ${status}. Please try again.`;
-  }
-}
 
 export default api; 
