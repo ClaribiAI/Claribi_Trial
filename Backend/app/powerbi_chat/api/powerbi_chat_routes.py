@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 powerbi_chat_bp = Blueprint('powerbi_chat', __name__)
 
 @powerbi_chat_bp.route('/powerbi-chat/query-stream', methods=['POST', 'OPTIONS'])
-@cross_origin()
+@cross_origin(supports_credentials=True)
 @auth_required
 def process_powerbi_query_stream():
     if request.method == 'OPTIONS': return jsonify({'status': 'ok'})
@@ -106,7 +106,7 @@ def process_powerbi_query_stream():
 
 
 @powerbi_chat_bp.route('/powerbi-chat/clarification', methods=['POST', 'OPTIONS'])
-@cross_origin()
+@cross_origin(supports_credentials=True)
 @auth_required
 def process_user_clarification():
     if request.method == 'OPTIONS': return jsonify({'status': 'ok'})
@@ -128,7 +128,7 @@ def process_user_clarification():
 
 # ... (The /upload and /list-files routes remain unchanged) ...
 @powerbi_chat_bp.route('/powerbi-chat/upload', methods=['POST', 'OPTIONS'])
-@cross_origin()
+@cross_origin(supports_credentials=True)
 @auth_required
 def upload_powerbi_file():
     if request.method == 'OPTIONS': return jsonify({'status': 'ok'})
@@ -259,7 +259,7 @@ def upload_powerbi_file():
 
 
 @powerbi_chat_bp.route('/powerbi-chat/list-files', methods=['GET', 'OPTIONS'])
-@cross_origin()
+@cross_origin(supports_credentials=True)
 @auth_required
 def list_uploaded_files():
     if request.method == 'OPTIONS':
@@ -278,7 +278,7 @@ def list_uploaded_files():
 
 
 @powerbi_chat_bp.route('/powerbi-chat/delete-session', methods=['DELETE', 'OPTIONS'])
-@cross_origin()
+@cross_origin(supports_credentials=True)
 @auth_required
 def delete_powerbi_session():
     if request.method == 'OPTIONS':
