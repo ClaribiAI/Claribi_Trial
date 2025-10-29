@@ -13,6 +13,7 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 import PowerBIDocumentation from './pages/powerbi-docs';
 import PowerBIChat from './pages/powerbi-chat';
 import Home from './pages/home';
+import NotFound from './pages/not-found';
 import './App.css';
 
 const AppContent: FC = () => {
@@ -56,6 +57,14 @@ const AppContent: FC = () => {
             <ProtectedRoute requiredRole={null} requiredMicrosoftRole={null}>
               <Layout>
                 <HelpPage />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          {/* Catch-all route for 404 Not Found */}
+          <Route path="*" element={
+            <ProtectedRoute requiredRole={null} requiredMicrosoftRole={null}>
+              <Layout>
+                <NotFound />
               </Layout>
             </ProtectedRoute>
           } />

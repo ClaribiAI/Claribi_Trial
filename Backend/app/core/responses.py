@@ -52,33 +52,3 @@ def error_response(
         
     return jsonify(response), status_code
 
-def pagination_response(
-    data: Dict[str, Any],
-    page: int,
-    per_page: int,
-    total: int,
-    status_code: int = 200
-) -> Tuple[Dict[str, Any], int]:
-    """Create a standardized paginated response.
-    
-    Args:
-        data: Response data dictionary
-        page: Current page number
-        per_page: Items per page
-        total: Total number of items
-        status_code: HTTP status code
-        
-    Returns:
-        tuple: (Response dictionary, HTTP status code)
-    """
-    response = {
-        'success': True,
-        'data': data,
-        'pagination': {
-            'page': page,
-            'per_page': per_page,
-            'total': total,
-            'pages': (total + per_page - 1) // per_page
-        }
-    }
-    return jsonify(response), status_code 

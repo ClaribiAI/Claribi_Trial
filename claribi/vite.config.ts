@@ -20,78 +20,7 @@ export default defineConfig(({ mode }) => {
       // Enable history API fallback for client-side routing
       historyApiFallback: true,
       proxy: {
-        '/analytics': {
-          target: process.env.VITE_BACKEND_URL || 'https://127.0.0.1:5000',
-          secure: false,
-          changeOrigin: true,
-          cookieDomainRewrite: false,
-          preserveHeaderKeyCase: true,
-          configure: (proxy, _options) => {
-            proxy.on('error', (err, _req, _res) => {
-              console.log('Analytics proxy error', err);
-            });
-            proxy.on('proxyReq', (proxyReq, req, _res) => {
-              console.log('Analytics - Sending Request to the Target:', req.method, req.url);
-              if (req.headers.cookie) {
-                proxyReq.setHeader('cookie', req.headers.cookie);
-              }
-            });
-            proxy.on('proxyRes', (proxyRes, req, res) => {
-              console.log('Analytics - Received Response from the Target:', proxyRes.statusCode, req.url);
-              if (proxyRes.headers['set-cookie']) {
-                res.setHeader('Set-Cookie', proxyRes.headers['set-cookie']);
-              }
-            });
-          },
-        },
-        '/api/project': {
-          target: process.env.VITE_BACKEND_URL || 'https://127.0.0.1:5000',
-          secure: false,
-          changeOrigin: true,
-          cookieDomainRewrite: false,
-          preserveHeaderKeyCase: true,
-          configure: (proxy, _options) => {
-            proxy.on('error', (err, _req, _res) => {
-              console.log('API project proxy error', err);
-            });
-            proxy.on('proxyReq', (proxyReq, req, _res) => {
-              console.log('API project - Sending Request to the Target:', req.method, req.url);
-              if (req.headers.cookie) {
-                proxyReq.setHeader('cookie', req.headers.cookie);
-              }
-            });
-            proxy.on('proxyRes', (proxyRes, req, res) => {
-              console.log('API project - Received Response from the Target:', proxyRes.statusCode, req.url);
-              if (proxyRes.headers['set-cookie']) {
-                res.setHeader('Set-Cookie', proxyRes.headers['set-cookie']);
-              }
-            });
-          }
-        },
-        '/report/page': {
-          target: process.env.VITE_BACKEND_URL || 'https://127.0.0.1:5000',
-          secure: false,
-          changeOrigin: true,
-          cookieDomainRewrite: false,
-          preserveHeaderKeyCase: true,
-          configure: (proxy, _options) => {
-            proxy.on('error', (err, _req, _res) => {
-              console.log('Report page proxy error', err);
-            });
-            proxy.on('proxyReq', (proxyReq, req, _res) => {
-              console.log('Report page - Sending Request to the Target:', req.method, req.url);
-              if (req.headers.cookie) {
-                proxyReq.setHeader('cookie', req.headers.cookie);
-              }
-            });
-            proxy.on('proxyRes', (proxyRes, req, res) => {
-              console.log('Report page - Received Response from the Target:', proxyRes.statusCode, req.url);
-              if (proxyRes.headers['set-cookie']) {
-                res.setHeader('Set-Cookie', proxyRes.headers['set-cookie']);
-              }
-            });
-          }
-        },
+        // Proxy for authentication and Power BI Docs API endpoints
         '/api': {
           target: process.env.VITE_BACKEND_URL || 'https://127.0.0.1:5000',
           secure: false,
@@ -103,119 +32,20 @@ export default defineConfig(({ mode }) => {
               console.log('API proxy error', err);
             });
             proxy.on('proxyReq', (proxyReq, req, _res) => {
-              console.log('API Sending Request to the Target:', req.method, req.url);
+              console.log('API - Sending Request to the Target:', req.method, req.url);
               if (req.headers.cookie) {
                 proxyReq.setHeader('cookie', req.headers.cookie);
               }
             });
             proxy.on('proxyRes', (proxyRes, req, res) => {
-              console.log('API Received Response from the Target:', proxyRes.statusCode, req.url);
+              console.log('API - Received Response from the Target:', proxyRes.statusCode, req.url);
               if (proxyRes.headers['set-cookie']) {
                 res.setHeader('Set-Cookie', proxyRes.headers['set-cookie']);
               }
             });
           }
         },
-        '/projects': {
-          target: process.env.VITE_BACKEND_URL || 'https://127.0.0.1:5000',
-          secure: false,
-          changeOrigin: true,
-          cookieDomainRewrite: false,
-          preserveHeaderKeyCase: true,
-          configure: (proxy, _options) => {
-            proxy.on('error', (err, _req, _res) => {
-              console.log('Projects proxy error', err);
-            });
-            proxy.on('proxyReq', (proxyReq, req, _res) => {
-              if (req.headers.cookie) {
-                proxyReq.setHeader('cookie', req.headers.cookie);
-              }
-            });
-            proxy.on('proxyRes', (proxyRes, _req, res) => {
-              if (proxyRes.headers['set-cookie']) {
-                res.setHeader('Set-Cookie', proxyRes.headers['set-cookie']);
-              }
-            });
-          }
-        },
-        '/project': {
-          target: process.env.VITE_BACKEND_URL || 'https://127.0.0.1:5000',
-          secure: false,
-          changeOrigin: true,
-          cookieDomainRewrite: false,
-          preserveHeaderKeyCase: true,
-          configure: (proxy, _options) => {
-            proxy.on('error', (err, _req, _res) => {
-              console.log('Project proxy error', err);
-            });
-            proxy.on('proxyReq', (proxyReq, req, _res) => {
-              if (req.headers.cookie) {
-                proxyReq.setHeader('cookie', req.headers.cookie);
-              }
-            });
-            proxy.on('proxyRes', (proxyRes, _req, res) => {
-              if (proxyRes.headers['set-cookie']) {
-                res.setHeader('Set-Cookie', proxyRes.headers['set-cookie']);
-              }
-            });
-          }
-        },
-        '/edit_report': {
-          target: process.env.VITE_BACKEND_URL || 'https://127.0.0.1:5000',
-          secure: false,
-          changeOrigin: true,
-          configure: (proxy, _options) => {
-            proxy.on('error', (err, _req, _res) => {
-              console.log('Edit report proxy error', err);
-            });
-          }
-        },
-        '/delete_report': {
-          target: process.env.VITE_BACKEND_URL || 'https://127.0.0.1:5000',
-          secure: false,
-          changeOrigin: true,
-          configure: (proxy, _options) => {
-            proxy.on('error', (err, _req, _res) => {
-              console.log('Delete report proxy error', err);
-            });
-          }
-        },
-        '/reports': {
-          target: process.env.VITE_BACKEND_URL || 'https://127.0.0.1:5000',
-          secure: false,
-          changeOrigin: true,
-        },
-        '/file_processing': {
-          target: process.env.VITE_BACKEND_URL || 'https://127.0.0.1:5000',
-          secure: false,
-          changeOrigin: true,
-        },
-        '/synonyms': {
-          target: process.env.VITE_BACKEND_URL || 'https://127.0.0.1:5000',
-          secure: false,
-          changeOrigin: true,
-        },
-        '/chatbot': {
-          target: process.env.VITE_BACKEND_URL || 'https://127.0.0.1:5000',
-          secure: false,
-          changeOrigin: true,
-        },
-        '/api/chatbot': {
-          target: process.env.VITE_BACKEND_URL || 'https://127.0.0.1:5000',
-          secure: false,
-          changeOrigin: true,
-          configure: (proxy, _options) => {
-            proxy.on('error', (err, _req, _res) => {
-              console.log('Chatbot API proxy error', err);
-            });
-            proxy.on('proxyReq', (_proxyReq, req, _res) => {
-              console.log('Chatbot API - Sending Request to the Target:', req.method, req.url);
-            });
-            proxy.on('proxyRes', (proxyRes, req, _res) => {
-              console.log('Chatbot API - Received Response from the Target:', proxyRes.statusCode, req.url);
-            });
-          }
-        },
+        // Proxy for Power BI Chat API endpoints
         '/powerbi-chat': {
           target: process.env.VITE_BACKEND_URL || 'https://127.0.0.1:5000',
           secure: false,
@@ -223,6 +53,20 @@ export default defineConfig(({ mode }) => {
           cookieDomainRewrite: false,
           preserveHeaderKeyCase: true,
           timeout: 120000, // 2 minutes timeout for file uploads
+          // Only proxy API calls, not the frontend route itself
+          bypass: (req) => {
+            const url = req.url || '';
+            // If it's the exact root route with no sub-path, it's a frontend route - bypass proxy
+            // React Router will handle it
+            if (url === '/powerbi-chat' || url === '/powerbi-chat/') {
+              // Return a path that doesn't exist to trigger SPA fallback
+              // Vite will serve index.html which React Router will handle
+              return '/index.html';
+            }
+            // For API calls (anything with a sub-path), return null to use proxy
+            // Examples: /powerbi-chat/query, /powerbi-chat/list-files, /powerbi-chat/upload, etc.
+            return null;
+          },
           configure: (proxy, _options) => {
             proxy.on('error', (err, _req, _res) => {
               console.log('Power BI Chat API proxy error', err);
@@ -259,11 +103,6 @@ export default defineConfig(({ mode }) => {
               console.log('Power BI Chat API - WebSocket Request:', _req.url);
             });
           }
-        },
-        '/report_pages': {
-          target: process.env.VITE_BACKEND_URL || 'https://127.0.0.1:5000',
-          secure: false,
-          changeOrigin: true,
         }
       }
     },
