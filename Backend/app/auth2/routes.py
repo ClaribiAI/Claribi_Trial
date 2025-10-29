@@ -583,26 +583,39 @@ def get_csrf_token():
     This endpoint is accessible to both authenticated and unauthenticated users
     since CSRF protection is needed for all state-changing operations.
     
-    This endpoint is exempt from CSRF protection since it's used to GET the token.
-    Exemption is configured in app/__init__.py after blueprint registration.
+    Important: This endpoint must properly initialize the session so that
+    Flask-WTF can store and retrieve the CSRF token for validation.
     """
     try:
         from flask_wtf.csrf import generate_csrf
+        from flask import make_response
         
-        # Flask sessions are automatically created when accessed
-        # Accessing session here ensures it exists for CSRF token storage
-        session.permanent = False
+        # Initialize session by accessing it - this ensures Flask creates the session cookie
+        # Flask only sends session cookies if the session dict is accessed
+        _ = session
         
         # Generate CSRF token tied to the session
+        # generate_csrf() will store the token in session['csrf'] internally
         csrf_token = generate_csrf()
         
-        return jsonify({
+        # Explicitly mark session as modified to ensure Flask saves it
+        # This is critical for the session cookie to be sent
+        session.modified = True
+        
+        # Create response
+        response = make_response(jsonify({
             "success": True,
             "csrf_token": csrf_token
-        })
+        }))
+        
+        # Ensure session cookie will be set by accessing session before response
+        # The session cookie will be automatically included in the response
+        # because we've marked session.modified = True
+        
+        return response
         
     except Exception as e:
-        logger.error(f"Error generating CSRF token: {e}")
+        logger.error(f"Error generating CSRF token: {e}", exc_info=True)
         return jsonify({
             "success": False,
             "error": "server_error",
