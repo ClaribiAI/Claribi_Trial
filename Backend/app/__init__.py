@@ -123,6 +123,31 @@ def create_app():
     # Register database middleware - use only one RLS context setting method
     db_context_middleware(app)
 
+    # Ensure session is loaded before CSRF validation
+    # Flask's session is lazy-loaded, but Flask-WTF needs it to be loaded
+    # when validating CSRF tokens. This ensures the session cookie is read
+    # and the session dict is populated before CSRF protection runs.
+    @app.before_request
+    def ensure_session_loaded():
+        """Ensure Flask session is loaded before request processing.
+        
+        This is critical for CSRF protection because Flask-WTF needs to
+        access the session to validate CSRF tokens. Flask's default session
+        is lazy-loaded and only loads when accessed, so we need to ensure
+        it's loaded before Flask-WTF's CSRF protection middleware runs.
+        """
+        from flask import session
+        # Access session in a way that forces Flask to load it from the cookie
+        # Checking the session length or accessing it as a dict triggers loading
+        # This must happen before Flask-WTF's CSRF validation
+        try:
+            # This will force Flask to deserialize the session cookie if present
+            _ = len(session)
+        except:
+            # If session doesn't exist or can't be loaded, that's okay
+            # Flask-WTF will handle it appropriately
+            pass
+
     # Register security middleware
     from app.auth2.middleware import SecurityHeaders
     from app.core.simple_rate_limiter import rate_limit_headers
