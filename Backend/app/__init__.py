@@ -53,7 +53,9 @@ def create_app():
     if config.FLASK_ENV == 'production':
         app.config['WTF_CSRF_CHECK_REFERER'] = True
         app.config['WTF_CSRF_SSL_STRICT'] = True
-        app.logger.info("CSRF configured for production: referer checking enabled, SSL strict enabled")
+        # In production, only check POST, PUT, PATCH, DELETE - GET requests should not require CSRF
+        app.config['WTF_CSRF_METHODS'] = ['POST', 'PUT', 'PATCH', 'DELETE']
+        app.logger.info("CSRF configured for production: referer checking enabled, SSL strict enabled, GET exempted")
     else:
         # Development settings - more permissive
         app.config['WTF_CSRF_CHECK_REFERER'] = False
@@ -63,16 +65,6 @@ def create_app():
     
     # Initialize CSRF Protection AFTER configuration
     csrf.init_app(app)
-    
-    # Configure CSRF exemptions for auth endpoints
-    csrf.exempt('auth2.login')
-    csrf.exempt('auth2.callback') 
-    csrf.exempt('auth2.logout')
-    csrf.exempt('auth2.get_csrf_token')
-    csrf.exempt('auth2.verify_token')  # Legacy compatibility endpoint
-    
-    # Configure CSRF exemptions for streaming endpoints
-    csrf.exempt('powerbi_chat.process_powerbi_query_stream')
     
     # Configure CORS for production deployment
     allowed_origins = []
@@ -94,7 +86,7 @@ def create_app():
     if not allowed_origins and config.FLASK_ENV == 'development':
         allowed_origins = ['http://localhost:5173', 'https://localhost:5173']
     
-    cors.init_app(app, origins=allowed_origins)
+    cors.init_app(app, origins=allowed_origins, supports_credentials=True)
     
     # Load Microsoft AD config from environment
     app.config['MICROSOFT_CLIENT_ID'] = os.getenv("MICROSOFT_CLIENT_ID")
@@ -162,6 +154,17 @@ def create_app():
     app.register_blueprint(auth2_bp, supports_credentials=True)  # Authentication at /api/auth
     app.register_blueprint(powerbi_chat_bp, supports_credentials=True)  # Power BI Chat
     app.register_blueprint(powerbi_docs_bp, supports_credentials=True)  # Power BI Docs
+    
+    # Configure CSRF exemptions for auth endpoints AFTER blueprint registration
+    # Exemptions must be set after views are registered with the app
+    csrf.exempt('auth2.login')
+    csrf.exempt('auth2.callback') 
+    csrf.exempt('auth2.logout')
+    csrf.exempt('auth2.get_csrf_token')
+    csrf.exempt('auth2.verify_token')  # Legacy compatibility endpoint
+    
+    # Configure CSRF exemptions for streaming endpoints
+    csrf.exempt('powerbi_chat.process_powerbi_query_stream')
     
     # API-only backend - no catch-all route needed
     # Frontend will be served separately

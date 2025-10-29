@@ -582,9 +582,16 @@ def get_csrf_token():
     Generate and return a CSRF token using Flask-WTF.
     This endpoint is accessible to both authenticated and unauthenticated users
     since CSRF protection is needed for all state-changing operations.
+    
+    This endpoint is exempt from CSRF protection since it's used to GET the token.
+    Exemption is configured in app/__init__.py after blueprint registration.
     """
     try:
         from flask_wtf.csrf import generate_csrf
+        
+        # Flask sessions are automatically created when accessed
+        # Accessing session here ensures it exists for CSRF token storage
+        session.permanent = False
         
         # Generate CSRF token tied to the session
         csrf_token = generate_csrf()
