@@ -1,6 +1,7 @@
 from flask import request, jsonify
 import logging
 from typing import Dict
+from flask_cors import cross_origin
 from . import powerbi_docs_bp
 from app.core.security import login_required, get_current_user
 from app.powerbi_docs.powerbi_service_pbix import PowerBIPbixService
@@ -55,9 +56,12 @@ def _get_summaries_by_collection(collection_name: str) -> tuple[Dict, str]:
         raise
 
 
-@powerbi_docs_bp.route('/api/powerbi-docs/list-files', methods=['GET'])
+@powerbi_docs_bp.route('/api/powerbi-docs/list-files', methods=['GET', 'OPTIONS'])
+@cross_origin(supports_credentials=True)
 @login_required
 def list_uploaded_files():
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 'ok'})
     """
     Endpoint to list all uploaded Power BI files.
     Returns the same format as the chat service.
@@ -73,9 +77,12 @@ def list_uploaded_files():
         logger.error(f"Error retrieving list of uploaded files: {e}", exc_info=True)
         return error_response(500, 'Failed to retrieve uploaded files.')
 
-@powerbi_docs_bp.route('/api/powerbi-docs/get-summaries/<collection_name>', methods=['GET'])
+@powerbi_docs_bp.route('/api/powerbi-docs/get-summaries/<collection_name>', methods=['GET', 'OPTIONS'])
+@cross_origin(supports_credentials=True)
 @login_required
 def get_file_summaries(collection_name):
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 'ok'})
     """
     Endpoint to get summaries for a specific collection.
     """
@@ -109,9 +116,12 @@ def get_file_summaries(collection_name):
         logger.error(f"Error retrieving summaries for {collection_name}: {e}", exc_info=True)
         return error_response(500, 'Failed to retrieve file summaries.')
 
-@powerbi_docs_bp.route('/api/powerbi-docs/get-generated-docs/<collection_name>', methods=['GET'])
+@powerbi_docs_bp.route('/api/powerbi-docs/get-generated-docs/<collection_name>', methods=['GET', 'OPTIONS'])
+@cross_origin(supports_credentials=True)
 @login_required
 def get_generated_docs(collection_name):
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 'ok'})
     """
     Endpoint to get all previously generated documentation sections for a collection.
     """
@@ -129,9 +139,12 @@ def get_generated_docs(collection_name):
         return jsonify({'error': 'Failed to retrieve generated documentation.'}), 500
 
 
-@powerbi_docs_bp.route('/api/powerbi-docs/analyze-section/<section>', methods=['POST'])
+@powerbi_docs_bp.route('/api/powerbi-docs/analyze-section/<section>', methods=['POST', 'OPTIONS'])
+@cross_origin(supports_credentials=True)
 @login_required
 def analyze_pbix_section_route(section):
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 'ok'})
     """
     Endpoint to analyze a specific section using file summaries.
     Expects JSON data with 'collection_name' and optional 'custom_instructions'.
@@ -198,9 +211,12 @@ def analyze_pbix_section_route(section):
         logger.error(f"Error analyzing section {section}: {e}", exc_info=True)
         return error_response(500, 'Failed to analyze section')
 
-@powerbi_docs_bp.route('/api/powerbi-docs/parse-recommendations', methods=['POST'])
+@powerbi_docs_bp.route('/api/powerbi-docs/parse-recommendations', methods=['POST', 'OPTIONS'])
+@cross_origin(supports_credentials=True)
 @login_required
 def parse_improvement_recommendations_route():
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 'ok'})
     """
     Endpoint to parse improvement recommendations using file summaries.
     Expects JSON data with 'collection_name'.
