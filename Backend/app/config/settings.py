@@ -15,7 +15,28 @@ class Config:
     
     # Centralized cookie/security flags
     SECURE_COOKIES = os.getenv('SECURE_COOKIES', 'true' if FLASK_ENV == 'production' else 'false').lower() == 'true'
-    COOKIE_SAMESITE = os.getenv('COOKIE_SAMESITE', 'Lax')
+    
+    # Set SameSite cookie policy
+    # In production, frontend and backend are on different domains, so use None for cross-origin support
+    # Environment variable takes precedence if explicitly set
+    _cookie_samesite_env = os.getenv('COOKIE_SAMESITE')
+    if _cookie_samesite_env:
+        # Explicitly set via environment variable takes precedence
+        COOKIE_SAMESITE = _cookie_samesite_env
+    elif FLASK_ENV == 'production':
+        # Production: Always use None for cross-origin cookie support
+        COOKIE_SAMESITE = 'None'
+        # Ensure SECURE_COOKIES is True when SameSite=None (required by browsers)
+        if not SECURE_COOKIES:
+            SECURE_COOKIES = True
+    else:
+        # Development defaults to Lax
+        COOKIE_SAMESITE = 'Lax'
+    
+    # Ensure SECURE_COOKIES is True when SameSite=None (required by browser security)
+    if COOKIE_SAMESITE == 'None' and not SECURE_COOKIES:
+        SECURE_COOKIES = True
+    
     COOKIE_DOMAIN = os.getenv('COOKIE_DOMAIN')  # Optional explicit cookie domain
     ENABLE_HSTS = os.getenv('ENABLE_HSTS', 'true' if FLASK_ENV == 'production' else 'false').lower() == 'true'
 
