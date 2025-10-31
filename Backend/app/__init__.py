@@ -42,7 +42,12 @@ def create_app():
     app.config['SESSION_COOKIE_SECURE'] = config.SECURE_COOKIES
     app.config['SESSION_COOKIE_SAMESITE'] = config.COOKIE_SAMESITE
     app.config['SESSION_COOKIE_HTTPONLY'] = config.SESSION_COOKIE_HTTPONLY
+    app.config['SESSION_COOKIE_PATH'] = '/'  # Ensure cookie is sent for all paths
+    if config.COOKIE_DOMAIN:
+        app.config['SESSION_COOKIE_DOMAIN'] = config.COOKIE_DOMAIN
     
+    # Log cookie configuration for debugging
+    app.logger.info(f"Session cookie configuration: Secure={config.SECURE_COOKIES}, SameSite={config.COOKIE_SAMESITE}, HttpOnly={config.SESSION_COOKIE_HTTPONLY}")
     app.logger.info("Using simplified JWT-based authentication (no session storage)")
     
     # Configure CSRF settings BEFORE initializing CSRF Protection
@@ -50,10 +55,14 @@ def create_app():
     app.config['WTF_CSRF_TIME_LIMIT'] = None  # No time limit
     
     # Configure CSRF referer checking based on environment
+    # In production with cross-origin setup (different domains), disable referer checking
+    # as it can cause issues with cross-origin requests
     if config.FLASK_ENV == 'production':
-        app.config['WTF_CSRF_CHECK_REFERER'] = True
+        # Disable referer checking for cross-origin production deployment
+        # The session cookie validation provides sufficient security
+        app.config['WTF_CSRF_CHECK_REFERER'] = False
         app.config['WTF_CSRF_SSL_STRICT'] = True
-        app.logger.info("CSRF configured for production: referer checking enabled, SSL strict enabled")
+        app.logger.info("CSRF configured for production: referer checking disabled for cross-origin support, SSL strict enabled")
     else:
         # Development settings - more permissive
         app.config['WTF_CSRF_CHECK_REFERER'] = False

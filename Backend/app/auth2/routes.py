@@ -585,9 +585,14 @@ def get_csrf_token():
     """
     try:
         from flask_wtf.csrf import generate_csrf
+        from flask import session
         
         # Generate CSRF token tied to the session
         csrf_token = generate_csrf()
+        
+        # Explicitly mark session as modified to ensure cookie is sent
+        # Flask only sends session cookies when the session is modified
+        session.modified = True
         
         return jsonify({
             "success": True,
