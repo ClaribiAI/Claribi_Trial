@@ -147,6 +147,9 @@ def create_app():
     # Apply comprehensive security headers to all responses
     @app.after_request
     def apply_security_headers(response):
+        # Log session cookie in response headers for debugging (in production)
+        if config.FLASK_ENV == 'production' and 'Set-Cookie' in response.headers:
+            app.logger.info(f"Session cookie header set: {response.headers.get('Set-Cookie', 'None')[:200]}")
         return SecurityHeaders.apply_security_headers(response)
 
     # Centralized error handling using standardized error envelope

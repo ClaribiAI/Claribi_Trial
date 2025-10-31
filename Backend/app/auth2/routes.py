@@ -592,6 +592,12 @@ def get_csrf_token():
         # Ensure session is permanent so cookie is sent with proper expiration
         session.permanent = True
         
+        # Force session to be initialized by touching it
+        # This ensures Flask will send the session cookie
+        # Flask sessions are always truthy, so we just touch it
+        if '_initialized' not in session:
+            session['_initialized'] = True
+        
         # Generate CSRF token tied to the session
         # This will create the session if it doesn't exist
         csrf_token = generate_csrf()
@@ -600,13 +606,18 @@ def get_csrf_token():
         # Flask only sends session cookies when the session is modified
         session.modified = True
         
-        return jsonify({
+        # Log session state for debugging
+        logger.debug(f"CSRF token generated, session modified: {session.modified}, session permanent: {session.permanent}")
+        
+        response = jsonify({
             "success": True,
             "csrf_token": csrf_token
         })
         
+        return response
+        
     except Exception as e:
-        logger.error(f"Error generating CSRF token: {e}")
+        logger.error(f"Error generating CSRF token: {e}", exc_info=True)
         return jsonify({
             "success": False,
             "error": "server_error",
