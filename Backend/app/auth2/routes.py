@@ -5,6 +5,7 @@ Updated authentication routes with improved security and structure.
 """
 import logging
 from flask import jsonify, session, request, redirect
+from flask_cors import cross_origin
 from flask_wtf.csrf import generate_csrf
 from app.auth2 import auth2_bp
 from app.auth2.config import Auth2Config
@@ -577,6 +578,7 @@ def get_graph_data():
 # --- Legacy Compatibility Routes ---
 
 @auth2_bp.route("/csrf-token")
+@cross_origin(supports_credentials=True)
 def get_csrf_token():
     """
     Generate and return a CSRF token using Flask-WTF.

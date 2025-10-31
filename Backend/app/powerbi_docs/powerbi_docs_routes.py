@@ -1,4 +1,5 @@
 from flask import request, jsonify
+from flask_cors import cross_origin
 import logging
 from typing import Dict
 from . import powerbi_docs_bp
@@ -56,6 +57,7 @@ def _get_summaries_by_collection(collection_name: str) -> tuple[Dict, str]:
 
 
 @powerbi_docs_bp.route('/api/powerbi-docs/list-files', methods=['GET'])
+@cross_origin(supports_credentials=True)
 @login_required
 def list_uploaded_files():
     """
@@ -74,6 +76,7 @@ def list_uploaded_files():
         return error_response(500, 'Failed to retrieve uploaded files.')
 
 @powerbi_docs_bp.route('/api/powerbi-docs/get-summaries/<collection_name>', methods=['GET'])
+@cross_origin(supports_credentials=True)
 @login_required
 def get_file_summaries(collection_name):
     """
@@ -110,6 +113,7 @@ def get_file_summaries(collection_name):
         return error_response(500, 'Failed to retrieve file summaries.')
 
 @powerbi_docs_bp.route('/api/powerbi-docs/get-generated-docs/<collection_name>', methods=['GET'])
+@cross_origin(supports_credentials=True)
 @login_required
 def get_generated_docs(collection_name):
     """
@@ -130,6 +134,7 @@ def get_generated_docs(collection_name):
 
 
 @powerbi_docs_bp.route('/api/powerbi-docs/analyze-section/<section>', methods=['POST'])
+@cross_origin(supports_credentials=True)
 @login_required
 def analyze_pbix_section_route(section):
     """
@@ -199,6 +204,7 @@ def analyze_pbix_section_route(section):
         return error_response(500, 'Failed to analyze section')
 
 @powerbi_docs_bp.route('/api/powerbi-docs/parse-recommendations', methods=['POST'])
+@cross_origin(supports_credentials=True)
 @login_required
 def parse_improvement_recommendations_route():
     """
