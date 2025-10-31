@@ -587,7 +587,11 @@ def get_csrf_token():
         from flask_wtf.csrf import generate_csrf
         from flask import session
         
+        # Ensure session is permanent so cookie is sent with proper expiration
+        session.permanent = True
+        
         # Generate CSRF token tied to the session
+        # This will create the session if it doesn't exist
         csrf_token = generate_csrf()
         
         # Explicitly mark session as modified to ensure cookie is sent

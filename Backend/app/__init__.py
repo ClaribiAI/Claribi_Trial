@@ -43,11 +43,18 @@ def create_app():
     app.config['SESSION_COOKIE_SAMESITE'] = config.COOKIE_SAMESITE
     app.config['SESSION_COOKIE_HTTPONLY'] = config.SESSION_COOKIE_HTTPONLY
     app.config['SESSION_COOKIE_PATH'] = '/'  # Ensure cookie is sent for all paths
-    if config.COOKIE_DOMAIN:
+    app.config['PERMANENT_SESSION_LIFETIME'] = config.PERMANENT_SESSION_LIFETIME  # Set session lifetime
+    # For cross-origin cookies with SameSite=None, don't set domain
+    # Setting domain can prevent cookie from being sent correctly in cross-origin scenarios
+    # Only set domain if explicitly configured AND not using SameSite=None
+    if config.COOKIE_DOMAIN and config.COOKIE_SAMESITE != 'None':
         app.config['SESSION_COOKIE_DOMAIN'] = config.COOKIE_DOMAIN
+    else:
+        # Explicitly set to None to avoid Flask defaulting to a domain
+        app.config['SESSION_COOKIE_DOMAIN'] = None
     
     # Log cookie configuration for debugging
-    app.logger.info(f"Session cookie configuration: Secure={config.SECURE_COOKIES}, SameSite={config.COOKIE_SAMESITE}, HttpOnly={config.SESSION_COOKIE_HTTPONLY}")
+    app.logger.info(f"Session cookie configuration: Secure={config.SECURE_COOKIES}, SameSite={config.COOKIE_SAMESITE}, HttpOnly={config.SESSION_COOKIE_HTTPONLY}, Domain={app.config['SESSION_COOKIE_DOMAIN']}")
     app.logger.info("Using simplified JWT-based authentication (no session storage)")
     
     # Configure CSRF settings BEFORE initializing CSRF Protection
