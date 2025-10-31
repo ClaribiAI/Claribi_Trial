@@ -90,6 +90,15 @@ def create_app():
     # Configure CSRF exemptions for streaming endpoints
     csrf.exempt('powerbi_chat.process_powerbi_query_stream')
     
+    # Configure CSRF exemptions for Power BI docs endpoints
+    # These endpoints require JWT authentication, providing sufficient security
+    # Session cookies are unreliable in cross-origin production deployments
+    csrf.exempt('powerbi_docs.list_uploaded_files')
+    csrf.exempt('powerbi_docs.get_file_summaries')
+    csrf.exempt('powerbi_docs.get_generated_docs')
+    csrf.exempt('powerbi_docs.analyze_pbix_section_route')
+    csrf.exempt('powerbi_docs.parse_improvement_recommendations_route')
+    
     # Configure CORS for production deployment
     allowed_origins = []
     
