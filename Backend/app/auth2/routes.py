@@ -6,7 +6,6 @@ Updated authentication routes with improved security and structure.
 import logging
 from flask import jsonify, session, request, redirect
 from flask_cors import cross_origin
-from flask_wtf.csrf import generate_csrf
 from app.auth2 import auth2_bp
 from app.auth2.config import Auth2Config
 
@@ -576,53 +575,6 @@ def get_graph_data():
         }), 500
 
 # --- Legacy Compatibility Routes ---
-
-@auth2_bp.route("/csrf-token")
-@cross_origin(supports_credentials=True)
-def get_csrf_token():
-    """
-    Generate and return a CSRF token using Flask-WTF.
-    This endpoint is accessible to both authenticated and unauthenticated users
-    since CSRF protection is needed for all state-changing operations.
-    """
-    try:
-        from flask_wtf.csrf import generate_csrf
-        from flask import session
-        
-        # Ensure session is permanent so cookie is sent with proper expiration
-        session.permanent = True
-        
-        # Force session to be initialized by touching it
-        # This ensures Flask will send the session cookie
-        # Flask sessions are always truthy, so we just touch it
-        if '_initialized' not in session:
-            session['_initialized'] = True
-        
-        # Generate CSRF token tied to the session
-        # This will create the session if it doesn't exist
-        csrf_token = generate_csrf()
-        
-        # Explicitly mark session as modified to ensure cookie is sent
-        # Flask only sends session cookies when the session is modified
-        session.modified = True
-        
-        # Log session state for debugging
-        logger.debug(f"CSRF token generated, session modified: {session.modified}, session permanent: {session.permanent}")
-        
-        response = jsonify({
-            "success": True,
-            "csrf_token": csrf_token
-        })
-        
-        return response
-        
-    except Exception as e:
-        logger.error(f"Error generating CSRF token: {e}", exc_info=True)
-        return jsonify({
-            "success": False,
-            "error": "server_error",
-            "message": "Failed to generate CSRF token"
-        }), 500
 
 @auth2_bp.route("/verify-token")
 def verify_token():

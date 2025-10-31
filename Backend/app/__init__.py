@@ -1,6 +1,5 @@
 from flask import Flask, jsonify
 from flask_cors import CORS
-from flask_wtf.csrf import CSRFProtect
 import os
 import google.generativeai as genai
 from app.config.settings import config
@@ -21,7 +20,6 @@ genai.configure(api_key=config.GOOGLE_API_KEY)
 
 # Initialize Flask extensions
 cors = CORS(supports_credentials=True)
-csrf = CSRFProtect()
 
 def create_app():
     """
@@ -35,69 +33,9 @@ def create_app():
     """
     app = Flask(__name__, template_folder='../templates')
     app.config['ENV'] = config.FLASK_ENV
-    # Configure minimal session handling for CSRF protection only
-    app.secret_key = config.SECRET_KEY
+    app.secret_key = config.SECRET_KEY  # Secret key for session management (if needed in future)
     
-    # Minimal session configuration for CSRF protection
-    app.config['SESSION_COOKIE_SECURE'] = config.SECURE_COOKIES
-    app.config['SESSION_COOKIE_SAMESITE'] = config.COOKIE_SAMESITE
-    app.config['SESSION_COOKIE_HTTPONLY'] = config.SESSION_COOKIE_HTTPONLY
-    app.config['SESSION_COOKIE_PATH'] = '/'  # Ensure cookie is sent for all paths
-    app.config['PERMANENT_SESSION_LIFETIME'] = config.PERMANENT_SESSION_LIFETIME  # Set session lifetime
-    # For cross-origin cookies with SameSite=None, don't set domain
-    # Setting domain can prevent cookie from being sent correctly in cross-origin scenarios
-    # Only set domain if explicitly configured AND not using SameSite=None
-    if config.COOKIE_DOMAIN and config.COOKIE_SAMESITE != 'None':
-        app.config['SESSION_COOKIE_DOMAIN'] = config.COOKIE_DOMAIN
-    else:
-        # Explicitly set to None to avoid Flask defaulting to a domain
-        app.config['SESSION_COOKIE_DOMAIN'] = None
-    
-    # Log cookie configuration for debugging
-    app.logger.info(f"Session cookie configuration: Secure={config.SECURE_COOKIES}, SameSite={config.COOKIE_SAMESITE}, HttpOnly={config.SESSION_COOKIE_HTTPONLY}, Domain={app.config['SESSION_COOKIE_DOMAIN']}")
-    app.logger.info("Using simplified JWT-based authentication (no session storage)")
-    
-    # Configure CSRF settings BEFORE initializing CSRF Protection
-    app.config['WTF_CSRF_CHECK_DEFAULT'] = True
-    app.config['WTF_CSRF_TIME_LIMIT'] = None  # No time limit
-    
-    # Configure CSRF referer checking based on environment
-    # In production with cross-origin setup (different domains), disable referer checking
-    # as it can cause issues with cross-origin requests
-    if config.FLASK_ENV == 'production':
-        # Disable referer checking for cross-origin production deployment
-        # The session cookie validation provides sufficient security
-        app.config['WTF_CSRF_CHECK_REFERER'] = False
-        app.config['WTF_CSRF_SSL_STRICT'] = True
-        app.logger.info("CSRF configured for production: referer checking disabled for cross-origin support, SSL strict enabled")
-    else:
-        # Development settings - more permissive
-        app.config['WTF_CSRF_CHECK_REFERER'] = False
-        app.config['WTF_CSRF_SSL_STRICT'] = False
-        app.config['WTF_CSRF_METHODS'] = ['POST', 'PUT', 'PATCH', 'DELETE']  # Only check these methods
-        app.logger.info("CSRF configured for development: referer checking disabled, SSL strict disabled")
-    
-    # Initialize CSRF Protection AFTER configuration
-    csrf.init_app(app)
-    
-    # Configure CSRF exemptions for auth endpoints
-    csrf.exempt('auth2.login')
-    csrf.exempt('auth2.callback') 
-    csrf.exempt('auth2.logout')
-    csrf.exempt('auth2.get_csrf_token')
-    csrf.exempt('auth2.verify_token')  # Legacy compatibility endpoint
-    
-    # Configure CSRF exemptions for streaming endpoints
-    csrf.exempt('powerbi_chat.process_powerbi_query_stream')
-    
-    # Configure CSRF exemptions for Power BI docs endpoints
-    # These endpoints require JWT authentication, providing sufficient security
-    # Session cookies are unreliable in cross-origin production deployments
-    csrf.exempt('powerbi_docs.list_uploaded_files')
-    csrf.exempt('powerbi_docs.get_file_summaries')
-    csrf.exempt('powerbi_docs.get_generated_docs')
-    csrf.exempt('powerbi_docs.analyze_pbix_section_route')
-    csrf.exempt('powerbi_docs.parse_improvement_recommendations_route')
+    app.logger.info("Using JWT-based authentication (no CSRF protection)")
     
     # Configure CORS for production deployment
     allowed_origins = []
@@ -156,9 +94,6 @@ def create_app():
     # Apply comprehensive security headers to all responses
     @app.after_request
     def apply_security_headers(response):
-        # Log session cookie in response headers for debugging (in production)
-        if config.FLASK_ENV == 'production' and 'Set-Cookie' in response.headers:
-            app.logger.info(f"Session cookie header set: {response.headers.get('Set-Cookie', 'None')[:200]}")
         return SecurityHeaders.apply_security_headers(response)
 
     # Centralized error handling using standardized error envelope
