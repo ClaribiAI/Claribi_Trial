@@ -1,5 +1,4 @@
 import api from './api';
-import csrfService from './csrfService';
 
 /**
  * Send a Power BI related query to the chat assistant
@@ -62,17 +61,12 @@ export const sendPowerBIQueryWithUpdates = async (query, pbixFile = null, onUpda
         const jwtToken = localStorage.getItem('jwt_token');
         console.log('JWT token for streaming request:', jwtToken ? 'present' : 'missing');
         
-        // Get CSRF token
-        const csrfToken = await csrfService.getToken();
-        console.log('CSRF token for streaming request:', csrfToken ? 'present' : 'missing');
-        
         const response = await fetch('/powerbi-chat/query-stream', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'text/plain',
-                'Authorization': jwtToken ? `Bearer ${jwtToken}` : '',
-                'X-CSRFToken': csrfToken || ''
+                'Authorization': jwtToken ? `Bearer ${jwtToken}` : ''
             },
             body: JSON.stringify(requestData)
         });

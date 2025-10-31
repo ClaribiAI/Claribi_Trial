@@ -129,30 +129,6 @@ def require_roles(*allowed_roles):
         return decorated_function
     return decorator
 
-def optional_auth(f: Callable) -> Callable:
-    """
-    Decorator that provides user info if authenticated, but doesn't require it.
-    
-    Args:
-        f: The route function
-        
-    Returns:
-        Wrapped function that optionally provides user context
-    """
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        try:
-            user = get_current_user_from_session()
-            g.current_user = user  # May be None
-            return f(*args, **kwargs)
-            
-        except Exception as e:
-            logger.error(f"Error in optional_auth decorator: {e}")
-            g.current_user = None
-            return f(*args, **kwargs)
-    
-    return decorated_function
-
 def rate_limit(limit_string: str):
     """
     Decorator for rate limiting endpoints.
@@ -224,36 +200,6 @@ def rate_limit(limit_string: str):
         
         return decorated_function
     return decorator
-
-def require_https(f: Callable) -> Callable:
-    """
-    Decorator to require HTTPS in production.
-    
-    Args:
-        f: The route function to protect
-        
-    Returns:
-        Wrapped function that enforces HTTPS
-    """
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        # Only enforce HTTPS in production
-        if (auth2_config.SESSION_COOKIE_SECURE and 
-            not request.is_secure and 
-            not request.headers.get('X-Forwarded-Proto') == 'https'):
-            
-            logger.warning(f"HTTPS required for {request.endpoint}")
-            return jsonify({
-                "success": False,
-                "error": "https_required",
-                "message": "HTTPS is required for this endpoint"
-            }), 400
-        
-        return f(*args, **kwargs)
-    
-    return decorated_function
-
-
 
 def get_current_user_from_token() -> Optional[Dict[str, Any]]:
     """

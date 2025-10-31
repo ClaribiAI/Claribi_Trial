@@ -10,7 +10,7 @@ from app.auth2 import auth2_bp
 from app.auth2.config import Auth2Config
 
 auth2_config = Auth2Config()
-from app.auth2.services import MSALService, UserService, GraphService
+from app.auth2.services import MSALService, UserService
 from app.auth2.graphapi import validate_token, get_user_info_from_token, get_user_groups_from_token
 from app.auth2.middleware import auth_required, rate_limit, get_current_user_from_session, clear_session, require_roles
 from app.auth2.jwt_service import JWTService
@@ -24,24 +24,54 @@ def validate_redirect_uri(redirect_uri: str) -> str:
     if not redirect_uri:
         return auth2_config.ALLOWED_LOGIN_REDIRECTS[0]
     
+    from urllib.parse import urlparse
+    
+    parsed_uri = urlparse(redirect_uri)
+    if not parsed_uri.scheme or not parsed_uri.netloc:
+        logger.warning(f"Invalid redirect_uri format: {redirect_uri}")
+        return auth2_config.ALLOWED_LOGIN_REDIRECTS[0]
+    
+    normalized_uri_netloc = parsed_uri.netloc.lower()
+    for allowed_url in auth2_config.ALLOWED_LOGIN_REDIRECTS:
+        if urlparse(allowed_url).netloc.lower() == normalized_uri_netloc:
+            return redirect_uri
+    
+    logger.warning(f"Redirect URI not in allowlist: {redirect_uri}")
+    return auth2_config.ALLOWED_LOGIN_REDIRECTS[0]
+
+def clear_pkce_cookie(redirect_target):
+    """Helper function to clear PKCE cookie from redirect response"""
+    from flask import make_response
+    response = make_response(redirect_target)
+    response.set_cookie('pkce_data', '', expires=0, httponly=True, secure=True, samesite='None')
+    return response
+
+def extract_token_from_header():
+    """
+    Extract and validate JWT token from Authorization header.
+    
+    Returns:
+        tuple: (user, token, error_response) where error_response is None if successful
+    """
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header.startswith('Bearer '):
+        return None, None, jsonify({
+            "success": False,
+            "error": "unauthorized",
+            "message": "No token provided"
+        }), 401
+    
     try:
-        from urllib.parse import urlparse
-        parsed_uri = urlparse(redirect_uri)
-        if not parsed_uri.scheme or not parsed_uri.netloc:
-            logger.warning(f"Invalid redirect_uri format: {redirect_uri}")
-            return auth2_config.ALLOWED_LOGIN_REDIRECTS[0]
-        
-        normalized_uri_netloc = parsed_uri.netloc.lower()
-        for allowed_url in auth2_config.ALLOWED_LOGIN_REDIRECTS:
-            if urlparse(allowed_url).netloc.lower() == normalized_uri_netloc:
-                return redirect_uri
-        
-        logger.warning(f"Redirect URI not in allowlist: {redirect_uri}")
-        return auth2_config.ALLOWED_LOGIN_REDIRECTS[0]
-        
-    except Exception as e:
-        logger.error(f"Error validating redirect URI {redirect_uri}: {e}")
-        return auth2_config.ALLOWED_LOGIN_REDIRECTS[0]
+        token = auth_header.split(' ')[1]
+        user = JWTService.validate_user_token(token)
+        return user, token, None
+    except (IndexError, Exception) as e:
+        logger.error(f"Error extracting token: {e}")
+        return None, None, jsonify({
+            "success": False,
+            "error": "unauthorized",
+            "message": "Invalid token format"
+        }), 401
 
 # --- Authentication Flow Routes ---
 
@@ -125,12 +155,21 @@ def callback():
         state = request.args.get('state', '')
         redirect_uri = auth2_config.ALLOWED_LOGIN_REDIRECTS[0]
         
-        # Try to parse state parameter for redirect URI
+        # Try to parse state parameter for redirect URI and validate timestamp
         if state:
             try:
                 import json
                 import base64
+                import time
                 state_data = json.loads(base64.b64decode(state).decode('utf-8'))
+                
+                # Validate timestamp to prevent replay attacks (10 minute window)
+                timestamp = state_data.get('timestamp', 0)
+                current_time = int(time.time())
+                if current_time - timestamp > 600:  # 10 minutes
+                    logger.warning(f"State parameter expired: {current_time - timestamp} seconds old")
+                    return redirect(f"{auth2_config.ALLOWED_LOGIN_REDIRECTS[0]}?error=state_expired")
+                
                 if 'redirect_uri' in state_data:
                     redirect_uri = state_data['redirect_uri']
             except Exception as e:
@@ -161,30 +200,21 @@ def callback():
             logger.error(f"Authentication error: {error_code} - {error_msg}")
             
             # Clear the PKCE data cookie on error
-            from flask import make_response
-            response = make_response(redirect(f"{redirect_uri}?error=authentication_failed&details={error_code}"))
-            response.set_cookie('pkce_data', '', expires=0, httponly=True, secure=True, samesite='None')
-            return response
+            return clear_pkce_cookie(redirect(f"{redirect_uri}?error=authentication_failed&details={error_code}"))
         
         # Get access token for Graph API validation
         access_token = result.get("access_token")
         if not access_token:
             logger.error("No access token received")
             # Clear the PKCE data cookie on error
-            from flask import make_response
-            response = make_response(redirect(f"{redirect_uri}?error=no_access_token"))
-            response.set_cookie('pkce_data', '', expires=0, httponly=True, secure=True, samesite='None')
-            return response
+            return clear_pkce_cookie(redirect(f"{redirect_uri}?error=no_access_token"))
         
         # Validate token using Graph API
         is_valid, user_data = validate_token(access_token)
         if not is_valid or not user_data:
             logger.error("Token validation failed")
             # Clear the PKCE data cookie on error
-            from flask import make_response
-            response = make_response(redirect(f"{redirect_uri}?error=token_validation_failed"))
-            response.set_cookie('pkce_data', '', expires=0, httponly=True, secure=True, samesite='None')
-            return response
+            return clear_pkce_cookie(redirect(f"{redirect_uri}?error=token_validation_failed"))
         
         # Extract user information from Graph API response
         ms_object_id = user_data.get("id")
@@ -199,19 +229,13 @@ def callback():
         if not ms_object_id or not organization_id:
             logger.error("Missing required user identifiers")
             # Clear the PKCE data cookie on error
-            from flask import make_response
-            response = make_response(redirect(f"{redirect_uri}?error=missing_identifiers"))
-            response.set_cookie('pkce_data', '', expires=0, httponly=True, secure=True, samesite='None')
-            return response
+            return clear_pkce_cookie(redirect(f"{redirect_uri}?error=missing_identifiers"))
         
         # Check if organization is allowed
         if not UserService.is_organization_allowed(organization_id):
             logger.warning(f"Organization {organization_id} is not allowed to access the system")
             # Clear the PKCE data cookie on error
-            from flask import make_response
-            response = make_response(redirect(f"{redirect_uri}?error=organization_not_allowed"))
-            response.set_cookie('pkce_data', '', expires=0, httponly=True, secure=True, samesite='None')
-            return response
+            return clear_pkce_cookie(redirect(f"{redirect_uri}?error=organization_not_allowed"))
         
         # Extract app roles from ID token claims
         from app.auth2.services import SecurityService
@@ -222,10 +246,7 @@ def callback():
         if not user_app_roles:
             logger.warning(f"User {display_id} has no valid app roles assigned")
             # Clear the PKCE data cookie on error
-            from flask import make_response
-            response = make_response(redirect(f"{redirect_uri}?error=no_app_role"))
-            response.set_cookie('pkce_data', '', expires=0, httponly=True, secure=True, samesite='None')
-            return response
+            return clear_pkce_cookie(redirect(f"{redirect_uri}?error=no_app_role"))
         
         # Use the first valid role
         user_role = user_app_roles[0]
@@ -238,10 +259,7 @@ def callback():
         if not db_success:
             logger.error(f"Database error: {db_error}")
             # Clear the PKCE data cookie on error
-            from flask import make_response
-            response = make_response(redirect(f"{redirect_uri}?error=database_error"))
-            response.set_cookie('pkce_data', '', expires=0, httponly=True, secure=True, samesite='None')
-            return response
+            return clear_pkce_cookie(redirect(f"{redirect_uri}?error=database_error"))
         
         # Create JWT token with user data
         user_data_for_token = {
@@ -378,19 +396,11 @@ def profile():
     Primary endpoint for frontend to check active authentication.
     """
     try:
-        # Get JWT token from Authorization header
-        auth_header = request.headers.get('Authorization', '')
-        if not auth_header.startswith('Bearer '):
-            return jsonify({
-                "success": False, 
-                "error": "unauthorized",
-                "message": "No token provided"
-            }), 401
+        # Extract token from header
+        user, token, error_response = extract_token_from_header()
+        if error_response:
+            return error_response
         
-        token = auth_header.split(' ')[1]
-        
-        # Validate JWT token
-        user = JWTService.validate_user_token(token)
         if not user:
             return jsonify({
                 "success": False, 
@@ -418,18 +428,15 @@ def session_check():
     Returns basic authentication status without full user data.
     """
     try:
-        # Get JWT token from Authorization header
-        auth_header = request.headers.get('Authorization', '')
-        if not auth_header.startswith('Bearer '):
+        # Extract token from header
+        user, token, error_response = extract_token_from_header()
+        if error_response:
+            # Return simpler error for session-check
             return jsonify({
                 "success": False, 
                 "message": "Not authenticated"
             }), 401
         
-        token = auth_header.split(' ')[1]
-        
-        # Validate JWT token
-        user = JWTService.validate_user_token(token)
         if user:
             return jsonify({
                 "success": True,
@@ -457,18 +464,15 @@ def verify_auth():
     This endpoint is used by the frontend to bootstrap authentication after login.
     """
     try:
-        # Get JWT token from Authorization header
-        auth_header = request.headers.get('Authorization', '')
-        if not auth_header.startswith('Bearer '):
+        # Extract token from header
+        user, token, error_response = extract_token_from_header()
+        if error_response:
+            # Return simpler error for verify-auth
             return jsonify({
                 "success": False,
                 "message": "Not authenticated"
             }), 401
         
-        token = auth_header.split(' ')[1]
-        
-        # Validate JWT token
-        user = JWTService.validate_user_token(token)
         if user:
             return jsonify({
                 "success": True,

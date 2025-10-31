@@ -1,5 +1,4 @@
 import axios from 'axios';
-import csrfService from './csrfService';
 import { normalizeApiError } from './errorUtils';
 import { notify } from '../contexts/notificationBus';
 
@@ -29,27 +28,13 @@ api.interceptors.request.use(
       if (isDev) console.log(`⚠️ No JWT token available for ${config.method.toUpperCase()} request to ${config.url}`);
     }
 
-    // Include CSRF token in POST, PUT, DELETE requests
-    if (['post', 'put', 'delete', 'patch'].includes(config.method.toLowerCase())) {
-      if (isDev) console.log(`🔒 Adding CSRF token to ${config.method.toUpperCase()} request to ${config.url}`);
-      
-      const csrfToken = await csrfService.getToken();
-      
-      if (csrfToken) {
-        config.headers['X-CSRFToken'] = csrfToken;  // Flask-WTF expects X-CSRFToken
-        if (isDev) console.log(`🔑 CSRF token added: ${csrfToken.substring(0, 8)}...`);
-      } else {
-        if (isDev) console.warn('⚠️ No CSRF token available for request');
-      }
-      
-      // Set appropriate Content-Type header based on data type
-      if (config.data) {
-        if (config.data instanceof FormData) {
-          // Let axios set the correct boundary for FormData
-          config.headers['Content-Type'] = 'multipart/form-data';
-        } else if (typeof config.data === 'object') {
-          config.headers['Content-Type'] = 'application/json';
-        }
+    // Set appropriate Content-Type header based on data type
+    if (config.data && ['post', 'put', 'patch'].includes(config.method.toLowerCase())) {
+      if (config.data instanceof FormData) {
+        // Let axios set the correct boundary for FormData
+        config.headers['Content-Type'] = 'multipart/form-data';
+      } else if (typeof config.data === 'object') {
+        config.headers['Content-Type'] = 'application/json';
       }
     }
 
@@ -153,16 +138,6 @@ api.interceptors.response.use(
         }
       }
       
-      if (status === 400 && data && typeof data === 'object' && 
-          (data.message?.toLowerCase().includes('csrf') || 
-           data.error?.toLowerCase().includes('csrf') ||
-           data.message?.toLowerCase().includes('referer'))) {
-        // CSRF token error - clear token and retry once
-        if (isDev) console.warn('CSRF validation failed:', data.message || data.error);
-        if (isDev) console.warn('Clearing CSRF token and will retry on next request');
-        csrfService.clearToken();
-      }
-
       // Try to extract more useful error info
       const normalized = normalizeApiError(error);
       error.userMessage = normalized.message;

@@ -9,54 +9,10 @@ from typing import Optional, Callable, Dict, Any
 from datetime import datetime
 from flask import request, g, abort, current_app, session
 import jwt
-from redis import Redis
-from app.core.cache import get_redis
 from app.config.settings import config
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
-
-class RateLimiter:
-    """Rate limiting implementation - now uses advanced rate limiter as backend."""
-    
-    def __init__(self, redis_client: Redis):
-        self.redis = redis_client
-        
-    def is_rate_limited(self, key: str, limit: int, window: int) -> bool:
-        """Check if request should be rate limited.
-        
-        Args:
-            key: Rate limit key (e.g. IP or user ID)
-            limit: Maximum requests allowed
-            window: Time window in seconds
-            
-        Returns:
-            bool: True if should be rate limited
-        """
-        try:
-            # Use the advanced rate limiter for better accuracy and reliability
-            from app.core.rate_limiter import RateLimiter as AdvancedRateLimiter
-            
-            # Check rate limit using advanced implementation
-            allowed, current_count, reset_time = AdvancedRateLimiter.check_rate_limit(key, limit, window)
-            
-            # Set rate limit headers if available
-            if hasattr(g, 'rate_limit_headers'):
-                g.rate_limit_headers = {
-                    'X-RateLimit-Limit': str(limit),
-                    'X-RateLimit-Remaining': str(max(0, limit - current_count)),
-                    'X-RateLimit-Reset': str(reset_time)
-                }
-            
-            return not allowed  # Advanced returns allowed=True/False, we return limited=True/False
-            
-        except Exception as e:
-            logger.error(f"Rate limit check failed: {e}")
-            return False  # Allow request if rate limiting fails
-
-def get_rate_limiter() -> RateLimiter:
-    """Get rate limiter instance."""
-    return RateLimiter(get_redis())
 
 
 def get_current_user() -> Optional[Dict[str, Any]]:
@@ -101,7 +57,7 @@ def rate_limit(
     window: int = 3600,
     key_func: Optional[Callable] = None
 ) -> Callable:
-    """Decorator to apply rate limiting.
+    """Decorator to apply rate limiting using simple rate limiter.
     
     Args:
         limit: Maximum requests allowed in window
@@ -116,9 +72,22 @@ def rate_limit(
                 key = key_func()
             else:
                 key = request.remote_addr
-                
-            # Check rate limit
-            if get_rate_limiter().is_rate_limited(key, limit, window):
+            
+            # Use simple rate limiter
+            from app.core.simple_rate_limiter import get_rate_limiter
+            
+            limiter = get_rate_limiter()
+            allowed, current_count, reset_time = limiter.check_rate_limit(key, limit, window)
+            
+            # Set rate limit headers
+            if hasattr(g, 'rate_limit_headers'):
+                g.rate_limit_headers = {
+                    'X-RateLimit-Limit': str(limit),
+                    'X-RateLimit-Remaining': str(max(0, limit - current_count)),
+                    'X-RateLimit-Reset': str(reset_time)
+                }
+            
+            if not allowed:
                 logger.warning(f"Rate limit exceeded for {key}")
                 abort(429)
                 

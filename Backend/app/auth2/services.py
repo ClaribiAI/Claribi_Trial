@@ -11,7 +11,7 @@ from typing import Optional, Dict, Any, Tuple, List
 from flask import session, request
 from app.core.database import get_db_cursor
 from app.auth2.config import Auth2Config
-from app.auth2.graphapi import validate_token, get_user_info_from_token, get_user_groups_from_token
+from app.auth2.graphapi import validate_token, get_user_info_from_token
 
 auth2_config = Auth2Config()
 
@@ -41,15 +41,6 @@ class MSALService:
             raise
     
     @staticmethod
-    def build_public_msal_app(cache: msal.SerializableTokenCache = None) -> msal.PublicClientApplication:
-        """Build MSAL public client application instance for PKCE"""
-        return msal.PublicClientApplication(
-            auth2_config.MSAL_CLIENT_ID,
-            authority=auth2_config.MSAL_AUTHORITY,
-            token_cache=cache
-        )
-    
-    @staticmethod
     def get_token_cache() -> msal.SerializableTokenCache:
         """Get token cache - simplified for JWT approach"""
         # For JWT approach, we don't need persistent token caching
@@ -70,17 +61,6 @@ class MSALService:
         frontend_url = os.environ.get('FRONTEND_URL', 'https://localhost:5173')
         redirect_uri = f"{frontend_url.rstrip('/')}{auth2_config.MSAL_REDIRECT_PATH}"
         return redirect_uri
-    
-    @staticmethod
-    def initiate_auth_flow(scopes: list = None) -> dict:
-        """Initiate MSAL authentication flow"""
-        if scopes is None:
-            scopes = auth2_config.MSAL_SCOPES
-            
-        return MSALService.build_msal_app().initiate_auth_code_flow(
-            scopes=scopes,
-            redirect_uri=MSALService.get_redirect_uri()
-        )
     
     @staticmethod
     def initiate_auth_flow_with_state(state: str, scopes: list = None) -> dict:
@@ -305,46 +285,6 @@ class SecurityService:
             return []
     
 
-    @staticmethod
-    def clear_session() -> None:
-        """Clear user session data"""
-        # Clear only auth-related session data
-        session.pop('user', None)
-        session.pop('token_cache', None)
-        session.modified = True
-
 class GraphService:
     """Service class for Microsoft Graph API operations using Graph API flow"""
-    
-    @staticmethod
-    def get_user_profile(access_token: str) -> Optional[Dict[str, Any]]:
-        """Get user profile from Microsoft Graph API using Graph API functions"""
-        try:
-            success, user_id, email, user_data = get_user_info_from_token(access_token)
-            if success and user_data:
-                return user_data
-            else:
-                logger.error("Failed to get user profile from Graph API")
-                return None
-                
-        except Exception as e:
-            logger.error(f"Unexpected error in Graph API call: {e}")
-            return None
-    
-    @staticmethod
-    def validate_user_token(access_token: str) -> Tuple[bool, Optional[Dict[str, Any]]]:
-        """Validate user token using Graph API"""
-        try:
-            return validate_token(access_token)
-        except Exception as e:
-            logger.error(f"Error validating token: {e}")
-            return False, None
-    
-    @staticmethod
-    def get_user_groups(access_token: str) -> set:
-        """Get user groups from token using Graph API functions"""
-        try:
-            return get_user_groups_from_token(access_token)
-        except Exception as e:
-            logger.error(f"Error getting user groups: {e}")
-            return set() 
+    pass

@@ -133,13 +133,6 @@ class Config:
     AUTH2_RATE_LIMIT_LOGIN = os.getenv('AUTH2_RATE_LIMIT_LOGIN', '5 per minute')
     AUTH2_RATE_LIMIT_CALLBACK = os.getenv('AUTH2_RATE_LIMIT_CALLBACK', '10 per minute') 
 
-    # Redis Configuration for Token Storage
-    REDIS_HOST = os.getenv('REDIS_HOST')
-    REDIS_PORT = int(os.getenv('REDIS_PORT'))
-    REDIS_PASSWORD = os.getenv('REDIS_PASSWORD')
-    REDIS_SSL = os.getenv('REDIS_SSL', 'True').lower() == 'true'
-    REDIS_SSL_CERT_REQS = os.getenv('REDIS_SSL_CERT_REQS', 'required')
-    
     # Token Encryption Settings
     TOKEN_ENCRYPTION_KEY = os.getenv('TOKEN_ENCRYPTION_KEY')  # Default to SECRET_KEY if not set
     # If not provided, generate a key derived from SECRET_KEY

@@ -135,55 +135,6 @@ class JWTService:
             return None
     
     @staticmethod
-    def is_token_expired(token: str, secret_key: str = None) -> bool:
-        """
-        Check if a JWT token is expired without validating the signature.
-        
-        Args:
-            token: JWT token string
-            secret_key: Secret key (not used, but kept for consistency)
-            
-        Returns:
-            True if expired, False if still valid
-        """
-        try:
-            # Decode without verification to check expiration
-            payload = jwt.decode(token, options={"verify_signature": False})
-            exp_time = payload.get('exp')
-            if exp_time:
-                return datetime.utcnow().timestamp() > exp_time
-            return True  # No expiration time means expired
-        except Exception:
-            return True  # Invalid token means expired
-    
-    @staticmethod
-    def get_token_info(token: str) -> Optional[Dict[str, Any]]:
-        """
-        Get token information without validating signature.
-        
-        Args:
-            token: JWT token string
-            
-        Returns:
-            Token payload if valid format, None if invalid
-        """
-        try:
-            payload = jwt.decode(token, options={"verify_signature": False})
-            return {
-                'user_id': payload.get('user_id'),
-                'organization_id': payload.get('organization_id'),
-                'display_id': payload.get('display_id'),
-                'role': payload.get('role'),
-                'exp': payload.get('exp'),
-                'iat': payload.get('iat'),
-                'iss': payload.get('iss'),
-                'aud': payload.get('aud')
-            }
-        except Exception as e:
-            logger.warning(f"Error getting token info: {e}")
-            return None
-    
-    @staticmethod
     def validate_refresh_token(token: str, secret_key: str = None) -> Optional[Dict[str, Any]]:
         """
         Validate JWT refresh token and return user data.

@@ -72,45 +72,53 @@ def get_app_access_token(tenant_id: str, client_id: str, client_secret: str, sco
         raise RuntimeError(error_details)
 
 
-def get_user_groups(request):
-    auth_header = request.headers.get("Authorization", "")
-
-    if not auth_header:
-        logging.error("No authorization header found")
-        return set()
-    
-    if not auth_header.startswith("Bearer "):
-        logging.error("Invalid authorization header format does not start with Bearer")
-        return set()
-    
-    token = auth_header.split("Bearer ")[-1]
-    logging.info(f"Extracted token length: {len(token)}")
-
-    if not token or len(token) < 10:
-        logging.error("Invalid token length")
-        return set()
-    
-    try:
-        decoded = jwt.decode(token, options={"verify_signature": False})
-        groups = set(decoded.get("groups", []))
-        
-        logging.info(f"Extracted groups: {groups}")
-        logging.info(f"Total groups: {len(groups)}")
-        
-        if groups:
-            logging.info(f"User belongs to {len(groups)} groups")
-    except Exception as e:
-        logging.error(f"Error getting user groups: {e}")
-        return set()
-    
-    return groups
-
-
 def get_user_groups_from_token(token: str) -> set:
+    """
+    Extract user groups from Microsoft access token.
+    
+    Note: Token signature is not verified as this is used with already-validated
+    Microsoft Graph API access tokens. Token format is validated.
+    
+    Args:
+        token: Microsoft access token (JWT format)
+        
+    Returns:
+        set: User groups from token claims, or empty set if error
+    """
+    if not token or not isinstance(token, str):
+        logging.warning("Invalid token provided to get_user_groups_from_token")
+        return set()
+    
+    # Basic JWT format validation (has 3 parts separated by dots)
+    if len(token.split('.')) != 3:
+        logging.warning("Token does not appear to be valid JWT format")
+        return set()
+    
     try:
+        # Decode without signature verification (token already validated via Graph API)
         decoded = jwt.decode(token, options={"verify_signature": False})
-        groups = set(decoded.get("groups", []))
-        return groups
+        
+        # Validate token has required JWT claims
+        if not isinstance(decoded, dict):
+            logging.warning("Decoded token is not a dictionary")
+            return set()
+        
+        # Extract groups claim
+        groups_claim = decoded.get("groups", [])
+        
+        # Ensure groups is a list/iterable
+        if isinstance(groups_claim, (list, tuple)):
+            return set(groups_claim)
+        elif isinstance(groups_claim, str):
+            # Handle single group as string
+            return {groups_claim}
+        else:
+            logging.warning(f"Groups claim is not in expected format: {type(groups_claim)}")
+            return set()
+            
+    except jwt.DecodeError as e:
+        logging.error(f"Error decoding token for groups: {e}")
+        return set()
     except Exception as e:
         logging.error(f"Error getting user groups from token: {e}")
         return set()
