@@ -124,18 +124,8 @@ api.interceptors.response.use(
       }
       
       if (status === 403) {
-        // Check if this is an organization access error
-        if (data && typeof data === 'object' && 
-            (data.error === 'organization_not_allowed' || 
-             data.message?.toLowerCase().includes('organization') ||
-             data.message?.toLowerCase().includes('plan'))) {
-          if (isDev) console.error('Organization access restricted:', data.message || data.error);
-          // For organization errors, we want to let the error propagate to the component
-          // Don't modify the error, just log it
-        } else {
-          // Forbidden - user doesn't have access
-          if (isDev) console.error('You do not have permission to access this resource');
-        }
+        // Forbidden - user doesn't have access
+        if (isDev) console.error('You do not have permission to access this resource');
       }
       
       // Try to extract more useful error info

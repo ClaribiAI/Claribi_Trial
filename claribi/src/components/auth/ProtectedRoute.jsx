@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { Box } from '@mui/material';
 import LoadingSpinner from '../ui/LoadingSpinner';
-import OrganizationAccessError from '../ui/OrganizationAccessError';
 import authService from '../../services/auth';
 
 const ProtectedRoute = ({ children, requiredRole, requiredMicrosoftRole }) => {
-  const { currentUser, loading, organizationAccessError } = useAuth();
+  const { currentUser, loading } = useAuth();
   const location = useLocation();
   const [tokenValidating, setTokenValidating] = useState(false);
   
@@ -41,11 +39,6 @@ const ProtectedRoute = ({ children, requiredRole, requiredMicrosoftRole }) => {
   // Show loading state while checking authentication or refreshing token
   if (isAuthenticating || isTokenRefreshing) {
     return <LoadingSpinner />;
-  }
-
-  // Show organization access error if present
-  if (organizationAccessError) {
-    return <OrganizationAccessError variant="page" />;
   }
 
   // Redirect to login if not authenticated

@@ -61,13 +61,6 @@ const authService = {
         return { success: false };
       }
       
-      // Check if this is an organization access error
-      if (error.response?.status === 403 && 
-          error.response?.data?.error === 'organization_not_allowed') {
-        // For organization errors, we want to throw them so they can be caught by AuthContext
-        throw error;
-      }
-      
       throw error;
     }
   },
@@ -91,13 +84,6 @@ const authService = {
       return response.data;
     } catch (error) {
       console.error("Auth verification failed:", error);
-      
-      // Check if this is an organization access error
-      if (error.response?.status === 403 && 
-          error.response?.data?.error === 'organization_not_allowed') {
-        // For organization errors, we want to throw them so they can be caught by AuthContext
-        throw error;
-      }
       
       return { success: false, error: error.message };
     }
@@ -193,13 +179,6 @@ const authService = {
       return response.data;
     } catch (error) {
       console.error("Graph API data fetch failed:", error);
-      
-      // Check if this is an organization access error
-      if (error.response?.status === 403 && 
-          error.response?.data?.error === 'organization_not_allowed') {
-        // For organization errors, we want to throw them so they can be caught by AuthContext
-        throw error;
-      }
       
       throw error;
     }

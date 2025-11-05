@@ -22,7 +22,6 @@ export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [organizationAccessError, setOrganizationAccessError] = useState(false);
   const [refreshInterval, setRefreshInterval] = useState(null);
 
   // Fetch the user profile from the backend using JWT tokens
@@ -77,21 +76,14 @@ export const AuthProvider = ({ children }) => {
           // Add Graph API specific data if available
           graph_data: userData.graph_data || null
         });
-        setOrganizationAccessError(false); // Clear any previous organization errors
       } else {
         setCurrentUser(null);
       }
     } catch (err) {
       console.error("Failed to fetch user profile:", err);
       
-      // Check if this is an organization access error
-      if (err.response?.status === 403 && 
-          err.response?.data?.error === 'organization_not_allowed') {
-        setOrganizationAccessError(true);
-        setCurrentUser(null);
-        setError('Your organization has not yet purchased a plan. Please visit www.claribi.ai to purchase a plan.');
-      } else if (err.response?.status === 403) {
-        // Handle other 403 errors
+      if (err.response?.status === 403) {
+        // Handle 403 errors
         setCurrentUser(null);
         setError(err.response?.data?.message || "Access forbidden");
       } else {
@@ -145,15 +137,6 @@ export const AuthProvider = ({ children }) => {
 
   // Fetch user profile on component mount and when location changes
   useEffect(() => {
-    // Don't fetch profile if there's a stored organization error
-    const storedOrgError = sessionStorage.getItem('organizationError');
-    if (storedOrgError === 'true') {
-      setLoading(false);
-      setOrganizationAccessError(true);
-      setError('Your organization has not yet purchased a plan. Please visit www.claribi.ai to purchase a plan.');
-      return;
-    }
-    
     fetchUserProfile();
     
     // Add event listener for navigation
@@ -166,17 +149,8 @@ export const AuthProvider = ({ children }) => {
     
     window.addEventListener('popstate', handleNavigation);
     
-    // Add event listener for beforeunload to clear organization errors
-    const handleBeforeUnload = () => {
-      sessionStorage.removeItem('organizationError');
-      sessionStorage.removeItem('organizationErrorMessage');
-    };
-    
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    
     return () => {
       window.removeEventListener('popstate', handleNavigation);
-      window.removeEventListener('beforeunload', handleBeforeUnload);
       stopTokenRefreshMonitoring();
     };
   }, []);
@@ -192,13 +166,7 @@ export const AuthProvider = ({ children }) => {
 
   // Login using Microsoft AD
   const login = () => {
-    // Clear any previous organization access errors when attempting to login
-    setOrganizationAccessError(false);
     setError(null);
-    
-    // Clear all organization error storage
-    sessionStorage.removeItem('organizationError');
-    sessionStorage.removeItem('organizationErrorMessage');
     
     // Use the frontend origin to go through the Vite proxy for consistent cookie handling
     const frontendOrigin = window.location.origin; // https://localhost:5173
@@ -216,13 +184,7 @@ export const AuthProvider = ({ children }) => {
       // Stop token refresh monitoring
       stopTokenRefreshMonitoring();
       
-      // Clear organization access error on logout
-      setOrganizationAccessError(false);
       setError(null);
-      
-      // Clear all organization error storage
-      sessionStorage.removeItem('organizationError');
-      sessionStorage.removeItem('organizationErrorMessage');
       
       // Clear JWT token from localStorage
       authService.removeToken();
@@ -278,7 +240,6 @@ export const AuthProvider = ({ children }) => {
     currentUser,
     loading,
     error,
-    organizationAccessError,
     login,
     logout,
     hasRole,

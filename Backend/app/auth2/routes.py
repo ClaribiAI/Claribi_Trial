@@ -231,28 +231,7 @@ def callback():
             # Clear the PKCE data cookie on error
             return clear_pkce_cookie(redirect(f"{redirect_uri}?error=missing_identifiers"))
         
-        # Check if organization is allowed
-        if not UserService.is_organization_allowed(organization_id):
-            logger.warning(f"Organization {organization_id} is not allowed to access the system")
-            # Clear the PKCE data cookie on error
-            return clear_pkce_cookie(redirect(f"{redirect_uri}?error=organization_not_allowed"))
-        
-        # Extract app roles from ID token claims
-        from app.auth2.services import SecurityService
-        id_token_claims = result.get("id_token_claims", {})
-        user_app_roles = SecurityService.extract_app_roles_from_token(id_token_claims)
-        
-        # Validate that user has at least one valid app role
-        if not user_app_roles:
-            logger.warning(f"User {display_id} has no valid app roles assigned")
-            # Clear the PKCE data cookie on error
-            return clear_pkce_cookie(redirect(f"{redirect_uri}?error=no_app_role"))
-        
-        # Use the first valid role
-        user_role = user_app_roles[0]
-        logger.info(f"User {display_id} authenticated with role: {user_role}")
-        
-        # Create or update user in database with role information
+
         db_success, db_error = UserService.create_or_update_user(
             ms_object_id, organization_id, display_id, user_role
         )
@@ -296,18 +275,6 @@ def callback():
     except Exception as e:
         logger.error(f"Unexpected error in callback: {e}")
         return redirect(f"{auth2_config.ALLOWED_LOGIN_REDIRECTS[0]}?error=server_error")
-
-@auth2_bp.route("/organization-not-allowed")
-def organization_not_allowed():
-    """
-    Handle organization not allowed error.
-    Returns a JSON response with the error message.
-    """
-    return jsonify({
-        "success": False,
-        "error": "organization_not_allowed",
-        "message": "Your organization has not yet purchased a plan. Please visit www.claribi.ai to purchase a plan."
-    }), 403
 
 @auth2_bp.route("/refresh")
 def refresh_token():

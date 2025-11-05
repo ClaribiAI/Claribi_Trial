@@ -27,9 +27,6 @@ const OrganizationAccessError = ({
   };
 
   const handleBackToLogin = () => {
-    // Clear all organization errors before navigating to login
-    sessionStorage.removeItem('organizationError');
-    sessionStorage.removeItem('organizationErrorMessage');
     navigate('/login');
   };
 

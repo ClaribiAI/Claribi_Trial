@@ -21,25 +21,6 @@ const LoginPage = () => {
 
   // Note: Redirect logic for authenticated users is now handled by LoginWrapper component
 
-  // Prevent automatic refresh when there are organization access errors
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const errorMsg = urlParams.get('error');
-    
-    if (errorMsg === 'organization_not_allowed') {
-      // Don't allow refresh when there's an org error - user needs to see the message
-      const handleBeforeUnload = (e) => {
-        e.preventDefault();
-        e.returnValue = '';
-      };
-      
-      window.addEventListener('beforeunload', handleBeforeUnload);
-      
-      return () => {
-        window.removeEventListener('beforeunload', handleBeforeUnload);
-      };
-    }
-  }, [location]);
 
   const verifyAuthentication = async () => {
     try {
@@ -81,22 +62,8 @@ const LoginPage = () => {
     const errorMsg = urlParams.get('error');
     const authStatus = urlParams.get('auth');
     
-    // Handle organization access error immediately
-    if (errorMsg === 'organization_not_allowed') {
-      sessionStorage.setItem('organizationError', 'true');
-      sessionStorage.setItem('organizationErrorMessage', 'Your organization has not yet purchased a plan. Please visit www.claribi.ai to purchase a plan.');
-      setErrorMessage('Your organization has not yet purchased a plan. Please visit www.claribi.ai to purchase a plan.');
-      return; // Don't proceed with other logic
-    }
-    
-    // Check for stored organization error
-    const storedOrgError = sessionStorage.getItem('organizationError');
-    if (storedOrgError === 'true') {
-      const storedErrorMessage = sessionStorage.getItem('organizationErrorMessage');
-      setErrorMessage(storedErrorMessage || 'Your organization has not yet purchased a plan. Please visit www.claribi.ai to purchase a plan.');
-      // Don't clear the stored error yet - let the user see it
-    } else if (errorMsg) {
-      // Handle other error types
+    if (errorMsg) {
+      // Handle error types
       setErrorMessage(errorMsg.replace(/\+/g, ' '));
     }
 
@@ -110,9 +77,6 @@ const LoginPage = () => {
   }, [location]);
 
   const handleMicrosoftLogin = () => {
-    // Clear any stored organization errors when attempting to login
-    sessionStorage.removeItem('organizationError');
-    sessionStorage.removeItem('organizationErrorMessage');
     setErrorMessage(null);
     
     login();
@@ -122,11 +86,7 @@ const LoginPage = () => {
     setShowSuccess(false);
   };
 
-  // Don't show loading spinner if there's an organization error
-  const storedOrgError = sessionStorage.getItem('organizationError');
-  if (storedOrgError === 'true') {
-    // Show the error message instead of loading
-  } else if ((loading && currentUser !== null) || verifying) {
+  if ((loading && currentUser !== null) || verifying) {
     return <LoadingSpinner />;
   }
 
@@ -165,7 +125,7 @@ const LoginPage = () => {
           boxShadow: '0 8px 24px rgba(255, 193, 7, 0.2)',
         }}
       >
-        {(errorMessage || storedOrgError === 'true') && (
+        {errorMessage && (
           <Alert 
             severity="error" 
             sx={{ 
@@ -176,14 +136,7 @@ const LoginPage = () => {
               }
             }}
           >
-            {errorMessage || sessionStorage.getItem('organizationErrorMessage')}
-            {(errorMessage?.includes('organization') || storedOrgError === 'true') && (
-              <Box sx={{ mt: 1 }}>
-                <Typography variant="body2" component="a" href="https://www.claribi.ai" target="_blank" sx={{ color: 'inherit', textDecoration: 'underline' }}>
-                  Visit www.claribi.ai to purchase a plan
-                </Typography>
-              </Box>
-            )}
+            {errorMessage}
           </Alert>
         )}
         
