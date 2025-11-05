@@ -10,7 +10,7 @@ from app.auth2 import auth2_bp
 from app.auth2.config import Auth2Config
 
 auth2_config = Auth2Config()
-from app.auth2.services import MSALService, UserService
+from app.auth2.services import MSALService, UserService, SecurityService
 from app.auth2.graphapi import validate_token, get_user_info_from_token, get_user_groups_from_token
 from app.auth2.middleware import auth_required, rate_limit, get_current_user_from_session, clear_session, require_roles
 from app.auth2.jwt_service import JWTService
@@ -221,9 +221,11 @@ def callback():
         display_id = user_data.get("userPrincipalName") or user_data.get("mail")
         organization_id = user_data.get("organizationId")
         
+        # Get ID token claims for organization_id and roles
+        id_token_claims = result.get("id_token_claims", {})
+        
         # If organization_id is not in Graph response, get it from token claims
         if not organization_id:
-            id_token_claims = result.get("id_token_claims", {})
             organization_id = id_token_claims.get("tid") 
         
         if not ms_object_id or not organization_id:
@@ -231,7 +233,22 @@ def callback():
             # Clear the PKCE data cookie on error
             return clear_pkce_cookie(redirect(f"{redirect_uri}?error=missing_identifiers"))
         
-
+        # Extract user role from token claims
+        # Priority: Claribi_Admin > Claribi_Developer > Claribi_User
+        roles = SecurityService.extract_app_roles_from_token(id_token_claims)
+        user_role = None
+        if roles:
+            # Determine primary role based on priority
+            if 'Claribi_Admin' in roles:
+                user_role = 'Claribi_Admin'
+            elif 'Claribi_Developer' in roles:
+                user_role = 'Claribi_Developer'
+            elif 'Claribi_User' in roles:
+                user_role = 'Claribi_User'
+            else:
+                # Use first role if no priority matches
+                user_role = roles[0]
+        
         db_success, db_error = UserService.create_or_update_user(
             ms_object_id, organization_id, display_id, user_role
         )
