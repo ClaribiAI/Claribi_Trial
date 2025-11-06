@@ -34,19 +34,22 @@ import {
 import MarkdownRenderer from '../../../components/ui/MarkdownRenderer';
 import LoadingOverlay from './LoadingOverlay';
 import RecommendationCard from './RecommendationCard';
-import RichTextEditor from './RichTextEditor';
+// Editing functionality commented out
+// import RichTextEditor from './RichTextEditor';
 
 // Helper function to render a documentation section
 const DocumentationSection = memo(({ 
     section, 
     content, 
     sectionLoading, 
-    editingSection, 
-    editedContent, 
-    onEdit, 
-    onSave, 
-    onCancel, 
-    onChange, 
+    // Editing functionality commented out
+    // sectionSaving,
+    // editingSection, 
+    // editedContent, 
+    // onEdit, 
+    // onSave, 
+    // onCancel, 
+    // onChange, 
     onRegenerate, 
     onExport, 
     onGenerate, 
@@ -103,10 +106,11 @@ const DocumentationSection = memo(({
                     }
                     action={
                         <Box display="flex" gap={1}>
-                            {content && editingSection !== section.id && (
+                            {content && (
                                 <>
+                                    {/* Editing functionality commented out */}
                                     {/* Edit button - hidden for improvement recommendations */}
-                                    {section.id !== 'improvement_recommendations' && (
+                                    {/* {section.id !== 'improvement_recommendations' && (
                                         <Tooltip title="Edit content">
                                             <IconButton 
                                                 onClick={() => onEdit(section.id)}
@@ -120,7 +124,7 @@ const DocumentationSection = memo(({
                                                 <PencilSimpleIcon size={16} />
                                             </IconButton>
                                         </Tooltip>
-                                    )}
+                                    )} */}
                                     
                                     {/* Regenerate button - always visible when content exists */}
                                     <Tooltip title="Regenerate section">
@@ -162,38 +166,55 @@ const DocumentationSection = memo(({
                                     </FormControl>
                                 </>
                             )}
-                            {content && editingSection === section.id && (
+                            {/* Editing functionality commented out */}
+                            {/* {content && editingSection === section.id && (
                                 <>
-                                    <Tooltip title="Save changes">
-                                        <IconButton 
-                                            onClick={() => onSave(section.id)}
-                                            size="small"
-                                            color="primary"
-                                            sx={{
-                                                '&:hover': {
-                                                    backgroundColor: 'rgba(0, 0, 0, 0.04)'
-                                                }
-                                            }}
-                                        >
-                                            <FloppyDiskIcon size={16} />
-                                        </IconButton>
+                                    <Tooltip title={sectionSaving?.[section.id] ? "Saving..." : "Save changes"}>
+                                        <span>
+                                            <IconButton 
+                                                onClick={() => onSave(section.id)}
+                                                disabled={sectionSaving?.[section.id]}
+                                                size="small"
+                                                color="primary"
+                                                sx={{
+                                                    '&:hover': {
+                                                        backgroundColor: 'rgba(0, 0, 0, 0.04)'
+                                                    },
+                                                    '&:disabled': {
+                                                        opacity: 0.6
+                                                    }
+                                                }}
+                                            >
+                                                {sectionSaving?.[section.id] ? (
+                                                    <CircularProgress size={16} />
+                                                ) : (
+                                                    <FloppyDiskIcon size={16} />
+                                                )}
+                                            </IconButton>
+                                        </span>
                                     </Tooltip>
                                     <Tooltip title="Cancel editing">
-                                        <IconButton 
-                                            onClick={onCancel}
-                                            size="small"
-                                            color="secondary"
-                                            sx={{
-                                                '&:hover': {
-                                                    backgroundColor: 'rgba(0, 0, 0, 0.04)'
-                                                }
-                                            }}
-                                        >
-                                            <XIcon size={16} />
-                                        </IconButton>
+                                        <span>
+                                            <IconButton 
+                                                onClick={onCancel}
+                                                disabled={sectionSaving?.[section.id]}
+                                                size="small"
+                                                color="secondary"
+                                                sx={{
+                                                    '&:hover': {
+                                                        backgroundColor: 'rgba(0, 0, 0, 0.04)'
+                                                    },
+                                                    '&:disabled': {
+                                                        opacity: 0.6
+                                                    }
+                                                }}
+                                            >
+                                                <XIcon size={16} />
+                                            </IconButton>
+                                        </span>
                                     </Tooltip>
                                 </>
-                            )}
+                            )} */}
                             {!content && (
                                 <Button
                                     onClick={() => onGenerate(section.id)}
@@ -257,18 +278,21 @@ const DocumentationSection = memo(({
                                         p: 3, 
                                         bgcolor: alpha(theme.palette.background.paper, 0.6),
                                         border: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
-                                        borderRadius: 2
+                                        borderRadius: 2,
+                                        position: 'relative',
+                                        overflow: 'visible'
                                     }}
                                 >
-                                    {editingSection === section.id ? (
+                                    {/* Editing functionality commented out */}
+                                    {/* {editingSection === section.id ? (
                                         <RichTextEditor
                                             value={editedContent[section.id] || ''}
                                             onChange={(value) => onChange(section.id, value)}
                                             placeholder="Edit your content here..."
                                             minHeight={400}
                                         />
-                                    ) : (
-                                        <Box 
+                                    ) : ( */}
+                                    <Box 
                                             sx={{
                                                 '& h1': { 
                                                     fontSize: '1.5rem', 
@@ -340,15 +364,33 @@ const DocumentationSection = memo(({
                                                 }
                                             }}
                                         >
-                                            <MarkdownRenderer 
-                                                content={
-                                                    section.id === 'improvement_recommendations' && typeof content === 'object' && content.raw_text 
-                                                        ? content.raw_text 
-                                                        : (typeof content === 'string' ? content : JSON.stringify(content, null, 2))
+                                            {(() => {
+                                                const contentToDisplay = section.id === 'improvement_recommendations' && typeof content === 'object' && content.raw_text 
+                                                    ? content.raw_text 
+                                                    : (typeof content === 'string' ? content : JSON.stringify(content, null, 2));
+                                                
+                                                // Check if content is HTML (contains HTML tags)
+                                                const isHTML = typeof contentToDisplay === 'string' && 
+                                                    /<[a-z][\s\S]*>/i.test(contentToDisplay);
+                                                
+                                                if (isHTML) {
+                                                    // Render HTML directly
+                                                    return (
+                                                        <Box 
+                                                            dangerouslySetInnerHTML={{ __html: contentToDisplay }}
+                                                        />
+                                                    );
+                                                } else {
+                                                    // Render markdown
+                                                    return (
+                                                        <MarkdownRenderer 
+                                                            content={contentToDisplay}
+                                                        />
+                                                    );
                                                 }
-                                            />
+                                            })()}
                                         </Box>
-                                    )}
+                                    {/* )} */}
                                 </Paper>
                             )}
                         </Box>

@@ -29,7 +29,7 @@ import {
     ArrowLeft,
     CaretDownIcon
 } from '@phosphor-icons/react';
-import { analyzePowerBISection, parseImprovementRecommendations, applyImprovementRecommendation, getGeneratedDocs } from '../../services/powerbiDocsService';
+import { analyzePowerBISection, parseImprovementRecommendations, applyImprovementRecommendation, getGeneratedDocs /*, updateDocumentationSection */ } from '../../services/powerbiDocsService';
 import DocumentationSection from './components/DocumentationSection';
 import CustomInstructionsModal from './components/CustomInstructionsModal';
 import documentExportService from '../../services/documentExportService';
@@ -51,9 +51,11 @@ const DocumentationPage = ({
     const [showInstructionsModal, setShowInstructionsModal] = useState(false);
     const [currentSectionForRegeneration, setCurrentSectionForRegeneration] = useState(null);
     const [customInstructions, setCustomInstructions] = useState('');
-    const [editingSection, setEditingSection] = useState(null);
-    const [editedContent, setEditedContent] = useState({});
+    // Editing functionality commented out
+    // const [editingSection, setEditingSection] = useState(null);
+    // const [editedContent, setEditedContent] = useState({});
     const [sectionLoading, setSectionLoading] = useState({});
+    // const [sectionSaving, setSectionSaving] = useState({});
     const [initialLoadComplete, setInitialLoadComplete] = useState(false);
     const [allSectionsPreloaded, setAllSectionsPreloaded] = useState(false);
     
@@ -228,40 +230,67 @@ const DocumentationPage = ({
     const handleExportSection = async (sectionName, content, format = 'html') => {
         const section = sections.find(s => s.id === sectionName);
         const sectionTitle = section ? section.title : sectionName;
+        const pbixFileName = selectedFile?.filename || '';
         
         try {
-            await documentExportService.exportSection(sectionName, content, format, sectionTitle);
+            await documentExportService.exportSection(sectionName, content, format, sectionTitle, pbixFileName);
         } catch (error) {
             console.error('Export error:', error);
             setError(error.message);
         }
     };
 
-    const handleEditContent = useCallback((sectionId) => {
-        const currentContent = documentation?.documentation?.[sectionId] || '';
-        setEditedContent(prev => ({ ...prev, [sectionId]: currentContent }));
-        setEditingSection(sectionId);
-    }, [documentation]);
+    // Editing functionality commented out
+    // const handleEditContent = useCallback((sectionId) => {
+    //     const currentContent = documentation?.documentation?.[sectionId] || '';
+    //     setEditedContent(prev => ({ ...prev, [sectionId]: currentContent }));
+    //     setEditingSection(sectionId);
+    // }, [documentation]);
 
-    const handleSaveEdit = useCallback((sectionId) => {
-        // Update the documentation with edited content
-        setDocumentation(prev => ({
-            ...prev,
-            documentation: {
-                ...prev?.documentation,
-                [sectionId]: editedContent[sectionId]
-            }
-        }));
-        setEditingSection(null);
-    }, [editedContent]);
+    // const handleSaveEdit = useCallback(async (sectionId) => {
+    //     if (!selectedFile?.collection_name) {
+    //         setError('Please select a file first');
+    //         return;
+    //     }
 
-    const handleCancelEdit = useCallback(() => {
-        setEditingSection(null);
-    }, []);
+    //     const content = editedContent[sectionId];
+    //     if (!content) {
+    //         setError('No content to save');
+    //         return;
+    //     }
 
-    const handleContentChange = useCallback((sectionId, value) => {
-        setEditedContent(prev => ({ ...prev, [sectionId]: value }));
-    }, []);
+    //     setSectionSaving(prev => ({ ...prev, [sectionId]: true }));
+    //     setError(null);
+
+    //     try {
+    //         // Call backend API to update the documentation section
+    //         await updateDocumentationSection(selectedFile.collection_name, sectionId, content);
+    //         
+    //         // Update the documentation with edited content
+    //         setDocumentation(prev => ({
+    //             ...prev,
+    //             documentation: {
+    //                 ...prev?.documentation,
+    //                 [sectionId]: content
+    //             }
+    //         }));
+    //         
+    //         setEditingSection(null);
+    //     } catch (err) {
+    //         console.error('Error saving documentation section:', err);
+    //         setError(err.error || err.message || 'Failed to save documentation section. Please try again.');
+    //     } finally {
+    //         setSectionSaving(prev => ({ ...prev, [sectionId]: false }));
+    //     }
+    // }, [editedContent, selectedFile]);
+
+    // const handleCancelEdit = useCallback(() => {
+    //     setEditingSection(null);
+    // }, []);
+
+    // const handleContentChange = useCallback((sectionId, value) => {
+    //     setEditedContent(prev => ({ ...prev, [sectionId]: value }));
+    // }, []);
 
     const handleTabChange = useCallback((event, newValue) => {
         setActiveTab(newValue);
@@ -639,12 +668,14 @@ const DocumentationPage = ({
                                 section={section}
                                 content={documentation?.documentation?.[section.id]}
                                 sectionLoading={sectionLoading}
-                                editingSection={editingSection}
-                                editedContent={editedContent}
-                                onEdit={handleEditContent}
-                                onSave={handleSaveEdit}
-                                onCancel={handleCancelEdit}
-                                onChange={handleContentChange}
+                                // Editing functionality commented out
+                                // sectionSaving={sectionSaving}
+                                // editingSection={editingSection}
+                                // editedContent={editedContent}
+                                // onEdit={handleEditContent}
+                                // onSave={handleSaveEdit}
+                                // onCancel={handleCancelEdit}
+                                // onChange={handleContentChange}
                                 onRegenerate={handleRegenerateClick}
                                 onExport={handleExportSection}
                                 onGenerate={handleGenerateSection}
