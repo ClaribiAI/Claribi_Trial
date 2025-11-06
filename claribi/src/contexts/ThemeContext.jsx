@@ -25,6 +25,10 @@ export const ThemeProvider = ({ children }) => {
     setIsDarkMode(prev => !prev);
   };
 
+  const setThemeMode = (mode) => {
+    setIsDarkMode(mode === 'dark');
+  };
+
   useEffect(() => {
     // Save theme preference to localStorage
     localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
@@ -36,6 +40,7 @@ export const ThemeProvider = ({ children }) => {
   const value = {
     isDarkMode,
     toggleTheme,
+    setThemeMode,
   };
 
   return (
