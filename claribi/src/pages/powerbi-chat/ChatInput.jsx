@@ -15,6 +15,7 @@ import {
     Lightning
 } from '@phosphor-icons/react';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import { getChatMode, setChatMode } from '../../services/settings';
 
 const ChatInput = React.memo(({ 
     onSendMessage, 
@@ -24,8 +25,22 @@ const ChatInput = React.memo(({
 }) => {
     const theme = useTheme();
     const [inputMessage, setInputMessage] = useState('');
-    const [responseMode, setResponseMode] = useState('detailed');
+    const [responseMode, setResponseMode] = useState(() => getChatMode());
     const inputRef = useRef(null);
+    const MAX_CHARACTERS = 1000;
+
+    const handleSendMessage = useCallback(() => {
+        const message = inputMessage.trim();
+        if (!message || isLoading || disabled) return;
+        
+        // Check character limit
+        if (message.length > MAX_CHARACTERS) {
+            return;
+        }
+        
+        onSendMessage(message, responseMode);
+        setInputMessage('');
+    }, [inputMessage, isLoading, disabled, onSendMessage, responseMode]);
 
     const handleKeyDown = useCallback((e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -33,18 +48,14 @@ const ChatInput = React.memo(({
             e.stopPropagation();
             handleSendMessage();
         }
-    }, [inputMessage]);
-
-    const handleSendMessage = useCallback(() => {
-        const message = inputMessage.trim();
-        if (!message || isLoading || disabled) return;
-        
-        onSendMessage(message, responseMode);
-        setInputMessage('');
-    }, [inputMessage, isLoading, disabled, onSendMessage, responseMode]);
+    }, [handleSendMessage]);
 
     const handleInputChange = useCallback((e) => {
-        setInputMessage(e.target.value);
+        const newValue = e.target.value;
+        // Limit input to MAX_CHARACTERS
+        if (newValue.length <= MAX_CHARACTERS) {
+            setInputMessage(newValue);
+        }
     }, []);
 
     const handleResponseModeChange = useCallback((event, newMode) => {
@@ -122,6 +133,24 @@ const ChatInput = React.memo(({
                 }}
             />
             
+            {/* Character Count */}
+            <Box sx={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                px: 0.5
+            }}>
+                <Typography
+                    variant="caption"
+                    sx={{
+                        color: theme.palette.text.secondary,
+                        fontSize: '0.75rem',
+                        opacity: inputMessage.length > 0 ? 1 : 0
+                    }}
+                >
+                    {inputMessage.length}/{MAX_CHARACTERS}
+                </Typography>
+            </Box>
+            
             {/* Bottom Row - Controls */}
             <Box sx={{
                 display: 'flex',
@@ -175,7 +204,11 @@ const ChatInput = React.memo(({
                             bgcolor: responseMode === 'detailed' ? alpha(theme.palette.primary.main, 0.3) : alpha(theme.palette.text.secondary, 0.3),
                         }
                     }}
-                    onClick={() => setResponseMode(responseMode === 'detailed' ? 'concise' : 'detailed')}
+                    onClick={() => {
+                        const newMode = responseMode === 'detailed' ? 'concise' : 'detailed';
+                        setResponseMode(newMode);
+                        setChatMode(newMode);
+                    }}
                     >
                         {/* Sliding Circle */}
                         <Box sx={{
@@ -209,7 +242,7 @@ const ChatInput = React.memo(({
                 {/* Send Button */}
                 <Button
                     onClick={handleSendMessage}
-                    disabled={isLoading || disabled || !inputMessage.trim()}
+                    disabled={isLoading || disabled || !inputMessage.trim() || inputMessage.trim().length > MAX_CHARACTERS}
                     variant="contained"
                     sx={{
                         minWidth: 30,
