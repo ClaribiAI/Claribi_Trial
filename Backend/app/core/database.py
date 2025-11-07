@@ -140,7 +140,7 @@ def init_db_pool(
                 logger.warning(f"Error testing existing pool: {e}")
             
             try:
-                _pool.closeall()
+                _pool.close()
             except Exception as e:
                 logger.warning(f"Error closing existing pool: {e}")
             _pool = None
@@ -189,7 +189,7 @@ def init_db_pool(
             logger.error(f"Failed to initialize database pool: {str(e)}")
             if _pool:
                 try:
-                    _pool.closeall()
+                    _pool.close()
                 except Exception as close_error:
                     logger.warning(f"Error closing failed pool: {close_error}")
                 _pool = None
@@ -430,7 +430,7 @@ def refresh_connection_pool() -> None:
             try:
                 # Close all connections and reinitialize
                 logger.info("Refreshing connection pool due to serverless scaling")
-                _pool.closeall()
+                _pool.close()
                 _pool = None
                 # Pool will be reinitialized on next request
             except Exception as e:
@@ -444,13 +444,13 @@ def close_db_pool() -> None:
             try:
                 # Only close if we're shutting down the app
                 if not current_app or current_app.config.get('TESTING', False):
-                    _pool.closeall()
+                    _pool.close()
                     _pool = None
                     logger.info("Database connection pool closed")
             except Exception as e:
                 logger.error(f"Error closing database pool: {str(e)}")
                 try:
-                    _pool.closeall()
+                    _pool.close()
                 except:
                     pass
                 _pool = None 

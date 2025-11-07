@@ -2,6 +2,7 @@ from flask import session, g, current_app
 from app.core.database import init_db_pool, get_connection_pool, get_db_connection
 from app.core.exceptions import DatabaseError, ProjectNotFoundError
 import psycopg
+import psycopg.sql
 import time
 
 def set_user_context():
@@ -37,7 +38,6 @@ def set_user_context():
                 with conn.cursor() as cursor:
                     # Execute both statements and commit in one transaction
                     # SET statements don't work with parameterized queries, use string formatting with proper escaping
-                    import psycopg.sql
                     cursor.execute(psycopg.sql.SQL("SET app.current_user_ms_object_id = {}").format(psycopg.sql.Literal(ms_object_id)))
                     cursor.execute(psycopg.sql.SQL("SET app.current_organization_id = {}").format(psycopg.sql.Literal(organization_id)))
                     conn.commit()
