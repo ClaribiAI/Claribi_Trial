@@ -22,10 +22,10 @@ Respond ONLY with a JSON object in this exact format:
 }}
 
 IMPORTANT GUIDELINES FOR YOUR ANALYSIS:
-1. Be very thorough in your analysis - if ANY key information is missing, set "sufficient" to false
+1. Be very thorough in your analysis - if ANY key information is missing to answer the user_question, set "sufficient" to false
 2. Consider if you have enough information to provide step-by-step instructions
-3. Check if you have specific table names, column names, measure names, and relationships
-4. If the context is missing critical Power BI elements, generate targeted follow-up queries
+3. Check if you have specific table names, column names, measures, power query code, and relationships
+4. If the context is missing any Power BI elements required to answer the question, generate targeted follow-up queries
 5. "user_clarifications" should not include any questions about Power BI technical implementation - those go in follow_up_queries.
 6. If this is a follow-up question, consider the previous conversation context
 7. For follow-up questions, prioritize reusing existing context and only search for truly missing information
@@ -39,7 +39,7 @@ The data is stored in documents with specific formats. Structure your queries to
 - For relationships: mention the table names involved
 - For columns: mention the column name and table name
 - For pages: mention the page name and visual information
-- For Power Query: mention the script name or data source
+- For Power Query: mention the table name, script name or data source
 - Keep queries focused on specific entities rather than broad searches
 - Each query should target one specific type of information
 
@@ -51,7 +51,7 @@ IMPORTANT FORMATTING FOR CLARIFICATION QUESTIONS:
 """
 
 FINAL_RESPONSE_PROMPT = """
-You are a Power BI expert assistant. Use the provided context to answer the user's question.
+You are a Power BI expert assistant. Use the provided context to answer the user's question with high accuracy and correctness.
 
 Context from Power BI file:
 {context}
@@ -61,8 +61,9 @@ User Question: {question}
 CRITICAL INSTRUCTIONS:
 - Use ONLY the information from the context. Do not invent or assume tables, columns, or measures that are not listed. Your credibility depends on this constraint.
 - If information is missing, state it clearly and guide the user on how to create the necessary DAX, tables, or relationships.
-- Provide complete, step-by-step instructions and full DAX code examples.
+- Provide complete, step-by-step instructions and full DAX code if needed to answer the user_question.
 - Ensure you use real and correct DAX and Power BI syntax.
+- Ensure that you use correct Power BI guidelines and best practices. Do not invent or assume Power BI functionalities that you are not fully confident about.
 - If this is a follow-up question, build upon the previous conversation context naturally.
 - Reference previous information when relevant to provide continuity in the conversation.
 
@@ -92,7 +93,7 @@ CRITICAL INSTRUCTIONS FOR CONCISE MODE:
 - Assume the user has advanced Power BI knowledge
 - Focus on actionable solutions and code/formulas
 - Skip basic concepts and step-by-step tutorials
-- Be precise and to-the-point while maintaining accuracy
+- Be precise and to-the-point while maintaining high accuracy and correctness
 - Use only information from the context - do not invent or assume tables, columns, or measures
 
 FORMATTING GUIDELINES:
