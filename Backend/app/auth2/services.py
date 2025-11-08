@@ -167,7 +167,7 @@ class UserService:
     """Service class for user management operations"""
     
     @staticmethod
-    def create_or_update_user(ms_object_id: str) -> Tuple[bool, Optional[str]]:
+    def create_or_update_user(ms_object_id: str, email: str = None) -> Tuple[bool, Optional[str]]:
         """Create or update user in database"""
         try:
             with get_db_cursor(commit=True) as cursor:
@@ -179,20 +179,35 @@ class UserService:
                 existing_user = cursor.fetchone()
                 
                 if existing_user:
-                    # Update existing user
-                    cursor.execute(
-                        """UPDATE users 
-                           SET last_login_time = CURRENT_TIMESTAMP
-                           WHERE ms_object_id = %s""",
-                        (ms_object_id,)
-                    )
+                    # Update existing user - update email if provided and last_login_time
+                    if email:
+                        cursor.execute(
+                            """UPDATE users 
+                               SET email = %s, last_login_time = CURRENT_TIMESTAMP
+                               WHERE ms_object_id = %s""",
+                            (email, ms_object_id)
+                        )
+                    else:
+                        cursor.execute(
+                            """UPDATE users 
+                               SET last_login_time = CURRENT_TIMESTAMP
+                               WHERE ms_object_id = %s""",
+                            (ms_object_id,)
+                        )
                 else:
                     # Create new user
-                    cursor.execute(
-                        """INSERT INTO users  (ms_object_id, created_at, first_login_time, last_login_time, subscription)
-                            VALUES (%s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'none')""",
-                        (ms_object_id,)
-                    )
+                    if email:
+                        cursor.execute(
+                            """INSERT INTO users (ms_object_id, email, created_at, first_login_time, last_login_time, subscription)
+                                VALUES (%s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'none')""",
+                            (ms_object_id, email)
+                        )
+                    else:
+                        cursor.execute(
+                            """INSERT INTO users (ms_object_id, created_at, first_login_time, last_login_time, subscription)
+                                VALUES (%s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'none')""",
+                            (ms_object_id,)
+                        )
                 
                 return True, None
                 
@@ -206,7 +221,7 @@ class UserService:
         try:
             with get_db_cursor() as cursor:
                 cursor.execute(
-                    """SELECT id, ms_object_id, created_at, first_login_time, last_login_time, subscription
+                    """SELECT id, ms_object_id, email, created_at, first_login_time, last_login_time, subscription
                        FROM users WHERE ms_object_id = %s""",
                     (ms_object_id,)
                 )
@@ -216,10 +231,11 @@ class UserService:
                     return {
                         'id': user_data[0],
                         'ms_object_id': user_data[1],
-                        'created_at': user_data[2],
-                        'first_login_time': user_data[3],
-                        'last_login_time': user_data[4],
-                        'subscription': user_data[5]
+                        'email': user_data[2],
+                        'created_at': user_data[3],
+                        'first_login_time': user_data[4],
+                        'last_login_time': user_data[5],
+                        'subscription': user_data[6]
                     }
         except Exception as e:
             logger.error(f"Database error in get_user_by_ms_object_id: {e}")

@@ -48,6 +48,9 @@ const SettingsPage = () => {
 
   // Email state
   const [email, setEmail] = useState('');
+  
+  // Subscription state
+  const [subscription, setSubscription] = useState('none');
 
   // Chat mode state
   const [chatMode, setChatModeState] = useState(getChatMode());
@@ -59,23 +62,41 @@ const SettingsPage = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // Load email from user data
+  // Load email and subscription from user data
   useEffect(() => {
-    const loadEmail = async () => {
-      if (currentUser?.graph_data?.userPrincipalName || currentUser?.graph_data?.mail) {
-        // Email already available in user data
+    const loadUserData = async () => {
+      // Prefer email from database, then Graph API data, then username as fallback
+      if (currentUser?.email) {
+        setEmail(currentUser.email);
+      } else if (currentUser?.graph_data?.userPrincipalName || currentUser?.graph_data?.mail) {
+        // Email from Graph API data
         setEmail(currentUser.graph_data.userPrincipalName || currentUser.graph_data.mail);
       } else if (currentUser?.username) {
-        // If we have a user but no graph data, try to use username as fallback
-        // or show a placeholder - don't attempt API call that may fail
+        // If we have a user but no email data, try to use username as fallback
         setEmail(currentUser.username || 'Not available');
       } else {
         setEmail('Not available');
       }
+      
+      // Load subscription from user data
+      if (currentUser?.subscription) {
+        setSubscription(currentUser.subscription);
+      } else {
+        setSubscription('none');
+      }
     };
 
-    loadEmail();
+    loadUserData();
   }, [currentUser]);
+  
+  // Format subscription name for display
+  const formatSubscriptionName = (sub) => {
+    if (!sub || sub === 'none') {
+      return 'Free Plan';
+    }
+    // Capitalize first letter and add "Plan" suffix
+    return sub.charAt(0).toUpperCase() + sub.slice(1).toLowerCase() + ' Plan';
+  };
 
   // Handle theme mode change
   const handleThemeModeChange = (event) => {
@@ -203,12 +224,12 @@ const SettingsPage = () => {
               }}
             >
               <Typography variant="body1" sx={{ fontWeight: 600, color: muiTheme.palette.primary.main }}>
-                Professional Plan
-          </Typography>
+                {formatSubscriptionName(subscription)}
+              </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem', mt: 0.5 }}>
-                Active until renewal
-          </Typography>
-        </Box>
+                {subscription === 'none' ? 'No active subscription' : 'Active until renewal'}
+              </Typography>
+            </Box>
           </SettingItem>
         </SettingSection>
 

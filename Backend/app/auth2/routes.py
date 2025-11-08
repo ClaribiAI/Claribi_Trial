@@ -201,9 +201,13 @@ def callback():
             # Clear the PKCE data cookie on error
             return clear_pkce_cookie(redirect(f"{redirect_uri}?error=missing_identifiers"))
         
+        # Extract email from Graph API data (prefer mail, fallback to userPrincipalName)
+        email = user_data.get("mail") or user_data.get("userPrincipalName")
+        
         # Create or update user - no organization restrictions applied
         db_success, db_error = UserService.create_or_update_user(
-            ms_object_id
+            ms_object_id,
+            email=email
         )
 
         if not db_success:
@@ -329,6 +333,7 @@ def profile():
     """
     Get authenticated user's profile information from JWT token.
     Primary endpoint for frontend to check active authentication.
+    Returns full user data including subscription from database.
     """
     try:
         # Get user from JWT token
@@ -340,6 +345,39 @@ def profile():
                 "message": "Invalid or expired token"
             }), 401
         
+        # Get full user data from database including subscription and email
+        ms_object_id = user.get('ms_object_id')
+        if ms_object_id:
+            full_user_data = UserService.get_user_by_ms_object_id(ms_object_id)
+            if full_user_data:
+                # Get display_id from email stored in database, or Graph API data, or user ID as fallback
+                display_id = None
+                # First try email from database
+                if full_user_data.get('email'):
+                    display_id = full_user_data.get('email')
+                # Then try Graph API data if available
+                elif user.get('graph_data'):
+                    graph_data = user.get('graph_data')
+                    display_id = graph_data.get('userPrincipalName') or graph_data.get('mail')
+                
+                if not display_id:
+                    # Fallback to user ID if no email available
+                    display_id = str(full_user_data.get('id'))
+                
+                # Merge JWT user data with database user data
+                user_data = {
+                    'ms_object_id': full_user_data.get('ms_object_id'),
+                    'display_id': display_id,
+                    'email': full_user_data.get('email'),
+                    'subscription': full_user_data.get('subscription', 'none')
+                }
+                
+                return jsonify({
+                    "success": True, 
+                    "data": user_data
+                })
+        
+        # Fallback to JWT user data if database lookup fails
         return jsonify({
             "success": True, 
             "data": user

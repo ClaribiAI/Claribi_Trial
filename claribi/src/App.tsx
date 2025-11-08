@@ -62,11 +62,9 @@ const AppContent: FC = () => {
           } />
           {/* Catch-all route for 404 Not Found */}
           <Route path="*" element={
-            <ProtectedRoute>
-              <Layout>
-                <NotFound />
-              </Layout>
-            </ProtectedRoute>
+            <Layout>
+              <NotFound />
+            </Layout>
           } />
         </Routes>
       </Router>

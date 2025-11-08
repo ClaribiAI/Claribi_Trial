@@ -59,6 +59,8 @@ export const AuthProvider = ({ children }) => {
         setCurrentUser({
           username: userData.display_id,
           ms_object_id: userData.ms_object_id,
+          email: userData.email,
+          subscription: userData.subscription || 'none',
           // Add Graph API specific data if available
           graph_data: userData.graph_data || null
         });
