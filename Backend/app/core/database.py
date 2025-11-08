@@ -12,12 +12,7 @@ from psycopg_pool import ConnectionPool
 # from psycopg.extras import DictCursor, Json
 from app.core.exceptions import (
     DatabaseError, 
-    RLSPolicyViolationError,
-    ProjectNotFoundError,
-    ProjectAccessDeniedError,
-    ProjectValidationError,
-    ReportNotFoundError,
-    ReportValidationError
+    RLSPolicyViolationError
 )
 from app.core.logging import get_logger
 from threading import Lock
@@ -98,30 +93,54 @@ def validate_connection(conn) -> bool:
     except (psycopg.OperationalError, psycopg.InterfaceError):
         return False
     except Exception as e:
-        # Handle potential RLS or business logic errors during validation
+        # Handle potential RLS errors during validation
         error_message = str(e).lower()
-        if "project not found" in error_message or "access denied" in error_message or "violates row-level security policy" in error_message:
+        if "access denied" in error_message or "violates row-level security policy" in error_message:
             # These indicate the connection is stale (Neon scaled down)
             logger.warning(f"Connection appears stale due to serverless scaling: {str(e)}")
             return False  # Force connection refresh
         return False
 
 def init_db_pool(
-    min_conn: int = 5,
-    max_conn: int = 20,
-    database_url: str = None
+    min_conn: int = None,
+    max_conn: int = None,
+    database_url: str = None,
+    connection_timeout: int = None
 ) -> None:
     """Initialize the database connection pool.
     
     Args:
-        min_conn: Minimum number of connections
-        max_conn: Maximum number of connections
+        min_conn: Minimum number of connections (defaults to config value)
+        max_conn: Maximum number of connections (defaults to config value)
         database_url: Database URL (if not provided, will use DATABASE_URL env var)
+        connection_timeout: Connection acquisition timeout in seconds (defaults to config value)
         
     Raises:
         DatabaseError: If pool initialization fails
     """
+    from app.config.settings import config
+    
     global _pool, _pool_database_url
+    
+    # Use config values if not provided
+    if min_conn is None:
+        min_conn = config.DB_POOL_MIN_CONN
+    if max_conn is None:
+        max_conn = config.DB_POOL_MAX_CONN
+    if connection_timeout is None:
+        connection_timeout = config.DB_CONNECTION_TIMEOUT
+    
+    # Validate configuration parameters
+    if min_conn <= 0:
+        raise DatabaseError(f"min_conn must be positive, got {min_conn}")
+    if max_conn <= 0:
+        raise DatabaseError(f"max_conn must be positive, got {max_conn}")
+    if min_conn > max_conn:
+        raise DatabaseError(f"min_conn ({min_conn}) cannot be greater than max_conn ({max_conn})")
+    if max_conn > 100:
+        raise DatabaseError(f"max_conn ({max_conn}) exceeds maximum allowed value of 100")
+    if connection_timeout <= 0:
+        raise DatabaseError(f"connection_timeout must be positive, got {connection_timeout}")
     
     with _pool_lock:
         # Always check environment variable first for comparison
@@ -171,13 +190,26 @@ def init_db_pool(
         try:
             
             # Parse database URL into connection parameters
-            config = parse_db_url(db_url)
+            db_config = parse_db_url(db_url)
             
-            # Create new pool
+            # Create connection parameters dict (avoid password in string)
+            # Pass connection parameters via kwargs to avoid password in connection string
+            conn_params = {
+                'host': db_config['host'],
+                'port': db_config['port'],
+                'dbname': db_config['dbname'],
+                'user': db_config['user'],
+                'password': db_config['password']
+            }
+            
+            # Create new pool with connection parameters dict and timeout
+            # Use kwargs parameter to pass connection parameters as dict (avoids password in string)
             _pool = ConnectionPool(
+                conninfo='',  # Empty string, parameters passed via kwargs
+                kwargs=conn_params,
                 min_size=min_conn,
                 max_size=max_conn,
-                conninfo=f"postgresql://{config['user']}:{config['password']}@{config['host']}:{config['port']}/{config['dbname']}"
+                timeout=connection_timeout
             )
             
             # Store the DATABASE_URL used for this pool (prefer environment variable for tracking)
@@ -209,7 +241,7 @@ def init_db_pool(
                 _pool_database_url = None
                 raise e
             
-            logger.info(f"Database connection pool initialized successfully with URL: {config['host']}:{config['port']}/{config['dbname']}")
+            logger.info(f"Database connection pool initialized successfully with URL: {db_config['host']}:{db_config['port']}/{db_config['dbname']}")
         except Exception as e:
             logger.error(f"Failed to initialize database pool: {str(e)}")
             if _pool:
@@ -229,6 +261,60 @@ def get_connection_pool() -> Optional[ConnectionPool]:
     """
     return _pool
 
+def get_db_connection_string() -> str:
+    """Get the pooled database connection string for services that need it (e.g., LangChain).
+    
+    This returns the pooled connection string (with -pooler) used by the connection pool.
+    For Neon, this should be used for most operations via PgBouncer transaction mode.
+    
+    Returns:
+        str: Pooled database connection string
+        
+    Raises:
+        DatabaseError: If connection string is not available
+    """
+    from app.config.settings import config
+    
+    # Get the connection string from pool configuration or config
+    if _pool_database_url:
+        # Use the connection string that was used to initialize the pool
+        return _pool_database_url
+    elif config.DATABASE_URL:
+        # Fall back to DATABASE_URL from config
+        # Ensure it's a pooled connection string
+        if config.is_pooled_connection_string(config.DATABASE_URL):
+            return config.DATABASE_URL
+        else:
+            # Convert to pooled if needed
+            return config.get_pooled_connection_string(config.DATABASE_URL)
+    else:
+        raise DatabaseError("Database connection string not available")
+
+def get_direct_db_connection_string() -> str:
+    """Get the direct database connection string (without pooler).
+    
+    This is needed for operations that require session-level features not supported
+    in PgBouncer transaction mode, such as:
+    - SET/RESET statements (e.g., RLS context setting)
+    - Schema migrations
+    - Logical replication
+    
+    For Neon, this removes the -pooler from the endpoint to get a direct connection.
+    
+    Returns:
+        str: Direct database connection string (without -pooler)
+        
+    Raises:
+        DatabaseError: If connection string is not available
+    """
+    from app.config.settings import config
+    
+    # Get the pooled connection string first
+    pooled_conn_str = get_db_connection_string()
+    
+    # Convert to direct connection string (remove -pooler)
+    return config.get_direct_connection_string(pooled_conn_str)
+
 @contextmanager
 def get_db_connection():
     """Get a database connection from the pool.
@@ -239,21 +325,29 @@ def get_db_connection():
     Raises:
         DatabaseError: If connection acquisition fails
     """
+    from app.config.settings import config
+    
     conn = None
-    pool = get_connection_pool()
-    if not pool:
-        raise DatabaseError("Database pool not initialized")
-        
-    max_retries = 3  # Add retry logic for Neon scaling
+    pool = None
+    max_retries = config.DB_CONNECTION_RETRIES
     retry_count = 0
     last_error = None
+    
+    # Atomically get pool reference with lock protection to prevent race condition
+    with _pool_lock:
+        pool = _pool
+        if not pool:
+            raise DatabaseError("Database pool not initialized")
     
     # Retry logic OUTSIDE the context manager yield
     while retry_count < max_retries:
         try:
+            # Use timeout from pool configuration (set during initialization)
             conn = pool.getconn()
             
+            # Single validation - if it fails, return connection and retry
             if not validate_connection(conn):
+                # Clean up invalid connection
                 try:
                     pool.putconn(conn)
                     conn.close()
@@ -264,19 +358,14 @@ def get_db_connection():
                         conn.close()
                     except:
                         pass
+                conn = None
                 
-                conn = pool.getconn()
-                if not validate_connection(conn):
-                    try:
-                        pool.putconn(conn)
-                        conn.close()
-                    except Exception as e:
-                        logger.warning(f"Error closing second invalid connection: {e}")
-                        try:
-                            conn.close()
-                        except:
-                            pass
-                    raise DatabaseError("Failed to get valid database connection")
+                # Retry to get a new connection
+                if retry_count < max_retries - 1:
+                    retry_count += 1
+                    continue
+                else:
+                    raise DatabaseError("Failed to get valid database connection after validation")
             
             break  # Success, exit retry loop
             
@@ -302,32 +391,11 @@ def get_db_connection():
             # Store the error for potential re-raising
             last_error = e
             
-            # Check if this is a business logic exception that should not be wrapped
-            if isinstance(e, (ProjectNotFoundError, ProjectAccessDeniedError, ProjectValidationError, 
-                             ReportNotFoundError, ReportValidationError, RLSPolicyViolationError)):
-                # For Neon serverless, these might indicate stale connections
-                error_message = str(e).lower()
-                if "project not found" in error_message and retry_count < max_retries - 1:
-                    logger.warning(f"ProjectNotFoundError likely due to Neon scaling, retrying connection...")
-                    retry_count += 1
-                    continue
-                
-                # Re-raise business logic exceptions directly after max retries
-                logger.error(f"Business logic exception during connection after {retry_count + 1} attempts: {type(e).__name__}: {str(e)}")
+            # Check if this is an RLS policy violation exception that should not be wrapped
+            if isinstance(e, RLSPolicyViolationError):
+                # Re-raise RLS exceptions directly
+                logger.error(f"RLS policy violation during connection after {retry_count + 1} attempts: {type(e).__name__}: {str(e)}")
                 raise e
-            
-            # Check if the error message indicates a business logic error that might be due to scaling
-            error_message = str(e).lower()
-            if "project not found" in error_message:
-                if retry_count < max_retries - 1:
-                    logger.warning(f"'Project not found' error likely due to Neon scaling, retrying connection...")
-                    retry_count += 1
-                    continue
-                else:
-                    # This should not happen during connection acquisition - log for investigation
-                    logger.error(f"UNEXPECTED: 'Project not found' error during connection acquisition after retries")
-                    logger.error(f"This suggests a persistent database function or trigger issue")
-                    raise e
             
             # For other errors, retry if we haven't exhausted attempts
             if retry_count < max_retries - 1:
@@ -341,8 +409,7 @@ def get_db_connection():
     # Check if we have a valid connection after retries
     if not conn:
         if last_error:
-            if isinstance(last_error, (ProjectNotFoundError, ProjectAccessDeniedError, ProjectValidationError, 
-                                     ReportNotFoundError, ReportValidationError, RLSPolicyViolationError)):
+            if isinstance(last_error, RLSPolicyViolationError):
                 raise last_error
             else:
                 raise DatabaseError(f"Failed to get database connection after {max_retries} attempts: {str(last_error)}")
@@ -406,10 +473,9 @@ def get_db_cursor(commit: bool = False):
             
             error_message = str(e)
             
-            # Check if this is a business logic exception that should not be wrapped
-            if isinstance(e, (ProjectNotFoundError, ProjectAccessDeniedError, ProjectValidationError, 
-                             ReportNotFoundError, ReportValidationError, RLSPolicyViolationError)):
-                # Re-raise business logic exceptions directly
+            # Check if this is an RLS policy violation exception that should not be wrapped
+            if isinstance(e, RLSPolicyViolationError):
+                # Re-raise RLS exceptions directly
                 raise e
             
             # Check if this is an RLS policy violation
@@ -464,17 +530,53 @@ def refresh_connection_pool() -> None:
                 logger.error(f"Error refreshing connection pool: {str(e)}")
 
 def close_db_pool() -> None:
-    """Close the database connection pool."""
+    """Close the database connection pool with graceful shutdown.
+    
+    Waits for active connections to be returned before closing, with a timeout.
+    """
+    import time
+    
     global _pool, _pool_database_url
     with _pool_lock:
         if _pool:
             try:
-                # Only close if we're shutting down the app
-                if not current_app or current_app.config.get('TESTING', False):
-                    _pool.close()
+                # Only close if we're shutting down the app (not in testing mode)
+                if current_app and not current_app.config.get('TESTING', False):
+                    # Graceful shutdown: wait for active connections with timeout
+                    shutdown_timeout = 10  # seconds
+                    start_time = time.time()
+                    
+                    # Check if there are active connections
+                    # Note: psycopg_pool doesn't expose active connection count directly
+                    # We'll attempt graceful close and force close after timeout
+                    try:
+                        # Try to close gracefully - this will wait for connections to be returned
+                        _pool.close()
+                        logger.info("Database connection pool closed gracefully")
+                    except Exception as close_error:
+                        logger.warning(f"Error during graceful pool close: {close_error}")
+                        # Force close if graceful close fails
+                        try:
+                            _pool.close()
+                        except:
+                            pass
+                    
+                    # Check if we exceeded timeout
+                    elapsed = time.time() - start_time
+                    if elapsed > shutdown_timeout:
+                        logger.warning(f"Pool shutdown took {elapsed:.2f}s (exceeded {shutdown_timeout}s timeout)")
+                    
                     _pool = None
                     _pool_database_url = None
-                    logger.info("Database connection pool closed")
+                elif not current_app:
+                    # No app context (e.g., during shutdown), close immediately
+                    try:
+                        _pool.close()
+                        logger.info("Database connection pool closed (no app context)")
+                    except Exception as e:
+                        logger.warning(f"Error closing pool during shutdown: {e}")
+                    _pool = None
+                    _pool_database_url = None
             except Exception as e:
                 logger.error(f"Error closing database pool: {str(e)}")
                 try:

@@ -63,13 +63,36 @@ class Config:
     MAX_CONTENT_LENGTH = 100 * 1024 * 1024  # 100MB max upload size to match frontend
     
     # Database settings
-    DATABASE_URL = os.getenv('DATABASE_URL')  # Direct connection string for Neon PostgreSQL
-    # Authenticated database URL for Neon PostgreSQL with JWT auth
-    #DATABASE_AUTHENTICATED_URL = os.getenv('DATABASE_AUTHENTICATED_URL')
-    #NEXT_PUBLIC_DATABASE_AUTHENTICATED_URL = os.getenv('NEXT_PUBLIC_DATABASE_AUTHENTICATED_URL')
+    # DATABASE_URL is the standard Railway convention for database connection strings
+    # For Neon, this should be a pooled connection string (with -pooler in endpoint)
+    DATABASE_URL = os.getenv('DATABASE_URL')  # Pooled connection string for Neon PostgreSQL (Railway standard)
+    
     # Ensure sslmode=require is in the DATABASE_URL for Neon PostgreSQL
     if DATABASE_URL and 'neon.tech' in DATABASE_URL and 'sslmode=' not in DATABASE_URL:
         DATABASE_URL += "?sslmode=require" if "?" not in DATABASE_URL else "&sslmode=require"
+    
+    # NEON_CONNECTION_STRING defaults to DATABASE_URL for backward compatibility
+    # Railway should set DATABASE_URL (standard convention)
+    # Both should point to the same Neon database
+    _neon_conn_str = os.getenv('NEON_CONNECTION_STRING')
+    if _neon_conn_str:
+        # If NEON_CONNECTION_STRING is explicitly set, use it
+        # Ensure sslmode=require for Neon
+        if 'neon.tech' in _neon_conn_str and 'sslmode=' not in _neon_conn_str:
+            _neon_conn_str += "?sslmode=require" if "?" not in _neon_conn_str else "&sslmode=require"
+        NEON_CONNECTION_STRING = _neon_conn_str
+    else:
+        # Default to DATABASE_URL if NEON_CONNECTION_STRING is not set
+        NEON_CONNECTION_STRING = DATABASE_URL
+    
+    # Validate that both connection strings point to the same database (if both are set)
+    if DATABASE_URL and _neon_conn_str and DATABASE_URL != _neon_conn_str:
+        import warnings
+        warnings.warn(
+            "DATABASE_URL and NEON_CONNECTION_STRING point to different databases. "
+            "This may cause connection issues. Consider using only DATABASE_URL (Railway standard).",
+            UserWarning
+        )
     
     POSTGRES_HOST = os.getenv('POSTGRES_HOST')
     POSTGRES_PORT = os.getenv('POSTGRES_PORT', '5432')
@@ -77,6 +100,13 @@ class Config:
     POSTGRES_USER = os.getenv('POSTGRES_USER')
     POSTGRES_PASSWORD = os.getenv('POSTGRES_PASSWORD')
     POSTGRES_SSLMODE = os.getenv('POSTGRES_SSLMODE', 'require')  # Default to require SSL
+    
+    # Database connection pool settings
+    DB_POOL_MIN_CONN = int(os.getenv('DB_POOL_MIN_CONN', '5'))
+    DB_POOL_MAX_CONN = int(os.getenv('DB_POOL_MAX_CONN', '20'))
+    DB_CONNECTION_TIMEOUT = int(os.getenv('DB_CONNECTION_TIMEOUT', '30'))  # Timeout in seconds
+    DB_CONNECTION_RETRIES = int(os.getenv('DB_CONNECTION_RETRIES', '3'))  # Retry count for connection acquisition
+    DB_VALIDATION_RETRIES = int(os.getenv('DB_VALIDATION_RETRIES', '5'))  # Retry count for validation operations
     
     # Database connection string
     @property
@@ -99,11 +129,43 @@ class Config:
             'sslmode': self.POSTGRES_SSLMODE
         }
     
+    # Helper methods for Neon connection strings
+    @staticmethod
+    def is_pooled_connection_string(conn_str: str) -> bool:
+        """Check if connection string is a pooled connection (contains -pooler in endpoint)."""
+        if not conn_str:
+            return False
+        return '-pooler' in conn_str
+    
+    @staticmethod
+    def get_direct_connection_string(conn_str: str) -> str:
+        """Convert pooled connection string to direct connection string (remove -pooler)."""
+        if not conn_str:
+            return conn_str
+        # Remove -pooler from endpoint
+        if '-pooler' in conn_str:
+            # Replace -pooler with nothing in the endpoint
+            # Pattern matches: ep-xxx-pooler.region.aws.neon.tech -> ep-xxx.region.aws.neon.tech
+            import re
+            conn_str = re.sub(r'(ep-[a-z0-9-]+)-pooler\.', r'\1.', conn_str)
+        return conn_str
+    
+    @staticmethod
+    def get_pooled_connection_string(conn_str: str) -> str:
+        """Convert direct connection string to pooled connection string (add -pooler)."""
+        if not conn_str:
+            return conn_str
+        # Add -pooler to endpoint if not already present
+        if '-pooler' not in conn_str and 'neon.tech' in conn_str:
+            import re
+            # Match endpoint pattern: ep-xxx.region.aws.neon.tech -> ep-xxx-pooler.region.aws.neon.tech
+            conn_str = re.sub(r'(ep-[a-z0-9-]+)\.', r'\1-pooler.', conn_str)
+        return conn_str
+    
     # API settings
     GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
     
     # RAG Pipeline Settings
-    NEON_CONNECTION_STRING = os.getenv('NEON_CONNECTION_STRING')
     VECTOR_EMBEDDING_MODEL = os.getenv('VECTOR_EMBEDDING_MODEL', 'text-embedding-004')
     RAG_LLM_MODEL = os.getenv('RAG_LLM_MODEL', 'gemini-2.5-flash')
     VECTOR_STORE_COLLECTION_PREFIX = os.getenv('VECTOR_STORE_COLLECTION_PREFIX', 'pbix_')

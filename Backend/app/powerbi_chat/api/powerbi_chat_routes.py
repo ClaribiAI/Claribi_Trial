@@ -15,9 +15,9 @@ from app.powerbi_chat.services.rag_orchestration_service import rag_orchestratio
 from app.powerbi_chat.caching.cache_manager import cache_manager
 from app.powerbi_docs.summary_generation_service import SummaryGenerationService
 from app.auth2.middleware import auth_required
-import psycopg
-from app.config.settings import config
+from app.core.database import get_db_cursor
 from app.core.responses import error_response
+from app.config.settings import config
 
 logger = logging.getLogger(__name__)
 powerbi_chat_bp = Blueprint('powerbi_chat', __name__)
@@ -199,35 +199,33 @@ def upload_powerbi_file():
 
         # Save summaries to database
         try:
-            with psycopg.connect(config.NEON_CONNECTION_STRING) as conn:
-                with conn.cursor() as cursor:
-                    from datetime import datetime
-                    import json
-                    
-                    # Parse upload_time from collection_metadata
-                    upload_time_str = collection_metadata.get('upload_time', datetime.now().isoformat())
-                    if isinstance(upload_time_str, str):
-                        upload_time = datetime.fromisoformat(upload_time_str.replace('Z', '+00:00'))
-                    else:
-                        upload_time = datetime.now()
-                    
-                    # Insert summary record using raw SQL
-                    cursor.execute("""
-                        INSERT INTO powerbi_file_summaries 
-                        (collection_name, filename, upload_time, semantic_model_summary, power_query_summary, visuals_summary, rls_summary)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s)
-                    """, (
-                        collection_name,
-                        file.filename,
-                        upload_time,
-                        json.dumps(summaries['semantic_model_summary']),
-                        json.dumps(summaries['power_query_summary']),
-                        json.dumps(summaries['visuals_summary']),
-                        json.dumps(summaries.get('rls_summary', {}))
-                    ))
-                    
-                    conn.commit()
-                    logger.info(f"Saved summaries for collection {collection_name}")
+            from datetime import datetime
+            import json
+            
+            # Parse upload_time from collection_metadata
+            upload_time_str = collection_metadata.get('upload_time', datetime.now().isoformat())
+            if isinstance(upload_time_str, str):
+                upload_time = datetime.fromisoformat(upload_time_str.replace('Z', '+00:00'))
+            else:
+                upload_time = datetime.now()
+            
+            with get_db_cursor(commit=True) as cursor:
+                # Insert summary record using raw SQL
+                cursor.execute("""
+                    INSERT INTO powerbi_file_summaries 
+                    (collection_name, filename, upload_time, semantic_model_summary, power_query_summary, visuals_summary, rls_summary)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    collection_name,
+                    file.filename,
+                    upload_time,
+                    json.dumps(summaries['semantic_model_summary']),
+                    json.dumps(summaries['power_query_summary']),
+                    json.dumps(summaries['visuals_summary']),
+                    json.dumps(summaries.get('rls_summary', {}))
+                ))
+                
+                logger.info(f"Saved summaries for collection {collection_name}")
                     
         except Exception as e:
             logger.error(f"Error saving summaries to database: {e}", exc_info=True)

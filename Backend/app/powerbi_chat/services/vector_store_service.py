@@ -2,13 +2,11 @@
 
 import logging
 import uuid
-import psycopg
-# Note: psycopg v3 doesn't have RealDictCursor in extras, using regular Cursor
-# from psycopg.extras import RealDictCursor
 from typing import List, Dict, Any
 from langchain_core.documents import Document
 from langchain_postgres import PGVector
 from app.config.settings import config
+from app.core.database import get_db_cursor, get_db_connection_string
 from app.powerbi_chat.services.llm_service import llm_service
 
 logger = logging.getLogger(__name__)
@@ -17,9 +15,15 @@ class VectorStoreService:
     """Service for managing vector store collections in pgvector."""
 
     def __init__(self):
-        if not config.NEON_CONNECTION_STRING:
-            raise ValueError("NEON_CONNECTION_STRING not configured")
-        self.connection_string = config.NEON_CONNECTION_STRING
+        # Use pooled connection string for LangChain PGVector
+        # LangChain can use pooled connections (transaction mode is fine for vector operations)
+        try:
+            self.connection_string = get_db_connection_string()
+        except Exception as e:
+            # Fallback to config if pool not initialized yet
+            if not config.NEON_CONNECTION_STRING:
+                raise ValueError("Database connection string not configured") from e
+            self.connection_string = config.NEON_CONNECTION_STRING
         self.embedding_model = llm_service.embedding_model
 
     # ... (existing methods: generate_collection_name, create_collection, etc.) ...
@@ -71,45 +75,43 @@ class VectorStoreService:
         """Deletes a collection and all associated database records."""
         try:
             # Delete embeddings and collection metadata from LangChain tables
-            with psycopg.connect(self.connection_string) as conn:
-                with conn.cursor() as cursor:
-                    # First, get the collection UUID to delete embeddings
+            with get_db_cursor(commit=True) as cursor:
+                # First, get the collection UUID to delete embeddings
+                cursor.execute(
+                    "SELECT uuid FROM langchain_pg_collection WHERE name = %s",
+                    (collection_name,)
+                )
+                result = cursor.fetchone()
+                
+                if result:
+                    collection_uuid = result[0]
+                    # Delete all embeddings for this collection
                     cursor.execute(
-                        "SELECT uuid FROM langchain_pg_collection WHERE name = %s",
+                        "DELETE FROM langchain_pg_embedding WHERE collection_id = %s",
+                        (collection_uuid,)
+                    )
+                    logger.info(f"Deleted embeddings for collection: {collection_name}")
+                    
+                    # Delete the collection metadata
+                    cursor.execute(
+                        "DELETE FROM langchain_pg_collection WHERE name = %s",
                         (collection_name,)
                     )
-                    result = cursor.fetchone()
-                    
-                    if result:
-                        collection_uuid = result[0]
-                        # Delete all embeddings for this collection
-                        cursor.execute(
-                            "DELETE FROM langchain_pg_embedding WHERE collection_id = %s",
-                            (collection_uuid,)
-                        )
-                        logger.info(f"Deleted embeddings for collection: {collection_name}")
-                        
-                        # Delete the collection metadata
-                        cursor.execute(
-                            "DELETE FROM langchain_pg_collection WHERE name = %s",
-                            (collection_name,)
-                        )
-                        logger.info(f"Deleted collection metadata for: {collection_name}")
-                    
-                    # Delete from powerbi_file_summaries
-                    cursor.execute(
-                        "DELETE FROM powerbi_file_summaries WHERE collection_name = %s",
-                        (collection_name,)
-                    )
-                    
-                    # Delete from powerbi_generated_docs
-                    cursor.execute(
-                        "DELETE FROM powerbi_generated_docs WHERE collection_name = %s",
-                        (collection_name,)
-                    )
-                    
-                    conn.commit()
-                    logger.info(f"Deleted all database records for collection: {collection_name}")
+                    logger.info(f"Deleted collection metadata for: {collection_name}")
+                
+                # Delete from powerbi_file_summaries
+                cursor.execute(
+                    "DELETE FROM powerbi_file_summaries WHERE collection_name = %s",
+                    (collection_name,)
+                )
+                
+                # Delete from powerbi_generated_docs
+                cursor.execute(
+                    "DELETE FROM powerbi_generated_docs WHERE collection_name = %s",
+                    (collection_name,)
+                )
+                
+                logger.info(f"Deleted all database records for collection: {collection_name}")
             
             return True
         except Exception as e:
@@ -131,38 +133,37 @@ class VectorStoreService:
         """
         
         try:
-            with psycopg.connect(self.connection_string) as conn:
-                with conn.cursor() as cursor:
-                    cursor.execute(query)
-                    collections = cursor.fetchall()
+            with get_db_cursor(commit=False) as cursor:
+                cursor.execute(query)
+                collections = cursor.fetchall()
 
-                    for collection in collections:
-                        # collections is a list of tuples: (name, cmetadata, document_count)
-                        name, cmetadata, document_count = collection
-                        metadata = cmetadata or {}
-                        
-                        # Use summary metadata if available, otherwise create basic summary
-                        if 'summary' in metadata:
-                            summary = metadata['summary']
-                        else:
-                            # Fallback for old data format
-                            summary = {
-                                'tables_count': 0,
-                                'measures_count': 0,
-                                'columns_count': 0,
-                                'relationships_count': 0,
-                                'power_query_scripts_count': 0,
-                                'document_count': int(document_count)
-                            }
-                        
-                        uploaded_files.append({
-                            'collection_name': name,
-                            'filename': metadata.get('filename'),
-                            'upload_time': metadata.get('upload_time'),
-                            'file_size': metadata.get('file_size', 0),
-                            'metadata': summary,
+                for collection in collections:
+                    # collections is a list of tuples: (name, cmetadata, document_count)
+                    name, cmetadata, document_count = collection
+                    metadata = cmetadata or {}
+                    
+                    # Use summary metadata if available, otherwise create basic summary
+                    if 'summary' in metadata:
+                        summary = metadata['summary']
+                    else:
+                        # Fallback for old data format
+                        summary = {
+                            'tables_count': 0,
+                            'measures_count': 0,
+                            'columns_count': 0,
+                            'relationships_count': 0,
+                            'power_query_scripts_count': 0,
                             'document_count': int(document_count)
-                        })
+                        }
+                    
+                    uploaded_files.append({
+                        'collection_name': name,
+                        'filename': metadata.get('filename'),
+                        'upload_time': metadata.get('upload_time'),
+                        'file_size': metadata.get('file_size', 0),
+                        'metadata': summary,
+                        'document_count': int(document_count)
+                    })
         except Exception as db_error:
             logger.error(f"Database error listing collections: {db_error}", exc_info=True)
             raise  # Re-raise the exception to be handled by the API layer

@@ -1,6 +1,6 @@
 from flask import g, current_app
-from app.core.database import init_db_pool, get_connection_pool, get_db_connection
-from app.core.exceptions import DatabaseError, ProjectNotFoundError
+from app.core.database import init_db_pool, get_connection_pool, get_db_connection, get_direct_db_connection_string
+from app.core.exceptions import DatabaseError
 import psycopg
 import psycopg.sql
 import time
@@ -20,7 +20,9 @@ def set_user_context():
         current_app.logger.warning(f"Missing required user fields: {', '.join(missing_fields)}")
         return
 
-    max_retries = 5
+    from app.config.settings import config
+    
+    max_retries = config.DB_VALIDATION_RETRIES
     retry_count = 0
     last_error = None
 
@@ -32,10 +34,13 @@ def set_user_context():
                 current_app.logger.warning("Invalid user ID")
                 return
 
-            # Use the context manager to ensure proper connection handling
-            with get_db_connection() as conn:
+            # Use direct connection for SET statement (not pooled)
+            # SET statements don't persist in PgBouncer transaction mode, so we need a direct connection
+            # See Neon documentation: https://neon.com/docs/connect/connection-pooling
+            direct_conn_str = get_direct_db_connection_string()
+            with psycopg.connect(direct_conn_str) as conn:
                 with conn.cursor() as cursor:
-                    # Execute both statements and commit in one transaction
+                    # Execute SET statement and commit
                     # SET statements don't work with parameterized queries, use string formatting with proper escaping
                     cursor.execute(psycopg.sql.SQL("SET app.current_user_ms_object_id = {}").format(psycopg.sql.Literal(ms_object_id)))
                     conn.commit()
@@ -43,13 +48,6 @@ def set_user_context():
 
         except (psycopg.Error, DatabaseError) as e:
             error_message = str(e)
-            
-            # Check for Neon serverless scaling issues
-            if isinstance(e, ProjectNotFoundError) or "project not found" in error_message.lower():
-                current_app.logger.warning(f"ProjectNotFoundError during user context setup - likely Neon scaling issue: {error_message}")
-                # This is likely due to Neon scaling down and connections becoming stale
-                # Continue without user context rather than crashing the app
-                return
             
             # Check if this is an RLS policy violation (not a connection issue)
             if "violates row-level security policy" in error_message.lower():
@@ -63,8 +61,7 @@ def set_user_context():
                 "permission denied",
                 "access denied", 
                 "insufficient privilege",
-                "authentication failed",
-                "project not found"
+                "authentication failed"
             ]
             
             if any(error_pattern in error_message.lower() for error_pattern in non_fatal_errors):
@@ -87,7 +84,9 @@ def set_user_context():
 def ensure_db_pool():
     """Ensure database pool is initialized"""
     import os
-    max_retries = 3
+    from app.config.settings import config
+    
+    max_retries = config.DB_CONNECTION_RETRIES
     retry_count = 0
     last_error = None
 
@@ -99,10 +98,12 @@ def ensure_db_pool():
                 db_url = os.getenv('DATABASE_URL') or current_app.config.get('DATABASE_URL')
                 if not db_url:
                     raise DatabaseError("DATABASE_URL not found in environment or config")
+                # Use config values for pool initialization
                 init_db_pool(
-                    min_conn=5,
-                    max_conn=20,
-                    database_url=db_url
+                    min_conn=config.DB_POOL_MIN_CONN,
+                    max_conn=config.DB_POOL_MAX_CONN,
+                    database_url=db_url,
+                    connection_timeout=config.DB_CONNECTION_TIMEOUT
                 )
                 pool = get_connection_pool()
                 if not pool:

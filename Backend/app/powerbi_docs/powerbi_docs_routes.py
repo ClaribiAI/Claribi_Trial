@@ -9,8 +9,7 @@ from app.powerbi_docs.ai_client import ai_client
 from app.powerbi_docs.services.token_tracking_service import powerbi_docs_token_tracking_service
 from app.powerbi_docs.services.generated_docs_service import generated_docs_service
 from app.core.responses import error_response
-import psycopg
-from app.config.settings import config
+from app.core.database import get_db_cursor
 from app.powerbi_chat.services.vector_store_service import vector_store_service
 
 # Initialize the service with the proper AI client instance
@@ -27,29 +26,28 @@ def _get_summaries_by_collection(collection_name: str) -> tuple[Dict, str]:
         tuple: (summaries_dict, filename) or (None, None) if not found
     """
     try:
-        with psycopg.connect(config.NEON_CONNECTION_STRING) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute("""
-                    SELECT semantic_model_summary, power_query_summary, visuals_summary, rls_summary, filename
-                    FROM powerbi_file_summaries 
-                    WHERE collection_name = %s
-                """, (collection_name,))
-                
-                result = cursor.fetchone()
-                
-                if not result:
-                    return None, None
-                
-                semantic_model_summary, power_query_summary, visuals_summary, rls_summary, filename = result
-                
-                summaries = {
-                    'semantic_model_summary': semantic_model_summary,
-                    'power_query_summary': power_query_summary,
-                    'visuals_summary': visuals_summary,
-                    'rls_summary': rls_summary or {}
-                }
-                
-                return summaries, filename
+        with get_db_cursor(commit=False) as cursor:
+            cursor.execute("""
+                SELECT semantic_model_summary, power_query_summary, visuals_summary, rls_summary, filename
+                FROM powerbi_file_summaries 
+                WHERE collection_name = %s
+            """, (collection_name,))
+            
+            result = cursor.fetchone()
+            
+            if not result:
+                return None, None
+            
+            semantic_model_summary, power_query_summary, visuals_summary, rls_summary, filename = result
+            
+            summaries = {
+                'semantic_model_summary': semantic_model_summary,
+                'power_query_summary': power_query_summary,
+                'visuals_summary': visuals_summary,
+                'rls_summary': rls_summary or {}
+            }
+            
+            return summaries, filename
                 
     except Exception as e:
         logger.error(f"Error retrieving summaries for {collection_name}: {e}", exc_info=True)
@@ -89,16 +87,15 @@ def get_file_summaries(collection_name):
             return error_response(404, 'File summaries not found')
         
         # Get upload_time separately since it's not in the helper
-        with psycopg.connect(config.NEON_CONNECTION_STRING) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute("""
-                    SELECT upload_time
-                    FROM powerbi_file_summaries 
-                    WHERE collection_name = %s
-                """, (collection_name,))
-                
-                result = cursor.fetchone()
-                upload_time = result[0] if result else None
+        with get_db_cursor(commit=False) as cursor:
+            cursor.execute("""
+                SELECT upload_time
+                FROM powerbi_file_summaries 
+                WHERE collection_name = %s
+            """, (collection_name,))
+            
+            result = cursor.fetchone()
+            upload_time = result[0] if result else None
         
         return jsonify({
             'collection_name': collection_name,

@@ -2,8 +2,7 @@
 
 import logging
 from typing import Dict, Any, Optional, List
-import psycopg
-from app.config.settings import config
+from app.core.database import get_db_cursor
 
 logger = logging.getLogger(__name__)
 
@@ -30,30 +29,28 @@ class PowerBIDocsTokenTrackingService:
             bool: True if successful, False otherwise
         """
         try:
-            with psycopg.connect(config.NEON_CONNECTION_STRING) as conn:
-                with conn.cursor() as cursor:
-                    # Use PostgreSQL UPSERT with ON CONFLICT for atomic operation
-                    cursor.execute("""
-                        INSERT INTO powerbi_docs_token_usage 
-                        (user_ms_object_id, collection_name, section, generation_count, 
-                         input_tokens, output_tokens, created_at, updated_at)
-                        VALUES (%s, %s, %s, 1, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                        ON CONFLICT (user_ms_object_id, collection_name, section) 
-                        DO UPDATE SET
-                            generation_count = powerbi_docs_token_usage.generation_count + 1,
-                            input_tokens = powerbi_docs_token_usage.input_tokens + %s,
-                            output_tokens = powerbi_docs_token_usage.output_tokens + %s,
-                            updated_at = CURRENT_TIMESTAMP
-                    """, (
-                        user_ms_object_id, collection_name, section,
-                        input_tokens, output_tokens,
-                        # Values for UPDATE clause
-                        input_tokens, output_tokens
-                    ))
-                    
-                    conn.commit()
-                    logger.info(f"Successfully recorded token usage for user {user_ms_object_id}, collection {collection_name}, section {section}")
-                    return True
+            with get_db_cursor(commit=True) as cursor:
+                # Use PostgreSQL UPSERT with ON CONFLICT for atomic operation
+                cursor.execute("""
+                    INSERT INTO powerbi_docs_token_usage 
+                    (user_ms_object_id, collection_name, section, generation_count, 
+                     input_tokens, output_tokens, created_at, updated_at)
+                    VALUES (%s, %s, %s, 1, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    ON CONFLICT (user_ms_object_id, collection_name, section) 
+                    DO UPDATE SET
+                        generation_count = powerbi_docs_token_usage.generation_count + 1,
+                        input_tokens = powerbi_docs_token_usage.input_tokens + %s,
+                        output_tokens = powerbi_docs_token_usage.output_tokens + %s,
+                        updated_at = CURRENT_TIMESTAMP
+                """, (
+                    user_ms_object_id, collection_name, section,
+                    input_tokens, output_tokens,
+                    # Values for UPDATE clause
+                    input_tokens, output_tokens
+                ))
+                
+                logger.info(f"Successfully recorded token usage for user {user_ms_object_id}, collection {collection_name}, section {section}")
+                return True
                     
         except Exception as e:
             logger.error(f"Error recording token usage for user {user_ms_object_id}, collection {collection_name}, section {section}: {e}", exc_info=True)
@@ -71,30 +68,29 @@ class PowerBIDocsTokenTrackingService:
             List of dictionaries containing usage statistics
         """
         try:
-            with psycopg.connect(config.NEON_CONNECTION_STRING) as conn:
-                with conn.cursor() as cursor:
-                    cursor.execute("""
-                        SELECT user_ms_object_id, collection_name, section, generation_count,
-                               input_tokens, output_tokens, created_at, updated_at
-                        FROM powerbi_docs_token_usage 
-                        WHERE user_ms_object_id = %s
-                        ORDER BY collection_name, section
-                    """, (user_ms_object_id,))
-                    
-                    results = cursor.fetchall()
-                    return [
-                        {
-                            'user_ms_object_id': row[0],
-                            'collection_name': row[1],
-                            'section': row[2],
-                            'generation_count': row[3],
-                            'input_tokens': row[4],
-                            'output_tokens': row[5],
-                            'created_at': row[6].isoformat() if row[6] else None,
-                            'updated_at': row[7].isoformat() if row[7] else None
-                        }
-                        for row in results
-                    ]
+            with get_db_cursor(commit=False) as cursor:
+                cursor.execute("""
+                    SELECT user_ms_object_id, collection_name, section, generation_count,
+                           input_tokens, output_tokens, created_at, updated_at
+                    FROM powerbi_docs_token_usage 
+                    WHERE user_ms_object_id = %s
+                    ORDER BY collection_name, section
+                """, (user_ms_object_id,))
+                
+                results = cursor.fetchall()
+                return [
+                    {
+                        'user_ms_object_id': row[0],
+                        'collection_name': row[1],
+                        'section': row[2],
+                        'generation_count': row[3],
+                        'input_tokens': row[4],
+                        'output_tokens': row[5],
+                        'created_at': row[6].isoformat() if row[6] else None,
+                        'updated_at': row[7].isoformat() if row[7] else None
+                    }
+                    for row in results
+                ]
                     
         except Exception as e:
             logger.error(f"Error retrieving token usage for user {user_ms_object_id}: {e}", exc_info=True)
@@ -112,30 +108,29 @@ class PowerBIDocsTokenTrackingService:
             List of dictionaries containing usage statistics
         """
         try:
-            with psycopg.connect(config.NEON_CONNECTION_STRING) as conn:
-                with conn.cursor() as cursor:
-                    cursor.execute("""
-                        SELECT user_ms_object_id, collection_name, section, generation_count,
-                               input_tokens, output_tokens, created_at, updated_at
-                        FROM powerbi_docs_token_usage 
-                        WHERE collection_name = %s
-                        ORDER BY user_ms_object_id, section
-                    """, (collection_name,))
-                    
-                    results = cursor.fetchall()
-                    return [
-                        {
-                            'user_ms_object_id': row[0],
-                            'collection_name': row[1],
-                            'section': row[2],
-                            'generation_count': row[3],
-                            'input_tokens': row[4],
-                            'output_tokens': row[5],
-                            'created_at': row[6].isoformat() if row[6] else None,
-                            'updated_at': row[7].isoformat() if row[7] else None
-                        }
-                        for row in results
-                    ]
+            with get_db_cursor(commit=False) as cursor:
+                cursor.execute("""
+                    SELECT user_ms_object_id, collection_name, section, generation_count,
+                           input_tokens, output_tokens, created_at, updated_at
+                    FROM powerbi_docs_token_usage 
+                    WHERE collection_name = %s
+                    ORDER BY user_ms_object_id, section
+                """, (collection_name,))
+                
+                results = cursor.fetchall()
+                return [
+                    {
+                        'user_ms_object_id': row[0],
+                        'collection_name': row[1],
+                        'section': row[2],
+                        'generation_count': row[3],
+                        'input_tokens': row[4],
+                        'output_tokens': row[5],
+                        'created_at': row[6].isoformat() if row[6] else None,
+                        'updated_at': row[7].isoformat() if row[7] else None
+                    }
+                    for row in results
+                ]
                     
         except Exception as e:
             logger.error(f"Error retrieving token usage for collection {collection_name}: {e}", exc_info=True)
@@ -153,30 +148,29 @@ class PowerBIDocsTokenTrackingService:
             List of dictionaries containing usage statistics
         """
         try:
-            with psycopg.connect(config.NEON_CONNECTION_STRING) as conn:
-                with conn.cursor() as cursor:
-                    cursor.execute("""
-                        SELECT user_ms_object_id, collection_name, section, generation_count,
-                               input_tokens, output_tokens, created_at, updated_at
-                        FROM powerbi_docs_token_usage 
-                        WHERE section = %s
-                        ORDER BY user_ms_object_id, collection_name
-                    """, (section,))
-                    
-                    results = cursor.fetchall()
-                    return [
-                        {
-                            'user_ms_object_id': row[0],
-                            'collection_name': row[1],
-                            'section': row[2],
-                            'generation_count': row[3],
-                            'input_tokens': row[4],
-                            'output_tokens': row[5],
-                            'created_at': row[6].isoformat() if row[6] else None,
-                            'updated_at': row[7].isoformat() if row[7] else None
-                        }
-                        for row in results
-                    ]
+            with get_db_cursor(commit=False) as cursor:
+                cursor.execute("""
+                    SELECT user_ms_object_id, collection_name, section, generation_count,
+                           input_tokens, output_tokens, created_at, updated_at
+                    FROM powerbi_docs_token_usage 
+                    WHERE section = %s
+                    ORDER BY user_ms_object_id, collection_name
+                """, (section,))
+                
+                results = cursor.fetchall()
+                return [
+                    {
+                        'user_ms_object_id': row[0],
+                        'collection_name': row[1],
+                        'section': row[2],
+                        'generation_count': row[3],
+                        'input_tokens': row[4],
+                        'output_tokens': row[5],
+                        'created_at': row[6].isoformat() if row[6] else None,
+                        'updated_at': row[7].isoformat() if row[7] else None
+                    }
+                    for row in results
+                ]
                     
         except Exception as e:
             logger.error(f"Error retrieving token usage for section {section}: {e}", exc_info=True)
@@ -191,29 +185,28 @@ class PowerBIDocsTokenTrackingService:
             List of dictionaries containing usage statistics
         """
         try:
-            with psycopg.connect(config.NEON_CONNECTION_STRING) as conn:
-                with conn.cursor() as cursor:
-                    cursor.execute("""
-                        SELECT user_ms_object_id, collection_name, section, generation_count,
-                               input_tokens, output_tokens, created_at, updated_at
-                        FROM powerbi_docs_token_usage 
-                        ORDER BY user_ms_object_id, collection_name, section
-                    """)
-                    
-                    results = cursor.fetchall()
-                    return [
-                        {
-                            'user_ms_object_id': row[0],
-                            'collection_name': row[1],
-                            'section': row[2],
-                            'generation_count': row[3],
-                            'input_tokens': row[4],
-                            'output_tokens': row[5],
-                            'created_at': row[6].isoformat() if row[6] else None,
-                            'updated_at': row[7].isoformat() if row[7] else None
-                        }
-                        for row in results
-                    ]
+            with get_db_cursor(commit=False) as cursor:
+                cursor.execute("""
+                    SELECT user_ms_object_id, collection_name, section, generation_count,
+                           input_tokens, output_tokens, created_at, updated_at
+                    FROM powerbi_docs_token_usage 
+                    ORDER BY user_ms_object_id, collection_name, section
+                """)
+                
+                results = cursor.fetchall()
+                return [
+                    {
+                        'user_ms_object_id': row[0],
+                        'collection_name': row[1],
+                        'section': row[2],
+                        'generation_count': row[3],
+                        'input_tokens': row[4],
+                        'output_tokens': row[5],
+                        'created_at': row[6].isoformat() if row[6] else None,
+                        'updated_at': row[7].isoformat() if row[7] else None
+                    }
+                    for row in results
+                ]
                     
         except Exception as e:
             logger.error(f"Error retrieving all token usage: {e}", exc_info=True)
