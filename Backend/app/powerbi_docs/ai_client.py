@@ -60,6 +60,11 @@ class AIClient:
             
             response = model.generate_content(combined_prompt)
 
+            # Validate response has text attribute and is not empty
+            if not hasattr(response, 'text') or not response.text:
+                logger.error(f"AI API returned empty or invalid response{context_str}")
+                raise Exception(f"AI content generation returned empty response for context '{context}'.")
+
             # Extract token usage metadata
             token_usage = {
                 'input_tokens': 0,

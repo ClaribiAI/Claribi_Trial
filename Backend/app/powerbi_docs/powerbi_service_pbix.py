@@ -92,7 +92,12 @@ class PowerBIPbixService:
         }
     
     def _extract_measures_from_tables(self, tables: List[Dict]) -> List[Dict]:
-        """Extract all measures from tables for backward compatibility."""
+        """Extract all measures from tables and format them for the AI context.
+        
+        This method transforms the nested table structure (where measures are within tables)
+        into a flat list format that is used in the context passed to AI prompts.
+        The measures are used in data model analysis prompts.
+        """
         measures = []
         for table in tables:
             table_measures = table.get('measures', [])
