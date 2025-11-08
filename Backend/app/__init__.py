@@ -126,11 +126,13 @@ def create_app():
     from app.auth2 import auth2_bp  # Authentication system
     from app.powerbi_chat import powerbi_chat_bp  # Power BI Chat functionality
     from app.powerbi_docs import powerbi_docs_bp  # Power BI Docs functionality
+    from app.stats import stats_bp  # Statistics functionality
 
     # Register blueprints
     app.register_blueprint(auth2_bp, supports_credentials=True)  # Authentication at /api/auth
     app.register_blueprint(powerbi_chat_bp, supports_credentials=True)  # Power BI Chat
     app.register_blueprint(powerbi_docs_bp, supports_credentials=True)  # Power BI Docs
+    app.register_blueprint(stats_bp, supports_credentials=True)  # Statistics at /api/stats
     
     # API-only backend - no catch-all route needed
     # Frontend will be served separately

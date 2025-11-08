@@ -1,47 +1,79 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Box,
     Card,
     CardContent,
     Typography,
     useTheme,
-    alpha
+    alpha,
+    CircularProgress
 } from '@mui/material';
 import {
     Clock,
     FileText,
     ChatCircle
 } from '@phosphor-icons/react';
+import statsService from '../../services/statsService';
 
 const StatsCard = () => {
     const theme = useTheme();
+    const [loading, setLoading] = useState(true);
+    const [statsData, setStatsData] = useState({
+        timeSaved: 0,
+        documentsGenerated: 0,
+        chatQueries: 0
+    });
     
     // Use theme colors for consistency
     const accentColor = theme.palette.primary.main;
     const textColor = theme.palette.text.primary;
     const secondaryTextColor = theme.palette.text.secondary;
     
-    // Dummy data for demonstration
+    // Fetch stats on component mount
+    useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                setLoading(true);
+                const response = await statsService.getUserStats();
+                if (response.success && response.data) {
+                    setStatsData({
+                        timeSaved: response.data.time_saved || 0,
+                        documentsGenerated: response.data.documents_generated || 0,
+                        chatQueries: response.data.chat_queries || 0
+                    });
+                }
+            } catch (error) {
+                console.error('Error fetching stats:', error);
+                // Keep default values on error
+            } finally {
+                setLoading(false);
+            }
+        };
+        
+        fetchStats();
+    }, []);
+    
+    // Format stats for display
     const stats = [
         {
             icon: Clock,
-            label: 'Time Saved',
-            value: '24.5',
-            unit: 'hours',
+            label: 'Hours Saved',
+            value: statsData.timeSaved.toString(),
+            unit: '',
             color: accentColor
         },
         {
             icon: FileText,
             label: 'Documents Generated',
-            value: '12',
-            unit: 'reports',
+            value: statsData.documentsGenerated.toString(),
+            unit: '',
             color: accentColor
         },
         {
             icon: ChatCircle,
             label: 'Chat Queries',
-            value: '156',
-            unit: 'questions',
+            value: statsData.chatQueries.toString(),
+            unit: '',
             color: accentColor
         }
     ];
@@ -79,8 +111,13 @@ const StatsCard = () => {
                     Usage Statistics
                 </Typography>
                 
-                <Box sx={{ display: 'flex', flexDirection: 'row', gap: 1.5, justifyContent: 'space-between' }}>
-                    {stats.map((stat, index) => {
+                {loading ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 4 }}>
+                        <CircularProgress size={24} />
+                    </Box>
+                ) : (
+                    <Box sx={{ display: 'flex', flexDirection: 'row', gap: 1.5, justifyContent: 'space-between' }}>
+                        {stats.map((stat, index) => {
                         const IconComponent = stat.icon;
                         return (
                             <Box
@@ -168,8 +205,9 @@ const StatsCard = () => {
                                 </Box>
                             </Box>
                         );
-                    })}
-                </Box>
+                        })}
+                    </Box>
+                )}
             </CardContent>
         </Card>
     );
