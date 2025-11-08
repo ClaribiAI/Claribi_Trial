@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import LoadingSpinner from '../ui/LoadingSpinner';
 import authService from '../../services/auth';
 
-const ProtectedRoute = ({ children, requiredRole, requiredMicrosoftRole }) => {
+const ProtectedRoute = ({ children }) => {
   const { currentUser, loading } = useAuth();
   const location = useLocation();
   const [tokenValidating, setTokenValidating] = useState(false);
@@ -46,19 +46,7 @@ const ProtectedRoute = ({ children, requiredRole, requiredMicrosoftRole }) => {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />;
   }
 
-  // If a specific display role is required, check if user has the role
-  if (requiredRole && currentUser.role !== requiredRole) {
-    // Could redirect to unauthorized page or fallback to a default route
-    return <Navigate to="/" replace />;
-  }
-
-  // If a specific Microsoft role is required, check if user has the role
-  if (requiredMicrosoftRole && currentUser.microsoftRole !== requiredMicrosoftRole) {
-    // Could redirect to unauthorized page or fallback to a default route
-    return <Navigate to="/" replace />;
-  }
-
-  // If authenticated and has the required role, render the children
+  // If authenticated, render the children
   return children;
 };
 

@@ -7,7 +7,12 @@ const isDev = import.meta.env && import.meta.env.DEV;
 // Create an axios instance with default config
 const api = axios.create({
   baseURL: import.meta.env?.VITE_BACKEND_URL || '/', // Use backend URL in prod; dev falls back to proxy
-  withCredentials: true, // Important for sending/receiving cookies for auth
+  // withCredentials: true is required for:
+  // - Sending/receiving httpOnly cookies (refresh_token)
+  // - Cross-origin requests between frontend and backend
+  // - SameSite=None cookies (required for cross-origin)
+  // This must match the backend's supports_credentials=True CORS setting
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json'

@@ -1,4 +1,4 @@
-from flask import session, g, current_app
+from flask import g, current_app
 from app.core.database import init_db_pool, get_connection_pool, get_db_connection
 from app.core.exceptions import DatabaseError, ProjectNotFoundError
 import psycopg
@@ -14,7 +14,7 @@ def set_user_context():
         return  # Not logged in
         
     # Validate required fields
-    required_fields = ["ms_object_id", "organization_id"]
+    required_fields = ["ms_object_id"]
     missing_fields = [field for field in required_fields if not user.get(field)]
     if missing_fields:
         current_app.logger.warning(f"Missing required user fields: {', '.join(missing_fields)}")
@@ -27,10 +27,9 @@ def set_user_context():
     while retry_count < max_retries:
         try:
             ms_object_id = str(user["ms_object_id"]).strip()
-            organization_id = str(user["organization_id"]).strip()
 
-            if not ms_object_id or not organization_id:
-                current_app.logger.warning("Invalid user ID or organization ID")
+            if not ms_object_id:
+                current_app.logger.warning("Invalid user ID")
                 return
 
             # Use the context manager to ensure proper connection handling
@@ -39,7 +38,6 @@ def set_user_context():
                     # Execute both statements and commit in one transaction
                     # SET statements don't work with parameterized queries, use string formatting with proper escaping
                     cursor.execute(psycopg.sql.SQL("SET app.current_user_ms_object_id = {}").format(psycopg.sql.Literal(ms_object_id)))
-                    cursor.execute(psycopg.sql.SQL("SET app.current_organization_id = {}").format(psycopg.sql.Literal(organization_id)))
                     conn.commit()
                     return  # Success, exit the function
 
@@ -88,6 +86,7 @@ def set_user_context():
 
 def ensure_db_pool():
     """Ensure database pool is initialized"""
+    import os
     max_retries = 3
     retry_count = 0
     last_error = None
@@ -96,10 +95,14 @@ def ensure_db_pool():
         try:
             pool = get_connection_pool()
             if not pool:
+                # Always read DATABASE_URL directly from environment to detect changes
+                db_url = os.getenv('DATABASE_URL') or current_app.config.get('DATABASE_URL')
+                if not db_url:
+                    raise DatabaseError("DATABASE_URL not found in environment or config")
                 init_db_pool(
                     min_conn=5,
                     max_conn=20,
-                    database_url=current_app.config['DATABASE_URL']
+                    database_url=db_url
                 )
                 pool = get_connection_pool()
                 if not pool:

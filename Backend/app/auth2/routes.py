@@ -4,15 +4,15 @@ Auth2 Routes Module
 Updated authentication routes with improved security and structure.
 """
 import logging
-from flask import jsonify, session, request, redirect
+from flask import jsonify, request, redirect
 from flask_cors import cross_origin
 from app.auth2 import auth2_bp
 from app.auth2.config import Auth2Config
 
 auth2_config = Auth2Config()
-from app.auth2.services import MSALService, UserService, SecurityService
-from app.auth2.graphapi import validate_token, get_user_info_from_token, get_user_groups_from_token
-from app.auth2.middleware import auth_required, rate_limit, get_current_user_from_session, clear_session, require_roles
+from app.auth2.services import MSALService, UserService
+from app.auth2.graphapi import validate_token, get_user_info_from_token
+from app.auth2.middleware import auth_required, rate_limit, get_current_user_from_token, clear_session
 from app.auth2.jwt_service import JWTService
 
 logger = logging.getLogger(__name__)
@@ -45,33 +45,6 @@ def clear_pkce_cookie(redirect_target):
     response = make_response(redirect_target)
     response.set_cookie('pkce_data', '', expires=0, httponly=True, secure=True, samesite='None')
     return response
-
-def extract_token_from_header():
-    """
-    Extract and validate JWT token from Authorization header.
-    
-    Returns:
-        tuple: (user, token, error_response) where error_response is None if successful
-    """
-    auth_header = request.headers.get('Authorization', '')
-    if not auth_header.startswith('Bearer '):
-        return None, None, jsonify({
-            "success": False,
-            "error": "unauthorized",
-            "message": "No token provided"
-        }), 401
-    
-    try:
-        token = auth_header.split(' ')[1]
-        user = JWTService.validate_user_token(token)
-        return user, token, None
-    except (IndexError, Exception) as e:
-        logger.error(f"Error extracting token: {e}")
-        return None, None, jsonify({
-            "success": False,
-            "error": "unauthorized",
-            "message": "Invalid token format"
-        }), 401
 
 # --- Authentication Flow Routes ---
 
@@ -143,6 +116,9 @@ def callback():
     """
     Handle Microsoft authentication callback using Graph API flow with JWT tokens.
     Processes the authorization code and creates a JWT token for the user.
+    
+    Note: All organizations are allowed - no organization checks or restrictions are applied.
+    Any user with a valid Microsoft authentication token can access the application.
     """
     try:
         # Get authorization code from request
@@ -217,41 +193,19 @@ def callback():
             return clear_pkce_cookie(redirect(f"{redirect_uri}?error=token_validation_failed"))
         
         # Extract user information from Graph API response
+        # Note: No organization checks - all organizations are allowed
         ms_object_id = user_data.get("id")
-        display_id = user_data.get("userPrincipalName") or user_data.get("mail")
-        organization_id = user_data.get("organizationId")
         
-        # Get ID token claims for organization_id and roles
-        id_token_claims = result.get("id_token_claims", {})
-        
-        # If organization_id is not in Graph response, get it from token claims
-        if not organization_id:
-            organization_id = id_token_claims.get("tid") 
-        
-        if not ms_object_id or not organization_id:
+        if not ms_object_id:
             logger.error("Missing required user identifiers")
             # Clear the PKCE data cookie on error
             return clear_pkce_cookie(redirect(f"{redirect_uri}?error=missing_identifiers"))
         
-        # Extract user role from token claims
-        # Priority: Claribi_Admin > Claribi_Developer > Claribi_User
-        roles = SecurityService.extract_app_roles_from_token(id_token_claims)
-        user_role = None
-        if roles:
-            # Determine primary role based on priority
-            if 'Claribi_Admin' in roles:
-                user_role = 'Claribi_Admin'
-            elif 'Claribi_Developer' in roles:
-                user_role = 'Claribi_Developer'
-            elif 'Claribi_User' in roles:
-                user_role = 'Claribi_User'
-            else:
-                # Use first role if no priority matches
-                user_role = roles[0]
-        
+        # Create or update user - no organization restrictions applied
         db_success, db_error = UserService.create_or_update_user(
-            ms_object_id, organization_id, display_id, user_role
+            ms_object_id
         )
+
         if not db_success:
             logger.error(f"Database error: {db_error}")
             # Clear the PKCE data cookie on error
@@ -259,10 +213,7 @@ def callback():
         
         # Create JWT token with user data
         user_data_for_token = {
-            "ms_object_id": ms_object_id,
-            "organization_id": organization_id,
-            "display_id": display_id,
-            "role": user_role
+            "ms_object_id": ms_object_id
         }
         
         access_token, refresh_token = JWTService.create_user_token(user_data_for_token)
@@ -380,11 +331,8 @@ def profile():
     Primary endpoint for frontend to check active authentication.
     """
     try:
-        # Extract token from header
-        user, token, error_response = extract_token_from_header()
-        if error_response:
-            return error_response
-        
+        # Get user from JWT token
+        user = get_current_user_from_token()
         if not user:
             return jsonify({
                 "success": False, 
@@ -412,26 +360,19 @@ def session_check():
     Returns basic authentication status without full user data.
     """
     try:
-        # Extract token from header
-        user, token, error_response = extract_token_from_header()
-        if error_response:
-            # Return simpler error for session-check
+        # Get user from JWT token
+        user = get_current_user_from_token()
+        if not user:
             return jsonify({
                 "success": False, 
                 "message": "Not authenticated"
             }), 401
         
-        if user:
-            return jsonify({
-                "success": True,
-                "message": "Token is valid",
-                "user_id": user.get('ms_object_id', 'unknown')
-            })
-        else:
-            return jsonify({
-                "success": False, 
-                "message": "Not authenticated"
-            }), 401
+        return jsonify({
+            "success": True,
+            "message": "Token is valid",
+            "user_id": user.get('ms_object_id', 'unknown')
+        })
             
     except Exception as e:
         logger.error(f"Error checking token: {e}")
@@ -448,26 +389,19 @@ def verify_auth():
     This endpoint is used by the frontend to bootstrap authentication after login.
     """
     try:
-        # Extract token from header
-        user, token, error_response = extract_token_from_header()
-        if error_response:
-            # Return simpler error for verify-auth
+        # Get user from JWT token
+        user = get_current_user_from_token()
+        if not user:
             return jsonify({
                 "success": False,
                 "message": "Not authenticated"
             }), 401
         
-        if user:
-            return jsonify({
-                "success": True,
-                "data": user,
-                "source": "jwt"
-            })
-        else:
-            return jsonify({
-                "success": False,
-                "message": "Not authenticated"
-            }), 401
+        return jsonify({
+            "success": True,
+            "data": user,
+            "source": "jwt"
+        })
             
     except Exception as e:
         logger.error(f"Error in verify-auth: {e}")
@@ -475,43 +409,6 @@ def verify_auth():
             "success": False,
             "error": "server_error",
             "message": "Failed to verify authentication"
-        }), 500
-
-@auth2_bp.route("/user-role")
-@auth_required
-def get_user_role():
-    """
-    Get the current user's role information.
-    This endpoint can be used by the frontend for role-based UI rendering.
-    """
-    try:
-        user = get_current_user_from_session()
-        if not user:
-            return jsonify({
-                "success": False,
-                "error": "unauthorized",
-                "message": "User is not authenticated"
-            }), 401
-        
-        role = user.get('role')
-        return jsonify({
-            "success": True,
-            "data": {
-                "role": role,
-                "permissions": {
-                    "can_modify_status": role in ['Claribi_Admin', 'Claribi_Developer'],
-                    "can_access_admin_features": role == 'Claribi_Admin',
-                    "can_develop": role == 'Claribi_Developer'
-                }
-            }
-        })
-        
-    except Exception as e:
-        logger.error(f"Error getting user role: {e}")
-        return jsonify({
-            "success": False,
-            "error": "server_error",
-            "message": "Failed to retrieve user role"
         }), 500
 
 @auth2_bp.route("/graph-data")
@@ -522,7 +419,7 @@ def get_graph_data():
     Requires valid authentication and Graph API permissions.
     """
     try:
-        user = get_current_user_from_session()
+        user = g.current_user
         if not user:
             return jsonify({"error": "Unauthorized"}), 401
         
@@ -544,16 +441,7 @@ def get_graph_data():
                 "message": "Failed to retrieve data from Graph API"
             }), 502
         
-        # Get user groups if available
-        user_groups = get_user_groups_from_token(access_token)
-        
-        # Combine user data with groups
-        graph_data = {
-            **user_data,
-            "groups": list(user_groups) if user_groups else []
-        }
-        
-        return jsonify(graph_data)
+        return jsonify(user_data)
         
     except Exception as e:
         logger.error(f"Error getting Graph data: {e}")
@@ -568,15 +456,15 @@ def get_graph_data():
 def verify_token():
     """
     Legacy token verification endpoint for compatibility.
-    Auth2 uses session-based auth, so this checks session status.
+    Uses JWT token authentication.
     """
     try:
-        user = get_current_user_from_session()
+        user = get_current_user_from_token()
         if user:
             return jsonify({
                 "success": True,
                 "data": user,
-                "source": "session"
+                "source": "jwt"
             })
         else:
             return jsonify({

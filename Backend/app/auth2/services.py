@@ -8,7 +8,7 @@ import os
 import msal
 import requests
 from typing import Optional, Dict, Any, Tuple, List
-from flask import session, request
+from flask import request
 from app.core.database import get_db_cursor
 from app.auth2.config import Auth2Config
 from app.auth2.graphapi import validate_token, get_user_info_from_token
@@ -167,8 +167,8 @@ class UserService:
     """Service class for user management operations"""
     
     @staticmethod
-    def create_or_update_user(ms_object_id: str, organization_id: str, display_id: str, role: str = None) -> Tuple[bool, Optional[str]]:
-        """Create or update user in database with role information"""
+    def create_or_update_user(ms_object_id: str) -> Tuple[bool, Optional[str]]:
+        """Create or update user in database"""
         try:
             with get_db_cursor(commit=True) as cursor:
                 # Check if user exists
@@ -179,19 +179,19 @@ class UserService:
                 existing_user = cursor.fetchone()
                 
                 if existing_user:
-                    # Update existing user including role
+                    # Update existing user
                     cursor.execute(
                         """UPDATE users 
-                           SET organization_id = %s, display_id = %s, role = %s
+                           SET last_login_time = CURRENT_TIMESTAMP
                            WHERE ms_object_id = %s""",
-                        (organization_id, display_id, role, ms_object_id)
+                        (ms_object_id,)
                     )
                 else:
-                    # Create new user with role
+                    # Create new user
                     cursor.execute(
-                        """INSERT INTO users (ms_object_id, organization_id, display_id, role, created_at) 
-                           VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)""",
-                        (ms_object_id, organization_id, display_id, role)
+                        """INSERT INTO users  (ms_object_id, created_at, first_login_time, last_login_time, subscription)
+                            VALUES (%s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'none')""",
+                        (ms_object_id,)
                     )
                 
                 return True, None
@@ -206,7 +206,7 @@ class UserService:
         try:
             with get_db_cursor() as cursor:
                 cursor.execute(
-                    """SELECT id, ms_object_id, organization_id, display_id, role, created_at
+                    """SELECT id, ms_object_id, created_at, first_login_time, last_login_time, subscription
                        FROM users WHERE ms_object_id = %s""",
                     (ms_object_id,)
                 )
@@ -216,74 +216,16 @@ class UserService:
                     return {
                         'id': user_data[0],
                         'ms_object_id': user_data[1],
-                        'organization_id': user_data[2],
-                        'display_id': user_data[3],
-                        'role': user_data[4],
-                        'created_at': user_data[5]
+                        'created_at': user_data[2],
+                        'first_login_time': user_data[3],
+                        'last_login_time': user_data[4],
+                        'subscription': user_data[5]
                     }
         except Exception as e:
             logger.error(f"Database error in get_user_by_ms_object_id: {e}")
         
         return None
 
-    @staticmethod
-    def is_organization_allowed(organization_id: str) -> bool:
-        """Check if an organization is allowed based on the allowed_organizations table"""
-        try:
-            with get_db_cursor() as cursor:
-                cursor.execute(
-                    "SELECT id FROM allowed_organizations WHERE org_id = %s",
-                    (organization_id,)
-                )
-                result = cursor.fetchone()
-                return result is not None
-        except Exception as e:
-            logger.error(f"Database error in is_organization_allowed: {e}")
-            return False
-
-class SecurityService:
-    """Service class for security-related operations"""
-    
-    @staticmethod
-    def validate_app_role(role: str) -> bool:
-        """Validate if the role is one of the allowed app roles"""
-        return role in auth2_config.VALID_APP_ROLES
-    
-    @staticmethod
-    def extract_app_roles_from_token(id_token_claims: Dict[str, Any]) -> List[str]:
-        """
-        Extract and validate app roles from ID token claims.
-        
-        Args:
-            id_token_claims: The claims from the ID token
-            
-        Returns:
-            List of valid app roles assigned to the user
-        """
-        try:
-            # The roles claim contains the app roles assigned to the user
-            roles_claim = id_token_claims.get('roles', [])
-            #logger.info(f"Roles claim: {roles_claim}")# for debugging
-            # Ensure roles_claim is a list 
-            if not isinstance(roles_claim, list):
-                logger.warning(f"Roles claim is not a list: {roles_claim}")
-                return []
-            
-            # Filter and validate roles
-            valid_roles = []
-            for role in roles_claim:
-                if isinstance(role, str) and SecurityService.validate_app_role(role):
-                    valid_roles.append(role)
-                else:
-                    logger.info(f"Ignoring invalid or unrecognized role: {role}")
-            
-            logger.info(f"Extracted valid app roles from token: {valid_roles}")
-            return valid_roles
-            
-        except Exception as e:
-            logger.error(f"Error extracting app roles from token: {e}")
-            return []
-    
 
 class GraphService:
     """Service class for Microsoft Graph API operations using Graph API flow"""

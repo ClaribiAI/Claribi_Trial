@@ -26,35 +26,35 @@ const AppContent: FC = () => {
         <Routes>
           <Route path="/login" element={<LoginWrapper />} />
           <Route path="/" element={
-            <ProtectedRoute requiredRole={null} requiredMicrosoftRole={null}>
+            <ProtectedRoute>
               <Layout fullWidth>
                 <Home />
               </Layout>
             </ProtectedRoute>
           } />
           <Route path="/powerbi-docs" element={
-            <ProtectedRoute requiredRole={null} requiredMicrosoftRole={null}>
+            <ProtectedRoute>
               <Layout fullWidth>
                 <PowerBIDocumentation />
               </Layout>
             </ProtectedRoute>
           } />
           <Route path="/powerbi-chat" element={
-            <ProtectedRoute requiredRole={null} requiredMicrosoftRole={null}>
+            <ProtectedRoute>
               <Layout fullWidth>
                 <PowerBIChat />
               </Layout>
             </ProtectedRoute>
           } />
           <Route path="/settings" element={
-            <ProtectedRoute requiredRole={null} requiredMicrosoftRole={null}>
+            <ProtectedRoute>
               <Layout>
                 <SettingsPage />
               </Layout>
             </ProtectedRoute>
           } />
           <Route path="/help" element={
-            <ProtectedRoute requiredRole={null} requiredMicrosoftRole={null}>
+            <ProtectedRoute>
               <Layout>
                 <HelpPage />
               </Layout>
@@ -62,7 +62,7 @@ const AppContent: FC = () => {
           } />
           {/* Catch-all route for 404 Not Found */}
           <Route path="*" element={
-            <ProtectedRoute requiredRole={null} requiredMicrosoftRole={null}>
+            <ProtectedRoute>
               <Layout>
                 <NotFound />
               </Layout>

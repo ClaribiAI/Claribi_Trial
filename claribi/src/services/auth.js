@@ -49,11 +49,7 @@ const authService = {
         return { success: false };
       }
       
-      const response = await api.get('/api/auth/profile', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const response = await api.get('/api/auth/profile');
       return response.data;
     } catch (error) {
       // If on login page, don't treat 401 as an error
@@ -76,11 +72,7 @@ const authService = {
         return { success: false, error: 'No valid token' };
       }
       
-      const response = await api.get('/api/auth/verify-auth', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const response = await api.get('/api/auth/verify-auth');
       return response.data;
     } catch (error) {
       console.error("Auth verification failed:", error);
@@ -123,11 +115,7 @@ const authService = {
         return false;
       }
       
-      const response = await api.get('/api/auth/profile', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const response = await api.get('/api/auth/profile');
       return response.data.success === true;
     } catch (error) {
       return false;
@@ -145,11 +133,7 @@ const authService = {
         return { success: false, error: 'No valid token' };
       }
       
-      const response = await api.get('/api/auth/session-check', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const response = await api.get('/api/auth/session-check');
       return response.data;
     } catch (error) {
       console.error("Session check failed:", error);
@@ -171,11 +155,7 @@ const authService = {
         throw new Error('No valid token');
       }
       
-      const response = await api.get('/api/auth/graph-data', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const response = await api.get('/api/auth/graph-data');
       return response.data;
     } catch (error) {
       console.error("Graph API data fetch failed:", error);

@@ -56,11 +56,8 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
     { text: 'Intelligent Chat', icon: <ChatCircle size={20} />, path: '/powerbi-chat' },
   ];
 
-  // Filter menu items based on user role
-  const filteredMenuItems = menuItems.filter(item => {
-    if (!item.roles) return true;
-    return currentUser && item.roles.includes(currentUser.role);
-  });
+  // All menu items are available to authenticated users
+  const filteredMenuItems = menuItems;
   
   const handleLogout = (e) => {
     e.preventDefault();

@@ -52,20 +52,23 @@ def validate_request(schema: Type[BaseModel]) -> Callable:
                     data = {}
 
                 # Add user context if available
-                from flask import session, g
+                from flask import g
+                from app.auth2.middleware import get_current_user_from_token
+                
                 user = None
-                if hasattr(g, 'user') and g.user:
-                    user = g.user
-                elif session and 'user' in session:
-                    user = session['user']
-                    # Store in g for future use
-                    g.user = user
+                if hasattr(g, 'current_user') and g.current_user:
+                    user = g.current_user
+                else:
+                    # Try to get user from JWT token
+                    user = get_current_user_from_token()
+                    if user:
+                        # Store in g for future use
+                        g.current_user = user
 
                 if user:
                     data['user_context'] = {
                         'ms_object_id': user.get('ms_object_id'),
-                        'organization_id': user.get('organization_id'),
-                        'id': user.get('id')
+                        'id': user.get('ms_object_id')  # Use ms_object_id as id for consistency
                     }
                 
                 # Validate against schema

@@ -48,9 +48,6 @@ class JWTService:
         # Create access token payload with UUID conversion
         access_payload = {
             'user_id': convert_uuid_to_string(user_data.get('ms_object_id')),
-            'organization_id': convert_uuid_to_string(user_data.get('organization_id')),
-            'display_id': user_data.get('display_id'),
-            'role': user_data.get('role'),
             'exp': access_exp_time,
             'iat': datetime.utcnow(),
             'iss': 'claribi-auth',  # Issuer
@@ -62,7 +59,6 @@ class JWTService:
         # Create refresh token payload with UUID conversion
         refresh_payload = {
             'user_id': convert_uuid_to_string(user_data.get('ms_object_id')),
-            'organization_id': convert_uuid_to_string(user_data.get('organization_id')),
             'exp': refresh_exp_time,
             'iat': datetime.utcnow(),
             'iss': 'claribi-auth',
@@ -75,7 +71,7 @@ class JWTService:
             access_token = jwt.encode(access_payload, secret_key, algorithm='HS256')
             refresh_token = jwt.encode(refresh_payload, secret_key, algorithm='HS256')
             # Only log token creation in debug mode to reduce log spam
-            logger.debug(f"JWT tokens created for user: {user_data.get('display_id')}")
+            logger.debug(f"JWT tokens created for user: {user_data.get('ms_object_id')}")
             return access_token, refresh_token
         except Exception as e:
             logger.error(f"Error creating JWT tokens: {e}")
@@ -113,15 +109,12 @@ class JWTService:
             
             user_data = {
                 'ms_object_id': payload.get('user_id'),
-                'organization_id': payload.get('organization_id'),
-                'display_id': payload.get('display_id'),
-                'role': payload.get('role'),
                 'exp': payload.get('exp'),
                 'iat': payload.get('iat')
             }
             
             # Only log validation in debug mode to reduce log spam
-            logger.debug(f"JWT access token validated for user: {user_data.get('display_id')}")
+            logger.debug(f"JWT access token validated for user: {user_data.get('ms_object_id')}")
             return user_data
             
         except jwt.ExpiredSignatureError:
@@ -166,7 +159,6 @@ class JWTService:
             
             user_data = {
                 'ms_object_id': payload.get('user_id'),
-                'organization_id': payload.get('organization_id'),
                 'exp': payload.get('exp'),
                 'iat': payload.get('iat')
             }
@@ -216,7 +208,7 @@ class JWTService:
         try:
             new_access_token, new_refresh_token = JWTService.create_user_token(full_user_data, secret_key)
             # Only log token refresh in debug mode to reduce log spam
-            logger.debug(f"Tokens refreshed for user: {full_user_data.get('display_id')}")
+            logger.debug(f"Tokens refreshed for user: {full_user_data.get('ms_object_id')}")
             return new_access_token, new_refresh_token
         except Exception as e:
             logger.error(f"Error refreshing tokens: {e}")

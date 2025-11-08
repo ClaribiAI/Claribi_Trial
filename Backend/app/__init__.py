@@ -38,6 +38,11 @@ def create_app():
     app.logger.info("Using JWT-based authentication (no CSRF protection)")
     
     # Configure CORS for production deployment
+    # Note: supports_credentials=True is required for:
+    # - Sending/receiving httpOnly cookies (refresh_token)
+    # - Cross-origin requests between frontend and backend
+    # - SameSite=None cookies (required for cross-origin)
+    # This must match the frontend's withCredentials: true setting
     allowed_origins = []
     
     # Add configured frontend URL
@@ -57,6 +62,7 @@ def create_app():
     if not allowed_origins and config.FLASK_ENV == 'development':
         allowed_origins = ['http://localhost:5173', 'https://localhost:5173']
     
+    # Initialize CORS with credentials support for cross-origin cookie handling
     cors.init_app(app, origins=allowed_origins, supports_credentials=True)
     
     # Load Microsoft AD config from environment

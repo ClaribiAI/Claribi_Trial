@@ -17,11 +17,8 @@ class Auth2Config:
     MSAL_CLIENT_SECRET = os.environ.get('MSAL_CLIENT_SECRET') or os.environ.get('MICROSOFT_CLIENT_SECRET')
     MSAL_TENANT_ID = os.environ.get('MSAL_TENANT_ID') or os.environ.get('MICROSOFT_TENANT_ID')
     MSAL_REDIRECT_PATH = "/api/auth/callback"
-    # Graph API scopes - includes User.Read and Group.Read.All for group information
-    MSAL_SCOPES = ["User.Read", "Group.Read.All"]
-    
-    # Valid app roles for the application
-    VALID_APP_ROLES = ["Claribi_Admin", "Claribi_User", "Claribi_Developer"]
+    # Graph API scopes - includes User.Read 
+    MSAL_SCOPES = ["User.Read"]
     
     @property
     def MSAL_AUTHORITY(self):

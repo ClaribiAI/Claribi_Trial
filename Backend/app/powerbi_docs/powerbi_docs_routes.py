@@ -3,7 +3,7 @@ from flask_cors import cross_origin
 import logging
 from typing import Dict
 from . import powerbi_docs_bp
-from app.core.security import login_required, get_current_user
+from app.auth2.middleware import auth_required, get_current_user_from_token
 from app.powerbi_docs.powerbi_service_pbix import PowerBIPbixService
 from app.powerbi_docs.ai_client import ai_client
 from app.powerbi_docs.services.token_tracking_service import powerbi_docs_token_tracking_service
@@ -58,7 +58,7 @@ def _get_summaries_by_collection(collection_name: str) -> tuple[Dict, str]:
 
 @powerbi_docs_bp.route('/api/powerbi-docs/list-files', methods=['GET'])
 @cross_origin(supports_credentials=True)
-@login_required
+@auth_required
 def list_uploaded_files():
     """
     Endpoint to list all uploaded Power BI files.
@@ -77,7 +77,7 @@ def list_uploaded_files():
 
 @powerbi_docs_bp.route('/api/powerbi-docs/get-summaries/<collection_name>', methods=['GET'])
 @cross_origin(supports_credentials=True)
-@login_required
+@auth_required
 def get_file_summaries(collection_name):
     """
     Endpoint to get summaries for a specific collection.
@@ -114,7 +114,7 @@ def get_file_summaries(collection_name):
 
 @powerbi_docs_bp.route('/api/powerbi-docs/get-generated-docs/<collection_name>', methods=['GET'])
 @cross_origin(supports_credentials=True)
-@login_required
+@auth_required
 def get_generated_docs(collection_name):
     """
     Endpoint to get all previously generated documentation sections for a collection.
@@ -135,7 +135,7 @@ def get_generated_docs(collection_name):
 
 @powerbi_docs_bp.route('/api/powerbi-docs/analyze-section/<section>', methods=['POST'])
 @cross_origin(supports_credentials=True)
-@login_required
+@auth_required
 def analyze_pbix_section_route(section):
     """
     Endpoint to analyze a specific section using file summaries.
@@ -178,7 +178,7 @@ def analyze_pbix_section_route(section):
         
         # Record token usage with graceful error handling
         try:
-            user = get_current_user()
+            user = get_current_user_from_token()
             if user and user.get('ms_object_id'):
                 powerbi_docs_token_tracking_service.record_token_usage(
                     user['ms_object_id'],
@@ -205,7 +205,7 @@ def analyze_pbix_section_route(section):
 
 @powerbi_docs_bp.route('/api/powerbi-docs/parse-recommendations', methods=['POST'])
 @cross_origin(supports_credentials=True)
-@login_required
+@auth_required
 def parse_improvement_recommendations_route():
     """
     Endpoint to parse improvement recommendations using file summaries.
@@ -247,7 +247,7 @@ def parse_improvement_recommendations_route():
         
         # Record token usage with graceful error handling
         try:
-            user = get_current_user()
+            user = get_current_user_from_token()
             if user and user.get('ms_object_id'):
                 powerbi_docs_token_tracking_service.record_token_usage(
                     user['ms_object_id'],

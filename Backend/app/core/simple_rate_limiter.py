@@ -167,12 +167,21 @@ def rate_limit_headers(app):
     """Add rate limit headers to all responses"""
     @app.after_request
     def add_rate_limit_headers(response):
-        # Add rate limit headers if not already present
-        if 'X-RateLimit-Limit' not in response.headers:
-            response.headers['X-RateLimit-Limit'] = '60'
-        if 'X-RateLimit-Remaining' not in response.headers:
-            response.headers['X-RateLimit-Remaining'] = '60'
-        if 'X-RateLimit-Reset' not in response.headers:
-            response.headers['X-RateLimit-Reset'] = str(int(time.time() + 60))
+        from flask import g
+        
+        # Check if rate limit headers were set by rate limiting middleware
+        if hasattr(g, 'rate_limit_headers') and g.rate_limit_headers:
+            # Use actual rate limit values from middleware
+            response.headers['X-RateLimit-Limit'] = g.rate_limit_headers.get('X-RateLimit-Limit', '60')
+            response.headers['X-RateLimit-Remaining'] = g.rate_limit_headers.get('X-RateLimit-Remaining', '60')
+            response.headers['X-RateLimit-Reset'] = g.rate_limit_headers.get('X-RateLimit-Reset', str(int(time.time() + 60)))
+        else:
+            # Add default rate limit headers if not already present
+            if 'X-RateLimit-Limit' not in response.headers:
+                response.headers['X-RateLimit-Limit'] = '60'
+            if 'X-RateLimit-Remaining' not in response.headers:
+                response.headers['X-RateLimit-Remaining'] = '60'
+            if 'X-RateLimit-Reset' not in response.headers:
+                response.headers['X-RateLimit-Reset'] = str(int(time.time() + 60))
         
         return response

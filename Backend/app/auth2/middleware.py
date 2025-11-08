@@ -6,7 +6,7 @@ Authentication middleware, decorators, and security functions.
 import logging
 from functools import wraps
 from typing import Callable, Any, Optional, Dict
-from flask import session, request, jsonify, g
+from flask import request, jsonify, g
 from app.auth2.config import Auth2Config
 from app.auth2.jwt_service import JWTService
 
@@ -49,15 +49,6 @@ def auth_required(f: Callable) -> Callable:
                     "message": "Invalid or expired token"
                 }), 401
             
-            # Check if organization is still allowed
-            from app.auth2.services import UserService
-            if not UserService.is_organization_allowed(user.get('organization_id')):
-                logger.warning(f"Organization {user.get('organization_id')} is no longer allowed to access the system")
-                return jsonify({
-                    "success": False,
-                    "error": "organization_not_allowed",
-                    "message": "Your organization has not yet purchased a plan. Please visit www.claribi.ai to purchase a plan."
-                }), 403
             
             # Store user in request context for use in route
             g.current_user = user
@@ -73,61 +64,6 @@ def auth_required(f: Callable) -> Callable:
     
     return decorated_function
 
-def require_roles(*allowed_roles):
-    """
-    Decorator to require specific roles for route access.
-    
-    This decorator wraps auth_required to ensure authentication first,
-    then checks for specific roles.
-    
-    Args:
-        allowed_roles: Variable number of role names that are allowed
-        
-    Returns:
-        Decorator function
-        
-    Example:
-        @require_roles('Claribi_Admin', 'Claribi_Developer')
-        def admin_only_route():
-            pass
-    """
-    def decorator(f: Callable) -> Callable:
-        # First apply auth_required to ensure user is authenticated
-        @auth_required
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            try:
-                # Get user from g.current_user (set by auth_required)
-                user = g.current_user
-                if not user:
-                    logger.warning(f"User not found in context for {request.endpoint}")
-                    return jsonify({
-                        "success": False,
-                        "error": "unauthorized",
-                        "message": "Authentication required"
-                    }), 401
-                
-                user_role = user.get('role')
-                if not user_role or user_role not in allowed_roles:
-                    logger.warning(f"Access denied for user {user.get('display_id')} with role {user_role} to {request.endpoint}")
-                    return jsonify({
-                        "success": False,
-                        "error": "forbidden",
-                        "message": f"Access denied. Required roles: {', '.join(allowed_roles)}"
-                    }), 403
-                
-                return f(*args, **kwargs)
-                
-            except Exception as e:
-                logger.error(f"Error in require_roles decorator: {e}")
-                return jsonify({
-                    "success": False,
-                    "error": "server_error",
-                    "message": "Authorization check failed"
-                }), 500
-        
-        return decorated_function
-    return decorator
 
 def rate_limit(limit_string: str):
     """
@@ -226,26 +162,23 @@ def get_current_user_from_token() -> Optional[Dict[str, Any]]:
         logger.error(f"Error getting user from token: {e}")
         return None
 
-# Keep the old function for backward compatibility but mark as deprecated
-def get_current_user_from_session() -> Optional[Dict[str, Any]]:
-    """
-    DEPRECATED: Get current authenticated user from JWT token.
-    Use get_current_user_from_token() instead.
-    
-    Returns:
-        User data if authenticated, None otherwise
-    """
-    return get_current_user_from_token()
-
-
 def clear_session() -> None:
     """
     Clear user session securely.
+    
+    Note: For JWT-only authentication, Flask sessions are not used.
+    This function is kept for API compatibility and consistency with
+    the logout flow. It currently does nothing but may be extended in the
+    future if session-based features are added.
+    
+    The actual logout process is handled by:
+    - Clearing the refresh_token cookie (done in routes.logout)
+    - Redirecting to Microsoft logout endpoint
+    - Frontend clears the JWT access token from localStorage
     """
-    # Clear only auth-related session data
-    session.pop('user', None)
-    session.pop('token_cache', None)
-    session.modified = True
+    # JWT-only authentication doesn't use Flask sessions
+    # This function is kept for API compatibility and future extensibility
+    pass
 
 class SecurityHeaders:
     """Class for managing security headers"""
@@ -262,6 +195,12 @@ class SecurityHeaders:
             Modified response with security headers
         """
         # Content Security Policy
+        # Note: 'unsafe-inline' and 'unsafe-eval' are required for React/Vite applications:
+        # - Vite injects inline scripts during development and build
+        # - React and Material-UI inject inline styles
+        # - Some third-party libraries require eval for dynamic code generation
+        # For production, consider implementing nonces or hashes if possible
+        # (requires build-time CSP injection or SSR)
         response.headers['Content-Security-Policy'] = (
             "default-src 'self'; "
             "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
