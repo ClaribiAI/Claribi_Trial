@@ -31,6 +31,7 @@ logger = get_logger(__name__)
 # Initialize connection pool as None
 _pool = None
 _pool_lock = Lock()
+_pool_database_url = None  # Track the DATABASE_URL used to initialize the pool
 
 def parse_rls_error(error_message: str) -> dict:
     """Parse RLS error message to extract table and operation information.
@@ -120,36 +121,54 @@ def init_db_pool(
     Raises:
         DatabaseError: If pool initialization fails
     """
-    global _pool
+    global _pool, _pool_database_url
     
     with _pool_lock:
-        if _pool is not None:
-            # Test existing pool
-            try:
-                conn = _pool.getconn()
-                if validate_connection(conn):
-                    _pool.putconn(conn)
-                    return
-                else:
-                    try:
+        # Always check environment variable first for comparison
+        env_db_url = os.getenv('DATABASE_URL')
+        # Get database URL from parameter or environment
+        db_url = database_url or env_db_url
+        if not db_url:
+            raise DatabaseError("Database URL not provided")
+        
+        # Check if DATABASE_URL has changed - always compare against environment variable
+        # This ensures we detect changes even if cached config is passed
+        if _pool is not None and _pool_database_url is not None:
+            # Compare against environment variable if available, otherwise use passed parameter
+            comparison_url = env_db_url if env_db_url else db_url
+            if _pool_database_url != comparison_url:
+                logger.info(f"DATABASE_URL has changed. Closing old pool and reinitializing with new URL.")
+                try:
+                    _pool.close()
+                except Exception as e:
+                    logger.warning(f"Error closing existing pool: {e}")
+                _pool = None
+                _pool_database_url = None
+            else:
+                # DATABASE_URL hasn't changed, test existing pool
+                try:
+                    conn = _pool.getconn()
+                    if validate_connection(conn):
                         _pool.putconn(conn)
-                        conn.close()
-                    except Exception as e:
-                        logger.warning(f"Error closing invalid connection during pool test: {e}")
-            except Exception as e:
-                logger.warning(f"Error testing existing pool: {e}")
-            
-            try:
-                _pool.close()
-            except Exception as e:
-                logger.warning(f"Error closing existing pool: {e}")
-            _pool = None
+                        return
+                    else:
+                        try:
+                            _pool.putconn(conn)
+                            conn.close()
+                        except Exception as e:
+                            logger.warning(f"Error closing invalid connection during pool test: {e}")
+                except Exception as e:
+                    logger.warning(f"Error testing existing pool: {e}")
+                
+                # Pool exists but validation failed, close it
+                try:
+                    _pool.close()
+                except Exception as e:
+                    logger.warning(f"Error closing existing pool: {e}")
+                _pool = None
+                _pool_database_url = None
         
         try:
-            # Get database URL from environment if not provided
-            db_url = database_url or os.getenv('DATABASE_URL')
-            if not db_url:
-                raise DatabaseError("Database URL not provided")
             
             # Parse database URL into connection parameters
             config = parse_db_url(db_url)
@@ -160,6 +179,9 @@ def init_db_pool(
                 max_size=max_conn,
                 conninfo=f"postgresql://{config['user']}:{config['password']}@{config['host']}:{config['port']}/{config['dbname']}"
             )
+            
+            # Store the DATABASE_URL used for this pool (prefer environment variable for tracking)
+            _pool_database_url = env_db_url if env_db_url else db_url
             
             # Note: psycopg v3 doesn't have register_default_json in extras
             # JSON adapters are handled automatically in psycopg v3
@@ -182,9 +204,12 @@ def init_db_pool(
                         conn.close()
                     except:
                         pass
+                # Reset pool state on validation failure
+                _pool = None
+                _pool_database_url = None
                 raise e
             
-            logger.info("Database connection pool initialized successfully")
+            logger.info(f"Database connection pool initialized successfully with URL: {config['host']}:{config['port']}/{config['dbname']}")
         except Exception as e:
             logger.error(f"Failed to initialize database pool: {str(e)}")
             if _pool:
@@ -193,6 +218,7 @@ def init_db_pool(
                 except Exception as close_error:
                     logger.warning(f"Error closing failed pool: {close_error}")
                 _pool = None
+                _pool_database_url = None
             raise DatabaseError(f"Failed to initialize database connection pool: {str(e)}")
 
 def get_connection_pool() -> Optional[ConnectionPool]:
@@ -424,7 +450,7 @@ def get_db_cursor(commit: bool = False):
 
 def refresh_connection_pool() -> None:
     """Refresh stale connections in the pool - useful for Neon serverless scaling."""
-    global _pool
+    global _pool, _pool_database_url
     with _pool_lock:
         if _pool:
             try:
@@ -432,13 +458,14 @@ def refresh_connection_pool() -> None:
                 logger.info("Refreshing connection pool due to serverless scaling")
                 _pool.close()
                 _pool = None
+                _pool_database_url = None
                 # Pool will be reinitialized on next request
             except Exception as e:
                 logger.error(f"Error refreshing connection pool: {str(e)}")
 
 def close_db_pool() -> None:
     """Close the database connection pool."""
-    global _pool
+    global _pool, _pool_database_url
     with _pool_lock:
         if _pool:
             try:
@@ -446,6 +473,7 @@ def close_db_pool() -> None:
                 if not current_app or current_app.config.get('TESTING', False):
                     _pool.close()
                     _pool = None
+                    _pool_database_url = None
                     logger.info("Database connection pool closed")
             except Exception as e:
                 logger.error(f"Error closing database pool: {str(e)}")
@@ -453,4 +481,5 @@ def close_db_pool() -> None:
                     _pool.close()
                 except:
                     pass
-                _pool = None 
+                _pool = None
+                _pool_database_url = None 
