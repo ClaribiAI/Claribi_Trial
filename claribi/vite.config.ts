@@ -139,7 +139,8 @@ export default defineConfig(({ mode }) => {
         'localhost',
         '127.0.0.1',
         'claribifrontend-production.up.railway.app',
-        'console.claribi.ai'
+        'console.claribi.ai',
+        'preprod-frontend-production.up.railway.app'
       ],
     },
     // Environment variables
