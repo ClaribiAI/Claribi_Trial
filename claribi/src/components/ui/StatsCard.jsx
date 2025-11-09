@@ -6,18 +6,35 @@ import {
     Typography,
     useTheme,
     alpha,
-    CircularProgress
+    CircularProgress,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
+    Button,
+    Table,
+    TableBody,
+    TableCell,
+    TableContainer,
+    TableHead,
+    TableRow,
+    Paper
 } from '@mui/material';
 import {
     Clock,
     FileText,
-    ChatCircle
+    ChatCircle,
+    X
 } from '@phosphor-icons/react';
 import statsService from '../../services/statsService';
 
 const StatsCard = () => {
     const theme = useTheme();
     const [loading, setLoading] = useState(true);
+    const [breakdownOpen, setBreakdownOpen] = useState(false);
+    const [breakdownLoading, setBreakdownLoading] = useState(false);
+    const [breakdownData, setBreakdownData] = useState(null);
+    const [selectedStatType, setSelectedStatType] = useState(null); // 'documents', 'chat', 'hours'
     const [statsData, setStatsData] = useState({
         timeSaved: 0,
         documentsGenerated: 0,
@@ -53,6 +70,37 @@ const StatsCard = () => {
         fetchStats();
     }, []);
     
+    // Fetch breakdown data when a specific stat is clicked
+    const handleStatClick = async (statType) => {
+        setSelectedStatType(statType);
+        setBreakdownOpen(true);
+        
+        // Only fetch breakdown data for documents
+        if (statType === 'documents') {
+            setBreakdownLoading(true);
+            try {
+                const response = await statsService.getUserStatsBreakdown();
+                if (response.success && response.data) {
+                    setBreakdownData(response.data);
+                }
+            } catch (error) {
+                console.error('Error fetching breakdown:', error);
+            } finally {
+                setBreakdownLoading(false);
+            }
+        } else {
+            // For hours and chat, we don't need to fetch additional data
+            setBreakdownLoading(false);
+            setBreakdownData(null);
+        }
+    };
+    
+    const handleCloseBreakdown = () => {
+        setBreakdownOpen(false);
+        setBreakdownData(null);
+        setSelectedStatType(null);
+    };
+    
     // Format stats for display
     const stats = [
         {
@@ -60,25 +108,29 @@ const StatsCard = () => {
             label: 'Hours Saved',
             value: statsData.timeSaved.toString(),
             unit: '',
-            color: accentColor
+            color: accentColor,
+            type: 'hours'
         },
         {
             icon: FileText,
             label: 'Documents Generated',
             value: statsData.documentsGenerated.toString(),
             unit: '',
-            color: accentColor
+            color: accentColor,
+            type: 'documents'
         },
         {
             icon: ChatCircle,
             label: 'Chat Queries',
             value: statsData.chatQueries.toString(),
             unit: '',
-            color: accentColor
+            color: accentColor,
+            type: 'chat'
         }
     ];
 
     return (
+        <React.Fragment>
         <Card
             sx={{
                 borderRadius: 2,
@@ -122,6 +174,7 @@ const StatsCard = () => {
                         return (
                             <Box
                                 key={index}
+                                onClick={() => handleStatClick(stat.type)}
                                 sx={{
                                     display: 'flex',
                                     flexDirection: 'column',
@@ -136,6 +189,7 @@ const StatsCard = () => {
                                     transition: 'all 0.2s ease',
                                     flex: 1,
                                     minWidth: 0,
+                                    cursor: 'pointer',
                                     '&:hover': {
                                         bgcolor: theme.palette.mode === 'dark' 
                                             ? alpha(theme.palette.background.default, 0.7)
@@ -210,6 +264,264 @@ const StatsCard = () => {
                 )}
             </CardContent>
         </Card>
+        
+        {/* Breakdown Dialog */}
+        <Dialog
+            open={breakdownOpen}
+            onClose={handleCloseBreakdown}
+            maxWidth="md"
+            fullWidth
+            PaperProps={{
+                sx: {
+                    borderRadius: 2,
+                    bgcolor: theme.palette.background.paper
+                }
+            }}
+        >
+            <DialogTitle
+                sx={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    pb: 1
+                }}
+            >
+                <Typography
+                    variant="h6"
+                    sx={{
+                        fontWeight: 600,
+                        fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif"
+                    }}
+                >
+                    {selectedStatType === 'documents' && 'Documents Generated Breakdown'}
+                    {selectedStatType === 'chat' && 'Chat Queries Information'}
+                    {selectedStatType === 'hours' && 'Hours Saved Calculation'}
+                </Typography>
+                <Button
+                    onClick={handleCloseBreakdown}
+                    sx={{
+                        minWidth: 'auto',
+                        p: 0.5,
+                        color: theme.palette.text.secondary,
+                        '&:hover': {
+                            bgcolor: alpha(theme.palette.text.secondary, 0.1)
+                        }
+                    }}
+                >
+                    <X size={20} />
+                </Button>
+            </DialogTitle>
+            <DialogContent>
+                {breakdownLoading ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                        <CircularProgress size={24} />
+                    </Box>
+                ) : selectedStatType === 'documents' ? (
+                    <Box>
+                        {breakdownData && breakdownData.documents_breakdown && breakdownData.documents_breakdown.length > 0 ? (
+                            <TableContainer
+                                component={Paper}
+                                sx={{
+                                    bgcolor: theme.palette.mode === 'dark'
+                                        ? alpha(theme.palette.background.default, 0.5)
+                                        : alpha(theme.palette.background.default, 0.3),
+                                    border: `1px solid ${theme.palette.divider}`
+                                }}
+                            >
+                                <Table size="small">
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell sx={{ fontWeight: 600 }}>PBIX File</TableCell>
+                                            <TableCell align="right" sx={{ fontWeight: 600 }}>Documents Generated</TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {breakdownData.documents_breakdown.map((item, index) => (
+                                            <TableRow key={index}>
+                                                <TableCell>
+                                                    <Typography
+                                                        variant="body2"
+                                                        sx={{
+                                                            fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif"
+                                                        }}
+                                                    >
+                                                        {item.filename || item.collection_name || 'Unknown'}
+                                                    </Typography>
+                                                </TableCell>
+                                                <TableCell align="right">
+                                                    <Typography
+                                                        variant="body2"
+                                                        sx={{
+                                                            fontWeight: 600,
+                                                            fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif"
+                                                        }}
+                                                    >
+                                                        {item.generation_count}
+                                                    </Typography>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+                        ) : (
+                            <Typography
+                                variant="body2"
+                                sx={{
+                                    color: theme.palette.text.secondary,
+                                    fontStyle: 'italic'
+                                }}
+                            >
+                                No documents generated yet.
+                            </Typography>
+                        )}
+                    </Box>
+                ) : selectedStatType === 'chat' ? (
+                    <Box>
+                        <Typography
+                            variant="h4"
+                            sx={{
+                                fontWeight: 700,
+                                mb: 2,
+                                fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif",
+                                color: accentColor
+                            }}
+                        >
+                            {statsData.chatQueries}
+                        </Typography>
+                        <Typography
+                            variant="body2"
+                            sx={{
+                                color: theme.palette.text.secondary,
+                                mb: 2
+                            }}
+                        >
+                            This represents the total number of chat queries you've made across all Power BI files.
+                        </Typography>
+                        <Typography
+                            variant="caption"
+                            sx={{
+                                color: theme.palette.text.secondary,
+                                fontStyle: 'italic',
+                                display: 'block'
+                            }}
+                        >
+                            Note: Chat queries are not broken down by file in the current system.
+                        </Typography>
+                    </Box>
+                ) : selectedStatType === 'hours' ? (
+                    <Box>
+                        <Box
+                            sx={{
+                                p: 2,
+                                borderRadius: 1.5,
+                                bgcolor: theme.palette.mode === 'dark'
+                                    ? alpha(theme.palette.background.default, 0.5)
+                                    : alpha(theme.palette.background.default, 0.3),
+                                border: `1px solid ${theme.palette.divider}`,
+                                mb: 2
+                            }}
+                        >
+                            <Typography
+                                variant="h4"
+                                sx={{
+                                    fontWeight: 700,
+                                    mb: 2,
+                                    fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif",
+                                    color: accentColor
+                                }}
+                            >
+                                {statsData.timeSaved} hours
+                            </Typography>
+                            <Typography
+                                variant="body2"
+                                sx={{
+                                    color: theme.palette.text.secondary,
+                                    mb: 2
+                                }}
+                            >
+                                This is calculated based on:
+                            </Typography>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                                <Box>
+                                    <Typography
+                                        variant="body2"
+                                        sx={{
+                                            fontWeight: 600,
+                                            mb: 0.5,
+                                            fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif"
+                                        }}
+                                    >
+                                        Documents Generated: {statsData.documentsGenerated} × 2 hours = {statsData.documentsGenerated * 2} hours
+                                    </Typography>
+                                    <Typography
+                                        variant="caption"
+                                        sx={{
+                                            color: theme.palette.text.secondary,
+                                            ml: 2
+                                        }}
+                                    >
+                                        Each document generation saves approximately 2 hours of manual work.
+                                    </Typography>
+                                </Box>
+                                <Box>
+                                    <Typography
+                                        variant="body2"
+                                        sx={{
+                                            fontWeight: 600,
+                                            mb: 0.5,
+                                            fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif"
+                                        }}
+                                    >
+                                        Chat Queries: {statsData.chatQueries} × 0.1 hours = {(statsData.chatQueries * 0.1).toFixed(1)} hours
+                                    </Typography>
+                                    <Typography
+                                        variant="caption"
+                                        sx={{
+                                            color: theme.palette.text.secondary,
+                                            ml: 2
+                                        }}
+                                    >
+                                        Each chat query saves approximately 0.1 hours of manual research and analysis.
+                                    </Typography>
+                                </Box>
+                                <Box
+                                    sx={{
+                                        mt: 1,
+                                        pt: 1.5,
+                                        borderTop: `1px solid ${theme.palette.divider}`
+                                    }}
+                                >
+                                    <Typography
+                                        variant="body2"
+                                        sx={{
+                                            fontWeight: 600,
+                                            fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif"
+                                        }}
+                                    >
+                                        Total: {statsData.documentsGenerated * 2} + {(statsData.chatQueries * 0.1).toFixed(1)} = {statsData.timeSaved} hours
+                                    </Typography>
+                                </Box>
+                            </Box>
+                        </Box>
+                    </Box>
+                ) : null}
+            </DialogContent>
+            <DialogActions sx={{ px: 3, pb: 2 }}>
+                <Button
+                    onClick={handleCloseBreakdown}
+                    variant="contained"
+                    sx={{
+                        borderRadius: 1.5,
+                        textTransform: 'none',
+                        fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif"
+                    }}
+                >
+                    Close
+                </Button>
+            </DialogActions>
+        </Dialog>
+        </React.Fragment>
     );
 };
 

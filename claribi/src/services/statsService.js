@@ -16,6 +16,20 @@ const statsService = {
       console.error('Error fetching user stats:', error);
       throw error;
     }
+  },
+
+  /**
+   * Get statistics breakdown by PBIX file for the current authenticated user
+   * @returns {Promise} Response with breakdown data
+   */
+  getUserStatsBreakdown: async () => {
+    try {
+      const response = await api.get('/api/stats/user/breakdown');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching user stats breakdown:', error);
+      throw error;
+    }
   }
 };
 
