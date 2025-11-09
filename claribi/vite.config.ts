@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import fs from 'fs'
 
@@ -6,6 +6,14 @@ import fs from 'fs'
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const isProduction = mode === 'production'
+  // Load env file based on `mode` in the current working directory.
+  // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
+  // This only loads from .env files, not system environment variables, which prevents
+  // picking up production URLs that might be set in system env vars
+  const env = loadEnv(mode, process.cwd(), '')
+  
+  // Use VITE_BACKEND_URL from .env file if set, otherwise default to localhost
+  const backendUrl = env.VITE_BACKEND_URL || 'https://127.0.0.1:5000'
   
   return {
     plugins: [react()],
@@ -22,7 +30,7 @@ export default defineConfig(({ mode }) => {
       proxy: {
         // Proxy for authentication and Power BI Docs API endpoints
         '/api': {
-          target: process.env.VITE_BACKEND_URL || 'https://127.0.0.1:5000',
+          target: backendUrl,
           secure: false,
           changeOrigin: true,
           cookieDomainRewrite: false,
@@ -47,7 +55,7 @@ export default defineConfig(({ mode }) => {
         },
         // Proxy for Power BI Chat API endpoints
         '/powerbi-chat': {
-          target: process.env.VITE_BACKEND_URL || 'https://127.0.0.1:5000',
+          target: backendUrl,
           secure: false,
           changeOrigin: true,
           cookieDomainRewrite: false,
