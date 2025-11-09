@@ -134,6 +134,10 @@ def upload_powerbi_file():
     if request.method == 'OPTIONS': return jsonify({'status': 'ok'})
     if 'pbix_file' not in request.files: return error_response(400, 'PBIX file is required')
 
+    # Extract user information from authentication
+    user = g.current_user
+    user_ms_object_id = user.get('ms_object_id') if user else None
+
     file = request.files['pbix_file']
     
     # Enhanced file validation
@@ -191,7 +195,7 @@ def upload_powerbi_file():
         collection_name = vector_store_service.generate_collection_name()
         
         try:
-            vector_store_service.create_collection(documents, collection_name, collection_metadata)
+            vector_store_service.create_collection(documents, collection_name, collection_metadata, ms_object_id=user_ms_object_id)
             logger.info(f"Successfully created vector collection: {collection_name}")
         except Exception as e:
             logger.error(f"Error creating vector collection for {file.filename}: {e}")
@@ -213,8 +217,8 @@ def upload_powerbi_file():
                 # Insert summary record using raw SQL
                 cursor.execute("""
                     INSERT INTO powerbi_file_summaries 
-                    (collection_name, filename, upload_time, semantic_model_summary, power_query_summary, visuals_summary, rls_summary)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    (collection_name, filename, upload_time, semantic_model_summary, power_query_summary, visuals_summary, rls_summary, ms_object_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
                     collection_name,
                     file.filename,
@@ -222,7 +226,8 @@ def upload_powerbi_file():
                     json.dumps(summaries['semantic_model_summary']),
                     json.dumps(summaries['power_query_summary']),
                     json.dumps(summaries['visuals_summary']),
-                    json.dumps(summaries.get('rls_summary', {}))
+                    json.dumps(summaries.get('rls_summary', {})),
+                    user_ms_object_id
                 ))
                 
                 logger.info(f"Saved summaries for collection {collection_name}")

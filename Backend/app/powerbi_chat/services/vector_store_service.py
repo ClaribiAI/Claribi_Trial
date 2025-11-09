@@ -32,7 +32,7 @@ class VectorStoreService:
         unique_id = uuid.uuid4().hex
         return f"{config.VECTOR_STORE_COLLECTION_PREFIX}{unique_id}"
 
-    def create_collection(self, docs: List[Document], collection_name: str, metadata: Dict[str, Any] = None) -> None:
+    def create_collection(self, docs: List[Document], collection_name: str, metadata: Dict[str, Any] = None, ms_object_id: str = None) -> None:
         """Creates a new vector store collection from documents with optional metadata."""
         if not docs:
             raise ValueError("No documents provided for vector store creation.")
@@ -54,6 +54,40 @@ class VectorStoreService:
                 connection=self.connection_string,
             )
         logger.info(f"Created vector store for collection: {collection_name} with {len(docs)} documents")
+        
+        # Update langchain_pg_collection and langchain_pg_embedding tables with ms_object_id and collection_name
+        if ms_object_id:
+            try:
+                with get_db_cursor(commit=True) as cursor:
+                    # First, get the collection UUID
+                    cursor.execute("""
+                        SELECT uuid FROM langchain_pg_collection WHERE name = %s
+                    """, (collection_name,))
+                    result = cursor.fetchone()
+                    
+                    if result:
+                        collection_uuid = result[0]
+                        
+                        # Update the collection with ms_object_id
+                        cursor.execute("""
+                            UPDATE langchain_pg_collection 
+                            SET ms_object_id = %s 
+                            WHERE name = %s
+                        """, (ms_object_id, collection_name))
+                        logger.info(f"Updated langchain_pg_collection with ms_object_id for collection: {collection_name}")
+                        
+                        # Update all embeddings in this collection with collection_name and ms_object_id
+                        cursor.execute("""
+                            UPDATE langchain_pg_embedding 
+                            SET collection_name = %s, ms_object_id = %s 
+                            WHERE collection_id = %s
+                        """, (collection_name, ms_object_id, collection_uuid))
+                        updated_count = cursor.rowcount
+                        logger.info(f"Updated {updated_count} embeddings with collection_name and ms_object_id for collection: {collection_name}")
+                    else:
+                        logger.warning(f"Collection {collection_name} not found when trying to update ms_object_id")
+            except Exception as e:
+                logger.error(f"Error updating langchain tables with ms_object_id: {e}", exc_info=True)
 
     def get_retriever(self, collection_name: str):
         """Gets a retriever for an existing collection."""
