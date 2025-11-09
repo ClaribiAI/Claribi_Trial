@@ -65,19 +65,41 @@ def parse_db_url(url: str) -> dict:
     
     Args:
         url: Database URL in format: 
-            postgresql://user:password@host:port/dbname
+            postgresql://user:password@host:port/dbname?sslmode=require
             
     Returns:
-        dict: Database connection parameters
+        dict: Database connection parameters including query string parameters
     """
+    from urllib.parse import parse_qs
+    
     parsed = urlparse(url)
-    return {
+    params = {
         'dbname': parsed.path[1:],  # Remove leading '/'
         'user': parsed.username,
         'password': parsed.password,
         'host': parsed.hostname,
         'port': parsed.port or 5432
     }
+    
+    # Parse query string parameters (e.g., sslmode=require)
+    if parsed.query:
+        query_params = parse_qs(parsed.query)
+        # Extract single values from lists (parse_qs returns lists)
+        for key, value_list in query_params.items():
+            if value_list:
+                # Convert key to lowercase for consistency
+                key_lower = key.lower()
+                # For sslmode, use the value directly
+                if key_lower == 'sslmode':
+                    params['sslmode'] = value_list[0]
+                # For other parameters, add them as-is
+                elif len(value_list) == 1:
+                    params[key_lower] = value_list[0]
+                else:
+                    # Multiple values - join them (unlikely but handle it)
+                    params[key_lower] = ','.join(value_list)
+    
+    return params
 
 def validate_connection(conn) -> bool:
     """Validate if a connection is alive and usable."""
@@ -194,6 +216,7 @@ def init_db_pool(
             
             # Create connection parameters dict (avoid password in string)
             # Pass connection parameters via kwargs to avoid password in connection string
+            # Include all parameters from the parsed URL, especially SSL settings
             conn_params = {
                 'host': db_config['host'],
                 'port': db_config['port'],
@@ -201,6 +224,16 @@ def init_db_pool(
                 'user': db_config['user'],
                 'password': db_config['password']
             }
+            
+            # Add query string parameters (e.g., sslmode, connect_timeout, etc.)
+            # These are important for proper connection configuration
+            for key, value in db_config.items():
+                if key not in ['host', 'port', 'dbname', 'user', 'password']:
+                    conn_params[key] = value
+            
+            # Log connection parameters (without password) for debugging
+            log_params = {k: v for k, v in conn_params.items() if k != 'password'}
+            logger.info(f"Initializing database pool with parameters: {log_params}")
             
             # Create new pool with connection parameters dict and timeout
             # Use kwargs parameter to pass connection parameters as dict (avoids password in string)
