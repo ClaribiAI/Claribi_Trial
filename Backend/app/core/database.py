@@ -227,9 +227,22 @@ def init_db_pool(
             
             # Add query string parameters (e.g., sslmode, connect_timeout, etc.)
             # These are important for proper connection configuration
+            # Filter out problematic parameters that can cause connection issues on cloud platforms
+            problematic_params = ['channel_binding']  # channel_binding=require can cause timeouts on Railway
+            
             for key, value in db_config.items():
                 if key not in ['host', 'port', 'dbname', 'user', 'password']:
+                    # Skip problematic parameters that can cause connection issues
+                    if key.lower() in problematic_params:
+                        logger.warning(f"Skipping problematic connection parameter: {key}={value} (can cause connection timeouts on cloud platforms)")
+                        continue
                     conn_params[key] = value
+            
+            # Set connect_timeout for initial connection establishment (separate from pool timeout)
+            # This helps with connection establishment on cloud platforms like Railway
+            if 'connect_timeout' not in conn_params:
+                # Use a reasonable connect timeout (10 seconds) for initial connection
+                conn_params['connect_timeout'] = 10
             
             # Log connection parameters (without password) for debugging
             log_params = {k: v for k, v in conn_params.items() if k != 'password'}
