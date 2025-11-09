@@ -132,7 +132,48 @@ class Config:
     # Helper methods for Neon connection strings
     @staticmethod
     def is_pooled_connection_string(conn_str: str) -> bool:
-@@ -177,24 +132,6 @@
+        """Check if connection string is a pooled connection (contains -pooler in endpoint)."""
+        if not conn_str:
+            return False
+        return '-pooler' in conn_str
+
+    @staticmethod
+    def get_direct_connection_string(conn_str: str) -> str:
+        """Convert pooled connection string to direct connection string (remove -pooler)."""
+        if not conn_str:
+            return conn_str
+        # Remove -pooler from endpoint
+        if '-pooler' in conn_str:
+            # Replace -pooler with nothing in the endpoint
+            # Pattern matches: ep-xxx-pooler.region.aws.neon.tech -> ep-xxx.region.aws.neon.tech
+            import re
+            conn_str = re.sub(r'(ep-[a-z0-9-]+)-pooler\.', r'\1.', conn_str)
+        return conn_str
+
+    @staticmethod
+    def get_pooled_connection_string(conn_str: str) -> str:
+        """Convert direct connection string to pooled connection string (add -pooler)."""
+        if not conn_str:
+            return conn_str
+        # Add -pooler to endpoint if not already present
+        if '-pooler' not in conn_str and 'neon.tech' in conn_str:
+            import re
+            # Match endpoint pattern: ep-xxx.region.aws.neon.tech -> ep-xxx-pooler.region.aws.neon.tech
+            conn_str = re.sub(r'(ep-[a-z0-9-]+)\.', r'\1-pooler.', conn_str)
+        return conn_str
+
+    # API settings
+    GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+
+    # RAG Pipeline Settings
+    VECTOR_EMBEDDING_MODEL = os.getenv('VECTOR_EMBEDDING_MODEL', 'text-embedding-004')
+    RAG_LLM_MODEL = os.getenv('RAG_LLM_MODEL', 'gemini-2.5-flash')
+    VECTOR_STORE_COLLECTION_PREFIX = os.getenv('VECTOR_STORE_COLLECTION_PREFIX', 'pbix_')
+    MAX_RETRIEVAL_DOCS = int(os.getenv('MAX_RETRIEVAL_DOCS', '5'))
+
+    # Iterative RAG Settings
+    ENABLE_ITERATIVE_RAG = os.getenv('ENABLE_ITERATIVE_RAG', 'true').lower() == 'true'
+    MAX_RAG_ITERATIONS = int(os.getenv('MAX_RAG_ITERATIONS', '4'))
     MAX_FOLLOW_UP_QUERIES_PER_ITERATION = int(os.getenv('MAX_FOLLOW_UP_QUERIES_PER_ITERATION', '3'))
     RAG_CONTEXT_ANALYSIS_THRESHOLD = float(os.getenv('RAG_CONTEXT_ANALYSIS_THRESHOLD', '0.7'))
 
@@ -157,7 +198,12 @@ class Config:
     # Token Encryption Settings
     TOKEN_ENCRYPTION_KEY = os.getenv('TOKEN_ENCRYPTION_KEY')  # Default to SECRET_KEY if not set
     # If not provided, generate a key derived from SECRET_KEY
-@@ -207,15 +144,5 @@
+    if not TOKEN_ENCRYPTION_KEY:
+        import base64
+        import hashlib
+        # Derive a key from the SECRET_KEY
+        hashed_key = hashlib.sha256(SECRET_KEY.encode()).digest()
+        TOKEN_ENCRYPTION_KEY = base64.urlsafe_b64encode(hashed_key).decode()
 
     TOKEN_ENCRYPTION_ALGORITHM = os.getenv('TOKEN_ENCRYPTION_ALGORITHM', 'fernet')
 
