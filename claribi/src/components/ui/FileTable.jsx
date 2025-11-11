@@ -44,6 +44,7 @@ import { deletePowerBISession } from '../../services/powerbiChatService';
 import { useNotification } from '../../contexts/NotificationContext';
 import LoadingSpinner from './LoadingSpinner';
 import ConfirmationDialog from './ConfirmationDialog';
+import { clearChatHistory } from '../../utils/chatHistoryStorage';
 
 const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, actionType = 'chat', onChatClick, onDocsClick }) => {
     const theme = useTheme();
@@ -128,6 +129,16 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, actionType =
         
         try {
             await deletePowerBISession(fileToDelete.collection_name);
+            
+            // Delete all chat histories from localStorage if this is a chat action
+            if (actionType === 'chat') {
+                const fileId = fileToDelete.collection_name || fileToDelete.sessionId;
+                if (fileId) {
+                    // Clear all chats for this file (pass null as chatId to clear all)
+                    clearChatHistory(fileId, null);
+                }
+            }
+            
             showNotification(`File "${fileToDelete.filename}" deleted successfully!`, 'success');
             
             // Call the parent's delete handler to update the files list

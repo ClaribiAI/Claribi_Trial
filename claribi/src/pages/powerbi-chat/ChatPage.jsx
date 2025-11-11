@@ -9,13 +9,24 @@ import {
     useTheme,
     alpha,
     Tooltip,
-    Chip
+    Chip,
+    Menu,
+    MenuItem,
+    ListItemIcon,
+    ListItemText,
+    Tabs,
+    Tab,
+    IconButton
 } from '@mui/material';
 import {
     PaperPlaneRight,
     ArrowLeft,
     Copy,
-    X as XIcon
+    X as XIcon,
+    DotsThreeVertical,
+    ChatCircle,
+    Plus,
+    XCircle
 } from '@phosphor-icons/react';
 import { sendPowerBIQueryWithUpdates, deletePowerBISession, sendUserClarifications } from '../../services/powerbiChatService';
 import MarkdownRenderer from '../../components/ui/MarkdownRenderer';
@@ -24,6 +35,7 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import ChatInput from './ChatInput';
 import ClarificationInput from './ClarificationInput';
 import { useNotification } from '../../contexts/NotificationContext';
+import { loadChatHistory, saveChatHistory, getFileId, clearChatHistory, getChatList, generateChatId, updateChatName } from '../../utils/chatHistoryStorage';
 
 const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseChat, isInline = false }) => {
     const theme = useTheme();
@@ -55,14 +67,94 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
     // Conversation history state for follow-up questions
     const [conversationHistory, setConversationHistory] = useState([]);
     const [initialMessageSent, setInitialMessageSent] = useState(false);
+    const [historyLoaded, setHistoryLoaded] = useState(false);
     const MAX_CONVERSATION_TOKENS = 8000; // Token limit for conversation history
+    
+    // Multiple chat tabs state
+    const [activeChatId, setActiveChatId] = useState(null);
+    const [chatTabs, setChatTabs] = useState([]);
+    const [editingTabId, setEditingTabId] = useState(null);
+    const [editingTabName, setEditingTabName] = useState('');
+    const editingInputRef = useRef(null);
 
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
     const clarificationDialogOpenRef = useRef(false);
+    const [menuAnchorEl, setMenuAnchorEl] = useState(null);
+    const menuOpen = Boolean(menuAnchorEl);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    };
+
+    // Handle menu open/close
+    const handleMenuOpen = (event) => {
+        setMenuAnchorEl(event.currentTarget);
+    };
+
+    const handleMenuClose = () => {
+        setMenuAnchorEl(null);
+    };
+
+    // Handle start new chat - create a new chat tab
+    const handleStartNewChat = () => {
+        const fileId = getFileId(pbixFile);
+        if (!fileId) {
+            handleMenuClose();
+            return;
+        }
+        
+        // Generate new chat ID
+        const newChatId = generateChatId();
+        const newTabNumber = chatTabs.length + 1;
+        const newTabName = `Chat ${newTabNumber}`;
+        const newTab = { id: newChatId, label: newTabName };
+        
+        // Add new tab
+        setChatTabs(prev => [...prev, newTab]);
+        setActiveChatId(newChatId);
+        
+        // Save empty history to ensure chat is in the list (with name)
+        saveChatHistory(fileId, newChatId, []);
+        updateChatName(fileId, newChatId, newTabName);
+        
+        // Clear all state for new chat
+        setMessages([]);
+        setConversationHistory([]);
+        setActionHistory([]);
+        setLastRegularActionId(null);
+        setThinkingProcess({
+            isVisible: false,
+            currentAction: '',
+            followUpQueries: [],
+            isCompleted: false
+        });
+        setClarificationFlow({
+            active: false,
+            questions: [],
+            answers: {},
+            originalQuery: '',
+            currentIndex: 0,
+            clarificationSessionKey: null
+        });
+        setError(null);
+        setHistoryLoaded(true);
+        
+        // Show system welcome message
+        if (pbixFile && !isInline) {
+            const metadata = pbixFile.metadata || {};
+            const systemMessage = {
+                id: Date.now(),
+                type: 'assistant',
+                content: `Great! I've loaded your previously uploaded Power BI file "${pbixFile.name}". I found ${metadata.tables_count || 0} tables, ${metadata.measures_count || 0} measures, ${metadata.visuals_count || 0} visuals, ${metadata.relationships_count || 0} relationships, and ${metadata.power_query_scripts_count || 0} Power Query scripts. I can now provide specific insights about your data model and help with any questions about your dataset.`,
+                timestamp: new Date(),
+                messageType: 'system_welcome'
+            };
+            setMessages([systemMessage]);
+        }
+        
+        handleMenuClose();
+        showNotification('New chat created.', 'success');
     };
 
     // Token estimation utility (rough: ~4 chars per token)
@@ -143,9 +235,205 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
         prevMessageCountRef.current = messages.length;
     }, [messages.length]);
 
-    // Add system message when file is selected (only for newly uploaded files and not inline)
+    // Load chat tabs and initialize active chat when pbixFile changes
     useEffect(() => {
-        if (pbixFile && messages.length === 0 && !isInline) {
+        if (!pbixFile) {
+            setHistoryLoaded(false);
+            setChatTabs([]);
+            setActiveChatId(null);
+            return;
+        }
+
+        const fileId = getFileId(pbixFile);
+        if (!fileId) {
+            console.warn('Cannot load chat history: fileId is missing');
+            setHistoryLoaded(true);
+            return;
+        }
+
+        // Load list of chats for this file
+        const chats = getChatList(fileId);
+        
+        if (chats.length > 0) {
+            // Create tab objects with chat IDs and names
+            const tabs = chats.map((chat, index) => ({
+                id: chat.id,
+                label: chat.name || `Chat ${index + 1}`
+            }));
+            setChatTabs(tabs);
+            
+            // Set the first chat as active
+            const firstChatId = chats[0].id;
+            setActiveChatId(firstChatId);
+            
+            // Load history for the first chat
+            loadChatHistoryForChat(fileId, firstChatId);
+        } else {
+            // No existing chats, create a new one
+            const newChatId = generateChatId();
+            const initialChatName = 'Chat 1';
+            setChatTabs([{ id: newChatId, label: initialChatName }]);
+            setActiveChatId(newChatId);
+            setConversationHistory([]);
+            setMessages([]);
+            // Save empty history to ensure chat is in the list
+            saveChatHistory(fileId, newChatId, []);
+            // Save the chat name
+            updateChatName(fileId, newChatId, initialChatName);
+            setHistoryLoaded(true);
+        }
+    }, [pbixFile]);
+
+    // Load chat history for a specific chat
+    const loadChatHistoryForChat = (fileId, chatId) => {
+        const loadedHistory = loadChatHistory(fileId, chatId);
+        
+        if (loadedHistory && loadedHistory.length > 0) {
+            // Set conversation history state
+            setConversationHistory(loadedHistory);
+            
+            // Convert conversationHistory to messages format for display
+            const displayMessages = loadedHistory.map((item, index) => ({
+                id: Date.now() + index,
+                type: item.role === 'user' ? 'user' : 'assistant',
+                content: item.content,
+                timestamp: item.timestamp || new Date(),
+                messageType: item.role === 'user' ? 'user_query' : 'final_response',
+                ragContextKey: item.ragContextKey || null
+            }));
+            
+            setMessages(displayMessages);
+        } else {
+            // No history found, ensure conversationHistory is initialized to empty array
+            setConversationHistory([]);
+            setMessages([]);
+        }
+        
+        setHistoryLoaded(true);
+    };
+
+    // Handle tab change
+    const handleTabChange = (event, newValue) => {
+        // Don't change tab if we're editing
+        if (editingTabId !== null) return;
+        
+        const fileId = getFileId(pbixFile);
+        if (!fileId) return;
+        
+        const selectedTab = chatTabs[newValue];
+        if (!selectedTab) return;
+        
+        setActiveChatId(selectedTab.id);
+        loadChatHistoryForChat(fileId, selectedTab.id);
+        
+        // Clear UI state when switching tabs
+        setActionHistory([]);
+        setLastRegularActionId(null);
+        setThinkingProcess({
+            isVisible: false,
+            currentAction: '',
+            followUpQueries: [],
+            isCompleted: false
+        });
+        setClarificationFlow({
+            active: false,
+            questions: [],
+            answers: {},
+            originalQuery: '',
+            currentIndex: 0,
+            clarificationSessionKey: null
+        });
+        setError(null);
+    };
+
+    // Handle double-click to start editing tab name
+    const handleTabDoubleClick = (event, tabId) => {
+        event.stopPropagation();
+        const tab = chatTabs.find(t => t.id === tabId);
+        if (tab) {
+            setEditingTabId(tabId);
+            setEditingTabName(tab.label);
+        }
+    };
+
+    // Handle saving edited tab name
+    const handleSaveTabName = (tabId) => {
+        const fileId = getFileId(pbixFile);
+        if (!fileId || !tabId) return;
+        
+        // Blur the input field first to remove focus
+        if (editingInputRef.current) {
+            editingInputRef.current.blur();
+        }
+        
+        const trimmedName = editingTabName.trim();
+        if (trimmedName) {
+            // Update in localStorage
+            updateChatName(fileId, tabId, trimmedName);
+            
+            // Update in state
+            setChatTabs(prev => prev.map(tab => 
+                tab.id === tabId ? { ...tab, label: trimmedName } : tab
+            ));
+        }
+        
+        setEditingTabId(null);
+        setEditingTabName('');
+        
+        // Remove focus from the tab by blurring any active element
+        setTimeout(() => {
+            if (document.activeElement) {
+                document.activeElement.blur();
+            }
+        }, 0);
+    };
+
+    // Handle canceling edit
+    const handleCancelEdit = () => {
+        // Blur the input field first
+        if (editingInputRef.current) {
+            editingInputRef.current.blur();
+        }
+        setEditingTabId(null);
+        setEditingTabName('');
+    };
+
+    // Handle delete chat tab
+    const handleDeleteChat = (event, tabId) => {
+        event.stopPropagation();
+        
+        const fileId = getFileId(pbixFile);
+        if (!fileId || !tabId) return;
+        
+        // Don't allow deleting if it's the only chat
+        if (chatTabs.length <= 1) {
+            showNotification('Cannot delete the last chat. Create a new chat first.', 'warning');
+            return;
+        }
+        
+        // Clear chat history from localStorage
+        clearChatHistory(fileId, tabId);
+        
+        // Remove tab from state
+        const updatedTabs = chatTabs.filter(tab => tab.id !== tabId);
+        setChatTabs(updatedTabs);
+        
+        // If deleted tab was active, switch to another tab
+        if (activeChatId === tabId) {
+            const newActiveTab = updatedTabs[0];
+            if (newActiveTab) {
+                setActiveChatId(newActiveTab.id);
+                loadChatHistoryForChat(fileId, newActiveTab.id);
+            }
+        }
+        
+        showNotification('Chat deleted successfully.', 'success');
+    };
+
+    // Add system message when file is selected (only for newly uploaded files and not inline)
+    // Only add if history wasn't loaded (to avoid overwriting existing conversation)
+    useEffect(() => {
+        if (pbixFile && historyLoaded && messages.length === 0 && !isInline) {
             if (isNewlyUploaded) {
                 const metadata = pbixFile.metadata || {};
                 const systemMessage = {
@@ -168,7 +456,7 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
                 setMessages([systemMessage]);
             }
         }
-    }, [pbixFile, isNewlyUploaded, isInline]);
+    }, [pbixFile, isNewlyUploaded, isInline, historyLoaded, messages.length]);
 
     // Cleanup: Delete session when component unmounts
     // Note: We don't delete sessions when unmounting to prevent accidental deletion
@@ -209,8 +497,16 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
             timestamp: new Date()
         }];
         
-        // Summarize conversation history if needed
+        // Summarize conversation history if needed (for backend)
         const summarizedHistory = summarizeConversationHistory(newConversationHistory);
+        
+        // Save the full history (with user message) to localStorage immediately
+        const fileId = getFileId(pbixFile);
+        if (fileId && activeChatId) {
+            saveChatHistory(fileId, activeChatId, newConversationHistory);
+        }
+        
+        // Update state with summarized history (for backend context)
         setConversationHistory(summarizedHistory);
         
         console.log('Conversation history being sent:', summarizedHistory);
@@ -349,13 +645,30 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
                 };
                 setMessages(prev => [...prev, assistantMessage]);
                 
-                // Add assistant response to conversation history with RAG context key
-                setConversationHistory(prev => [...prev, {
+                // Load full history from localStorage to add assistant response
+                const fileId = getFileId(pbixFile);
+                let fullHistory = [];
+                if (fileId && activeChatId) {
+                    const loadedFullHistory = loadChatHistory(fileId, activeChatId);
+                    fullHistory = loadedFullHistory || [];
+                }
+                
+                // Add assistant response to full conversation history with RAG context key
+                const updatedHistory = [...fullHistory, {
                     role: 'assistant',
                     content: response.answer,
                     ragContextKey: response.rag_context_key || null,
                     timestamp: new Date()
-                }]);
+                }];
+                
+                // Save full history to localStorage
+                if (fileId && activeChatId) {
+                    saveChatHistory(fileId, activeChatId, updatedHistory);
+                }
+                
+                // Update state with summarized version for next backend call
+                const summarizedForState = summarizeConversationHistory(updatedHistory);
+                setConversationHistory(summarizedForState);
                 
                 setThinkingProcess(prev => ({ ...prev, isCompleted: true }));
             } else {
@@ -472,6 +785,30 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
                 messageType: 'final_response'
             };
             setMessages(prev => [...prev, assistantMessage]);
+            
+            // Load full history from localStorage to add assistant response
+            const fileId = getFileId(pbixFile);
+            let fullHistory = [];
+            if (fileId && activeChatId) {
+                const loadedFullHistory = loadChatHistory(fileId, activeChatId);
+                fullHistory = loadedFullHistory || [];
+            }
+            
+            // Add assistant response to full conversation history
+            const updatedHistory = [...fullHistory, {
+                role: 'assistant',
+                content: response.answer || 'I apologize, but I couldn\'t generate a response. Please try rephrasing your question.',
+                timestamp: new Date()
+            }];
+            
+            // Save full history to localStorage
+            if (fileId && activeChatId) {
+                saveChatHistory(fileId, activeChatId, updatedHistory);
+            }
+            
+            // Update state with summarized version for next backend call
+            const summarizedForState = summarizeConversationHistory(updatedHistory);
+            setConversationHistory(summarizedForState);
             
             // Mark thinking process as completed after adding the final response
             setThinkingProcess(prev => ({
@@ -730,6 +1067,60 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
                         </Typography>
                     )}
 
+                    {/* Menu Button - 3 dots */}
+                    <Tooltip title="More options">
+                        <Button
+                            onClick={handleMenuOpen}
+                            sx={{
+                                minWidth: 'auto',
+                                width: 40,
+                                height: 40,
+                                borderRadius: 2,
+                                bgcolor: 'transparent',
+                                color: theme.palette.text.secondary,
+                                p: 0,
+                                '&:hover': {
+                                    bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                    color: theme.palette.primary.main,
+                                    transform: 'scale(1.05)'
+                                },
+                                transition: 'all 0.2s ease'
+                            }}
+                        >
+                            <DotsThreeVertical size={20} />
+                        </Button>
+                    </Tooltip>
+
+                    {/* Menu */}
+                    <Menu
+                        anchorEl={menuAnchorEl}
+                        open={menuOpen}
+                        onClose={handleMenuClose}
+                        anchorOrigin={{
+                            vertical: 'bottom',
+                            horizontal: 'right',
+                        }}
+                        transformOrigin={{
+                            vertical: 'top',
+                            horizontal: 'right',
+                        }}
+                        PaperProps={{
+                            sx: {
+                                mt: 1,
+                                minWidth: 200,
+                                borderRadius: 2,
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                            }
+                        }}
+                    >
+                        <MenuItem onClick={handleStartNewChat}>
+                            <ListItemIcon>
+                                <ChatCircle size={20} />
+                            </ListItemIcon>
+                            <ListItemText>Start New Chat</ListItemText>
+                        </MenuItem>
+                    </Menu>
+
                     {/* Close Button - only show when used inline */}
                     {onCloseChat && (
                         <Tooltip title="Close chat">
@@ -756,6 +1147,169 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
                         </Tooltip>
                     )}
                 </Box>
+                
+                {/* Chat Tabs - show below file name only if there are multiple chats */}
+                {chatTabs.length > 1 && (
+                    <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Tabs
+                            value={chatTabs.findIndex(tab => tab.id === activeChatId)}
+                            onChange={handleTabChange}
+                            variant="scrollable"
+                            scrollButtons="auto"
+                            sx={{
+                                flexGrow: 1,
+                                minHeight: 40,
+                                '& .MuiTab-root': {
+                                    minHeight: 40,
+                                    textTransform: 'none',
+                                    fontSize: '0.875rem',
+                                    fontWeight: 500,
+                                    color: theme.palette.text.secondary,
+                                    '&.Mui-selected': {
+                                        color: theme.palette.primary.main,
+                                        fontWeight: 600
+                                    }
+                                },
+                                '& .MuiTabs-indicator': {
+                                    backgroundColor: theme.palette.primary.main
+                                }
+                            }}
+                        >
+                            {chatTabs.map((tab, index) => (
+                                <Tab
+                                    key={tab.id}
+                                    label={
+                                        editingTabId === tab.id ? (
+                                            <TextField
+                                                inputRef={editingInputRef}
+                                                value={editingTabName}
+                                                onChange={(e) => setEditingTabName(e.target.value)}
+                                                onBlur={() => handleSaveTabName(tab.id)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        handleSaveTabName(tab.id);
+                                                    } else if (e.key === 'Escape') {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        handleCancelEdit();
+                                                    }
+                                                }}
+                                                onClick={(e) => e.stopPropagation()}
+                                                onFocus={(e) => e.stopPropagation()}
+                                                onMouseDown={(e) => e.stopPropagation()}
+                                                autoFocus
+                                                size="small"
+                                                variant="outlined"
+                                                sx={{
+                                                    minWidth: 80,
+                                                    '& .MuiInputBase-input': {
+                                                        py: 0.5,
+                                                        px: 1,
+                                                        fontSize: '0.875rem',
+                                                        fontWeight: tab.id === activeChatId ? 600 : 500,
+                                                        color: tab.id === activeChatId ? theme.palette.primary.main : theme.palette.text.secondary
+                                                    },
+                                                    '& .MuiOutlinedInput-root': {
+                                                        '& fieldset': {
+                                                            borderColor: theme.palette.primary.main
+                                                        },
+                                                        '&:hover fieldset': {
+                                                            borderColor: theme.palette.primary.main
+                                                        },
+                                                        '&.Mui-focused fieldset': {
+                                                            borderColor: theme.palette.primary.main
+                                                        }
+                                                    }
+                                                }}
+                                            />
+                                        ) : (
+                                            <Box
+                                                onDoubleClick={(e) => handleTabDoubleClick(e, tab.id)}
+                                                sx={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: 0.5,
+                                                    cursor: 'pointer',
+                                                    userSelect: 'none',
+                                                    px: 1
+                                                }}
+                                            >
+                                                <span>{tab.label}</span>
+                                                {chatTabs.length > 1 && (
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={(e) => handleDeleteChat(e, tab.id)}
+                                                        onMouseDown={(e) => e.stopPropagation()}
+                                                        sx={{
+                                                            width: 18,
+                                                            height: 18,
+                                                            minWidth: 18,
+                                                            padding: 0,
+                                                            color: theme.palette.text.secondary,
+                                                            opacity: 0.6,
+                                                            '&:hover': {
+                                                                opacity: 1,
+                                                                color: theme.palette.error.main,
+                                                                bgcolor: alpha(theme.palette.error.main, 0.1)
+                                                            },
+                                                            transition: 'all 0.2s ease'
+                                                        }}
+                                                    >
+                                                        <XCircle size={14} weight="fill" />
+                                                    </IconButton>
+                                                )}
+                                            </Box>
+                                        )
+                                    }
+                                    onFocus={(e) => {
+                                        // Prevent tab from getting focus after editing
+                                        if (editingTabId === null) {
+                                            e.target.blur();
+                                        }
+                                    }}
+                                    sx={{
+                                        '&:focus': {
+                                            outline: 'none',
+                                            bgcolor: 'transparent'
+                                        },
+                                        '&.Mui-focusVisible': {
+                                            outline: 'none',
+                                            bgcolor: 'transparent'
+                                        },
+                                        '&.Mui-selected': {
+                                            bgcolor: 'transparent'
+                                        }
+                                    }}
+                                />
+                            ))}
+                        </Tabs>
+                        
+                        {/* Plus button to create new chat */}
+                        <Tooltip title="New chat">
+                            <IconButton
+                                onClick={handleStartNewChat}
+                                size="small"
+                                sx={{
+                                    width: 32,
+                                    height: 32,
+                                    borderRadius: 1.5,
+                                    bgcolor: 'transparent',
+                                    color: theme.palette.text.secondary,
+                                    '&:hover': {
+                                        bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                        color: theme.palette.primary.main,
+                                        transform: 'scale(1.05)'
+                                    },
+                                    transition: 'all 0.2s ease'
+                                }}
+                            >
+                                <Plus size={18} />
+                            </IconButton>
+                        </Tooltip>
+                    </Box>
+                )}
             </Box>
             
             {/* Chat Messages Area */}
