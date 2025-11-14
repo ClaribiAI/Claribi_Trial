@@ -45,6 +45,7 @@ class MetadataQuery:
         JOIN ColumnPartitionStorage cps ON cps.ColumnStorageID = cs.ID
         JOIN StorageFile sfi ON sfi.ID = cps.StorageFileID
         WHERE c.Type IN (1,2)
+            AND (t.SystemFlags = 0 OR t.SystemFlags IS NULL)
         ORDER BY t.Name, cs.StoragePosition
         """
         return self.handler.execute_query(sql)
@@ -56,7 +57,8 @@ class MetadataQuery:
             p.QueryDefinition AS 'Expression'
         FROM partition p 
         JOIN [Table] t ON t.ID = p.TableID 
-        WHERE p.Type = 4;
+        WHERE p.Type = 4
+            AND (t.SystemFlags = 0 OR t.SystemFlags IS NULL);
         """
         return self.handler.execute_query(sql)
     
@@ -78,7 +80,8 @@ class MetadataQuery:
             p.QueryDefinition AS 'Expression'
         FROM partition p 
         JOIN [Table] t ON t.ID = p.TableID 
-        WHERE p.Type = 2;
+        WHERE p.Type = 2
+            AND (t.SystemFlags = 0 OR t.SystemFlags IS NULL);
         """
         return self.handler.execute_query(sql)
 
@@ -91,7 +94,8 @@ class MetadataQuery:
             m.DisplayFolder,
             m.Description
         FROM Measure m 
-        JOIN [Table] t ON m.TableID = t.ID;
+        JOIN [Table] t ON m.TableID = t.ID
+        WHERE (t.SystemFlags = 0 OR t.SystemFlags IS NULL);
         """
         return self.handler.execute_query(sql)
     
@@ -103,7 +107,8 @@ class MetadataQuery:
             c.Expression
         FROM Column c 
         JOIN [Table] t ON c.TableID = t.ID
-        WHERE c.Type = 2;
+        WHERE c.Type = 2
+            AND (t.SystemFlags = 0 OR t.SystemFlags IS NULL);
         """
         return self.handler.execute_query(sql)
 
@@ -142,12 +147,18 @@ class MetadataQuery:
         FROM Relationship rel
             LEFT JOIN [Table] ft ON rel.FromTableID = ft.id
             LEFT JOIN [Column] fc ON rel.FromColumnID = fc.id
-            LEFT JOIN [Table] tt ON rel.ToTableID = tt.id AND tt.systemflags = 0
+            LEFT JOIN [Table] tt ON rel.ToTableID = tt.id
             LEFT JOIN [Column] tc ON rel.ToColumnID = tc.id
             LEFT JOIN RelationshipStorage rs ON rs.id = rel.RelationshipStorageID
             LEFT JOIN RelationshipIndexStorage rid ON rs.RelationshipIndexStorageID = rid.id
             LEFT JOIN RelationshipStorage rs2 ON rs2.id = rel.RelationshipStorage2ID
             LEFT JOIN RelationshipIndexStorage rid2 ON rs2.RelationshipIndexStorageID = rid2.id
+        WHERE NOT (
+            -- Exclude time intelligence marker relationships: 
+            -- relationships to date/calendar tables (SystemFlags = 2) where to_column ExplicitName is NULL
+            tt.SystemFlags = 2
+            AND tc.ExplicitName IS NULL
+        )
         """
         return self.handler.execute_query(sql)
     

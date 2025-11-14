@@ -406,7 +406,7 @@ const StatsCard = () => {
                                 display: 'block'
                             }}
                         >
-                            Note: Chat queries are not broken down by file in the current system.
+                    
                         </Typography>
                     </Box>
                 ) : selectedStatType === 'hours' ? (

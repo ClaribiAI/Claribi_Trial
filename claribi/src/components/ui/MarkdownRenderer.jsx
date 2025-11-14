@@ -214,20 +214,45 @@ const MarkdownRenderer = memo(({ content, sx = {} }) => {
         ol: (props) => <Box component="ol" sx={{ pl: 3, my: 1.5 }} {...props} />,
         li: (props) => <Typography component="li" variant="body1" sx={{ mb: 0.5 }} {...props} />,
         
-        // Table components
+        // Table components - wrap in scrollable container
         table: (props) => (
-            <Box 
-                component="table" 
-                sx={{ 
-                    width: '100%', 
-                    borderCollapse: 'collapse', 
+            <Box
+                sx={{
+                    width: '100%',
+                    overflowX: 'auto',
+                    overflowY: 'visible',
                     margin: '16px 0',
-                    border: `1px solid ${theme.palette.divider}`,
-                    borderRadius: '8px',
-                    overflow: 'hidden'
-                }} 
-                {...props} 
-            />
+                    '&::-webkit-scrollbar': {
+                        height: '8px',
+                    },
+                    '&::-webkit-scrollbar-track': {
+                        background: theme.palette.mode === 'dark' ? '#2d2d2d' : '#f5f5f5',
+                        borderRadius: '4px',
+                    },
+                    '&::-webkit-scrollbar-thumb': {
+                        background: theme.palette.mode === 'dark' ? '#555' : '#ccc',
+                        borderRadius: '4px',
+                        '&:hover': {
+                            background: theme.palette.mode === 'dark' ? '#666' : '#aaa',
+                        },
+                    },
+                }}
+            >
+                <Box 
+                    component="table" 
+                    sx={{ 
+                        width: 'auto',
+                        minWidth: '100%',
+                        tableLayout: 'auto',
+                        borderCollapse: 'collapse', 
+                        border: `1px solid ${theme.palette.divider}`,
+                        borderRadius: '8px',
+                        overflow: 'hidden',
+                        display: 'table'
+                    }} 
+                    {...props} 
+                />
+            </Box>
         ),
         thead: (props) => (
             <Box 
@@ -261,6 +286,7 @@ const MarkdownRenderer = memo(({ content, sx = {} }) => {
                     fontSize: '0.875rem',
                     color: theme.palette.text.primary,
                     borderRight: `1px solid ${theme.palette.divider}`,
+                    whiteSpace: 'nowrap',
                     '&:last-child': {
                         borderRight: 'none'
                     }
@@ -299,20 +325,9 @@ const MarkdownRenderer = memo(({ content, sx = {} }) => {
                             fontSize: '0.875rem',
                             color: theme.palette.text.primary,
                             borderRight: `1px solid ${theme.palette.divider}`,
+                            whiteSpace: 'nowrap',
                             '&:last-child': {
                                 borderRight: 'none'
-                            },
-                            '& p': {
-                                margin: 0
-                            },
-                            '& pre': {
-                                margin: '8px 0',
-                                '& code': {
-                                    padding: '8px 12px',
-                                    borderRadius: '4px',
-                                    fontSize: '0.8rem',
-                                    lineHeight: '1.4'
-                                }
                             }
                         }} 
                         {...props}
@@ -340,6 +355,7 @@ const MarkdownRenderer = memo(({ content, sx = {} }) => {
                             fontSize: '0.875rem',
                             color: theme.palette.text.primary,
                             borderRight: `1px solid ${theme.palette.divider}`,
+                            whiteSpace: 'nowrap',
                             '&:last-child': {
                                 borderRight: 'none'
                             },
@@ -348,11 +364,14 @@ const MarkdownRenderer = memo(({ content, sx = {} }) => {
                             },
                             '& pre': {
                                 margin: '8px 0',
+                                overflow: 'auto',
                                 '& code': {
                                     padding: '8px 12px',
                                     borderRadius: '4px',
                                     fontSize: '0.8rem',
-                                    lineHeight: '1.4'
+                                    lineHeight: '1.4',
+                                    whiteSpace: 'pre',
+                                    display: 'block'
                                 }
                             }
                         }} 
@@ -376,19 +395,26 @@ const MarkdownRenderer = memo(({ content, sx = {} }) => {
                         fontSize: '0.875rem',
                         color: theme.palette.text.primary,
                         borderRight: `1px solid ${theme.palette.divider}`,
+                        wordBreak: 'break-word',
+                        overflowWrap: 'break-word',
                         '&:last-child': {
                             borderRight: 'none'
                         },
                         '& p': {
-                            margin: 0
+                            margin: 0,
+                            wordBreak: 'break-word',
+                            overflowWrap: 'break-word'
                         },
                         '& pre': {
                             margin: '8px 0',
+                            overflow: 'auto',
                             '& code': {
                                 padding: '8px 12px',
                                 borderRadius: '4px',
                                 fontSize: '0.8rem',
-                                lineHeight: '1.4'
+                                lineHeight: '1.4',
+                                whiteSpace: 'pre',
+                                display: 'block'
                             }
                         }
                     }} 

@@ -280,7 +280,14 @@ const DocumentationSection = memo(({
                                         border: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
                                         borderRadius: 2,
                                         position: 'relative',
-                                        overflow: 'visible'
+                                        overflow: 'hidden',
+                                        '& .markdown-content': {
+                                            overflow: 'hidden',
+                                            '& table': {
+                                                maxWidth: '100%',
+                                                width: '100%'
+                                            }
+                                        }
                                     }}
                                 >
                                     {/* Editing functionality commented out */}
