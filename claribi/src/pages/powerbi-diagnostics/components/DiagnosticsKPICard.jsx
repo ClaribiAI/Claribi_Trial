@@ -15,7 +15,7 @@ import {
     XCircleIcon
 } from '@phosphor-icons/react';
 
-const DiagnosticsKPICard = ({ title, value, description, severity = 'info', icon: IconComponent }) => {
+const DiagnosticsKPICard = ({ title, value, description, severity = 'info', icon: IconComponent, onClick }) => {
     const theme = useTheme();
     
     const getSeverityConfig = (severity) => {
@@ -68,6 +68,7 @@ const DiagnosticsKPICard = ({ title, value, description, severity = 'info', icon
     return (
         <Tooltip title={description || title} arrow placement="top">
             <Card
+                onClick={onClick}
                 sx={{
                     borderRadius: 3,
                     border: `1px solid ${alpha(theme.palette.divider, 0.12)}`,
@@ -76,6 +77,7 @@ const DiagnosticsKPICard = ({ title, value, description, severity = 'info', icon
                     transition: 'all 0.2s ease-in-out',
                     position: 'relative',
                     overflow: 'hidden',
+                    cursor: onClick ? 'pointer' : 'default',
                     '&::before': {
                         content: '""',
                         position: 'absolute',
@@ -87,9 +89,9 @@ const DiagnosticsKPICard = ({ title, value, description, severity = 'info', icon
                         opacity: 0.6
                     },
                     '&:hover': {
-                        transform: 'translateY(-2px)',
-                        boxShadow: theme.shadows[4],
-                        borderColor: config.borderColor
+                        transform: onClick ? 'translateY(-2px)' : 'none',
+                        boxShadow: onClick ? theme.shadows[4] : theme.shadows[2],
+                        borderColor: onClick ? config.borderColor : alpha(theme.palette.divider, 0.12)
                     },
                     height: '100%',
                     display: 'flex',

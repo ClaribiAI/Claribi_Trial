@@ -28,6 +28,15 @@ export const getDiagnosticsKPIs = async (collectionName) => {
     }
 };
 
+export const getDiagnosticsKPIDetails = async (collectionName, kpiType) => {
+    try {
+        const response = await api.get(`/api/powerbi-docs/get-diagnostics-kpi-details/${collectionName}/${kpiType}`);
+        return response.data;
+    } catch (error) {
+        throw error.response?.data || error;
+    }
+};
+
 export const getGeneratedDocs = async (collectionName) => {
     try {
         const response = await api.get(`/api/powerbi-docs/get-generated-docs/${collectionName}`);

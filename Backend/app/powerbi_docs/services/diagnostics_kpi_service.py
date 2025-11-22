@@ -51,14 +51,21 @@ class DiagnosticsKPIService:
                 all_measures
             )
             
-            # Find tables without relationships
-            tables_without_relationships = DiagnosticsKPIService._find_tables_without_relationships(
-                tables,
-                relationships
-            )
-            
             # Find inactive relationships
             inactive_relationships = DiagnosticsKPIService._find_inactive_relationships(relationships)
+            
+            # Find large tables
+            large_tables = DiagnosticsKPIService._find_large_tables(tables)
+            
+            # Find complex measures
+            complex_measures = DiagnosticsKPIService._find_complex_measures(all_measures)
+            
+            # Find crowded pages
+            pages = visuals_summary.get('pages', [])
+            crowded_pages = DiagnosticsKPIService._find_crowded_pages(pages)
+            
+            # Find many-to-many relationships
+            many_to_many_relationships = DiagnosticsKPIService._find_many_to_many_relationships(relationships)
             
             # Calculate totals
             total_measures = len(all_measures)
@@ -81,13 +88,25 @@ class DiagnosticsKPIService:
                 'total_visuals': total_visuals,
                 'total_tables': total_tables,
                 'total_relationships': total_relationships,
-                'tables_without_relationships': {
-                    'count': len(tables_without_relationships),
-                    'items': tables_without_relationships
-                },
                 'inactive_relationships': {
                     'count': len(inactive_relationships),
                     'items': inactive_relationships
+                },
+                'large_tables': {
+                    'count': len(large_tables),
+                    'items': large_tables
+                },
+                'complex_measures': {
+                    'count': len(complex_measures),
+                    'items': complex_measures
+                },
+                'crowded_pages': {
+                    'count': len(crowded_pages),
+                    'items': crowded_pages
+                },
+                'many_to_many_relationships': {
+                    'count': len(many_to_many_relationships),
+                    'items': many_to_many_relationships
                 }
             }
             
@@ -302,34 +321,6 @@ class DiagnosticsKPIService:
         return False
     
     @staticmethod
-    def _find_tables_without_relationships(
-        tables: List[Dict[str, Any]],
-        relationships: List[Dict[str, Any]]
-    ) -> List[str]:
-        """Find tables that have no relationships to other tables."""
-        if not relationships:
-            return [table.get('name', '') for table in tables if table.get('name')]
-        
-        # Get all tables involved in relationships
-        tables_in_relationships = set()
-        for rel in relationships:
-            from_table = rel.get('from_table', '')
-            to_table = rel.get('to_table', '')
-            if from_table:
-                tables_in_relationships.add(from_table)
-            if to_table:
-                tables_in_relationships.add(to_table)
-        
-        # Find tables not in any relationship
-        tables_without_relationships = []
-        for table in tables:
-            table_name = table.get('name', '')
-            if table_name and table_name not in tables_in_relationships:
-                tables_without_relationships.append(table_name)
-        
-        return tables_without_relationships
-    
-    @staticmethod
     def _find_inactive_relationships(relationships: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Find relationships that are marked as inactive."""
         inactive = []
@@ -343,6 +334,87 @@ class DiagnosticsKPIService:
                     'to_column': rel.get('to_column', '')
                 })
         return inactive
+    
+    @staticmethod
+    def _find_large_tables(tables: List[Dict[str, Any]], threshold: int = 50) -> List[Dict[str, Any]]:
+        """Find tables with more than the threshold number of columns."""
+        large_tables = []
+        for table in tables:
+            table_name = table.get('name', '')
+            columns = table.get('columns', [])
+            column_count = len(columns)
+            
+            if column_count > threshold:
+                large_tables.append({
+                    'name': table_name,
+                    'column_count': column_count
+                })
+        return large_tables
+    
+    @staticmethod
+    def _find_complex_measures(all_measures: List[Dict[str, Any]], threshold: int = 1000) -> List[Dict[str, Any]]:
+        """Find measures with expressions longer than the threshold (length check only)."""
+        complex_measures = []
+        for measure in all_measures:
+            expression = measure.get('expression', '')
+            expression_length = len(expression) if expression else 0
+            
+            if expression_length > threshold:
+                complex_measures.append({
+                    'name': measure.get('name', ''),
+                    'table': measure.get('table', ''),
+                    'full_name': measure.get('full_name', ''),
+                    'expression_length': expression_length
+                })
+        return complex_measures
+    
+    @staticmethod
+    def _find_crowded_pages(pages: List[Dict[str, Any]], threshold: int = 10) -> List[Dict[str, Any]]:
+        """Find pages with more than the threshold number of visuals."""
+        crowded_pages = []
+        for page in pages:
+            page_name = page.get('name', 'Unknown')
+            visual_count = page.get('visual_count', 0)
+            
+            if visual_count > threshold:
+                crowded_pages.append({
+                    'name': page_name,
+                    'visual_count': visual_count
+                })
+        return crowded_pages
+    
+    @staticmethod
+    def _find_many_to_many_relationships(relationships: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Find relationships with many-to-many cardinality."""
+        many_to_many = []
+        for rel in relationships:
+            # Check for combined cardinality field (format: "M:M" or "Many-to-Many")
+            cardinality = rel.get('cardinality', '').lower()
+            from_cardinality = rel.get('from_cardinality', '').lower()
+            to_cardinality = rel.get('to_cardinality', '').lower()
+            
+            # Check if it's many-to-many
+            is_many_to_many = False
+            
+            # Check combined cardinality field
+            if cardinality:
+                if cardinality == 'm:m' or 'many' in cardinality and cardinality.count('many') == 2:
+                    is_many_to_many = True
+            
+            # Check separate cardinality fields
+            if not is_many_to_many and from_cardinality and to_cardinality:
+                if (from_cardinality == 'm' or from_cardinality == 'many') and (to_cardinality == 'm' or to_cardinality == 'many'):
+                    is_many_to_many = True
+            
+            if is_many_to_many:
+                many_to_many.append({
+                    'from_table': rel.get('from_table', ''),
+                    'from_column': rel.get('from_column', ''),
+                    'to_table': rel.get('to_table', ''),
+                    'to_column': rel.get('to_column', ''),
+                    'cardinality': rel.get('cardinality', f"{rel.get('from_cardinality', '')}:{rel.get('to_cardinality', '')}")
+                })
+        return many_to_many
 
 
 # Create singleton instance

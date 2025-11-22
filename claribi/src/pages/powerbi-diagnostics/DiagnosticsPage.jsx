@@ -24,11 +24,15 @@ import {
     Calculator,
     Columns,
     Table,
-    LinkBreak
+    LinkBreak,
+    Stack,
+    ChartBar,
+    LinkSimple
 } from '@phosphor-icons/react';
-import { analyzePowerBISection, parseImprovementRecommendations, getGeneratedDocs, getDiagnosticsKPIs } from '../../services/powerbiDocsService';
+import { analyzePowerBISection, parseImprovementRecommendations, getGeneratedDocs, getDiagnosticsKPIs, getDiagnosticsKPIDetails } from '../../services/powerbiDocsService';
 import RecommendationCard from '../powerbi-docs/components/RecommendationCard';
 import DiagnosticsKPICard from './components/DiagnosticsKPICard';
+import KPIDetailsDialog from './components/KPIDetailsDialog';
 import ChatPage from '../powerbi-chat/ChatPage';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 
@@ -47,6 +51,17 @@ const DiagnosticsPage = ({
     const [initialLoadComplete, setInitialLoadComplete] = useState(false);
     const [kpis, setKpis] = useState(null);
     const [kpisLoading, setKpisLoading] = useState(false);
+    
+    // KPI Details Dialog state
+    const [kpiDetailsOpen, setKpiDetailsOpen] = useState(false);
+    const [selectedKpiType, setSelectedKpiType] = useState(null);
+    const [kpiDetails, setKpiDetails] = useState([]);
+    const [kpiDetailsLoading, setKpiDetailsLoading] = useState(false);
+    const [kpiDetailsError, setKpiDetailsError] = useState(null);
+    
+    // Cache for KPI details - keyed by KPI type
+    const [kpiDetailsCache, setKpiDetailsCache] = useState(new Map());
+    const [kpiDetailsCacheLoading, setKpiDetailsCacheLoading] = useState(false);
     
     // Chat interface state
     const [showChat, setShowChat] = useState(false);
@@ -84,6 +99,35 @@ const DiagnosticsPage = ({
     const handleCloseChat = () => {
         setShowChat(false);
         setChatInitialMessage('');
+    };
+
+    const handleKPIClick = useCallback((kpiType, title) => {
+        if (!selectedFile?.collection_name) {
+            return;
+        }
+
+        setSelectedKpiType(kpiType);
+        setKpiDetailsOpen(true);
+        setKpiDetailsError(null);
+        
+        // Check if we have cached data for this KPI type
+        const cachedDetails = kpiDetailsCache.get(kpiType);
+        if (cachedDetails !== undefined) {
+            // Use cached data - no loading needed
+            setKpiDetails(cachedDetails);
+            setKpiDetailsLoading(false);
+        } else {
+            // Data not yet cached or cache is still loading - show loading
+            setKpiDetailsLoading(true);
+            setKpiDetails([]);
+        }
+    }, [selectedFile, kpiDetailsCache]);
+
+    const handleCloseKPIDetails = () => {
+        setKpiDetailsOpen(false);
+        setSelectedKpiType(null);
+        // Don't clear kpiDetails - keep it for when dialog reopens
+        setKpiDetailsError(null);
     };
 
     // Drag functionality for resizing chat window
@@ -194,6 +238,72 @@ const DiagnosticsPage = ({
 
         loadKPIs();
     }, [selectedFile?.collection_name]);
+
+    // Load all KPI details on initial mount when selectedFile changes
+    useEffect(() => {
+        const loadAllKPIDetails = async () => {
+            if (!selectedFile?.collection_name) {
+                setKpiDetailsCache(new Map());
+                return;
+            }
+
+            setKpiDetailsCacheLoading(true);
+            
+            // Define all KPI types
+            const kpiTypes = [
+                'unused_measures',
+                'unused_columns',
+                'inactive_relationships',
+                'large_tables',
+                'complex_measures',
+                'crowded_pages',
+                'many_to_many_relationships'
+            ];
+
+            try {
+                // Fetch all KPI details in parallel
+                const detailPromises = kpiTypes.map(async (kpiType) => {
+                    try {
+                        const response = await getDiagnosticsKPIDetails(selectedFile.collection_name, kpiType);
+                        return { kpiType, details: response.details || [] };
+                    } catch (err) {
+                        console.error(`Error loading KPI details for ${kpiType}:`, err);
+                        // Return empty array for failed requests
+                        return { kpiType, details: [] };
+                    }
+                });
+
+                const results = await Promise.all(detailPromises);
+                
+                // Build cache map from results
+                const newCache = new Map();
+                results.forEach(({ kpiType, details }) => {
+                    newCache.set(kpiType, details);
+                });
+                
+                setKpiDetailsCache(newCache);
+            } catch (err) {
+                console.error('Error loading KPI details cache:', err);
+                // Set empty cache on error
+                setKpiDetailsCache(new Map());
+            } finally {
+                setKpiDetailsCacheLoading(false);
+            }
+        };
+
+        loadAllKPIDetails();
+    }, [selectedFile?.collection_name]);
+
+    // When cache finishes loading and dialog is open, populate it with cached data
+    useEffect(() => {
+        if (!kpiDetailsCacheLoading && kpiDetailsOpen && selectedKpiType) {
+            const cachedDetails = kpiDetailsCache.get(selectedKpiType);
+            if (cachedDetails !== undefined) {
+                setKpiDetails(cachedDetails);
+                setKpiDetailsLoading(false);
+            }
+        }
+    }, [kpiDetailsCacheLoading, kpiDetailsOpen, selectedKpiType, kpiDetailsCache]);
 
     // Load existing generated recommendations when selectedFile changes
     useEffect(() => {
@@ -337,6 +447,7 @@ const DiagnosticsPage = ({
                                         description={`${kpis.unused_measures?.count || 0} out of ${kpis.total_measures || 0} measures are not used in any visuals or referenced by other measures`}
                                         severity={kpis.unused_measures?.count > 0 ? 'error' : 'success'}
                                         icon={Calculator}
+                                        onClick={kpis.unused_measures?.count > 0 ? () => handleKPIClick('unused_measures', 'Unused Measures') : undefined}
                                     />
                                 </Grid>
                                 <Grid item xs={12} sm={6} md={4} lg={3}>
@@ -351,15 +462,7 @@ const DiagnosticsPage = ({
                                         description={`${kpis.unused_columns?.count || 0} out of ${kpis.total_columns || 0} columns are not used in any visuals or measure expressions`}
                                         severity={kpis.unused_columns?.count > 0 ? 'error' : 'success'}
                                         icon={Columns}
-                                    />
-                                </Grid>
-                                <Grid item xs={12} sm={6} md={4} lg={3}>
-                                    <DiagnosticsKPICard
-                                        title="Isolated Tables"
-                                        value={kpis.tables_without_relationships?.count || 0}
-                                        description={`${kpis.tables_without_relationships?.count || 0} tables have no relationships to other tables`}
-                                        severity={kpis.tables_without_relationships?.count > 0 ? 'warning' : 'success'}
-                                        icon={Table}
+                                        onClick={kpis.unused_columns?.count > 0 ? () => handleKPIClick('unused_columns', 'Unused Columns') : undefined}
                                     />
                                 </Grid>
                                 <Grid item xs={12} sm={6} md={4} lg={3}>
@@ -374,6 +477,47 @@ const DiagnosticsPage = ({
                                         description={`${kpis.inactive_relationships?.count || 0} out of ${kpis.total_relationships || 0} relationships are marked as inactive`}
                                         severity={kpis.inactive_relationships?.count > 0 ? 'warning' : 'success'}
                                         icon={LinkBreak}
+                                        onClick={kpis.inactive_relationships?.count > 0 ? () => handleKPIClick('inactive_relationships', 'Inactive Relationships') : undefined}
+                                    />
+                                </Grid>
+                                <Grid item xs={12} sm={6} md={4} lg={3}>
+                                    <DiagnosticsKPICard
+                                        title="Large Tables"
+                                        value={kpis.large_tables?.count || 0}
+                                        description={`${kpis.large_tables?.count || 0} tables have more than 50 columns, which may impact performance`}
+                                        severity={kpis.large_tables?.count > 0 ? 'warning' : 'success'}
+                                        icon={Stack}
+                                        onClick={kpis.large_tables?.count > 0 ? () => handleKPIClick('large_tables', 'Large Tables') : undefined}
+                                    />
+                                </Grid>
+                                <Grid item xs={12} sm={6} md={4} lg={3}>
+                                    <DiagnosticsKPICard
+                                        title="Complex Measures"
+                                        value={kpis.complex_measures?.count || 0}
+                                        description={`${kpis.complex_measures?.count || 0} measures have expressions longer than 1000 characters, which may impact performance`}
+                                        severity={kpis.complex_measures?.count > 0 ? 'warning' : 'success'}
+                                        icon={Calculator}
+                                        onClick={kpis.complex_measures?.count > 0 ? () => handleKPIClick('complex_measures', 'Complex Measures') : undefined}
+                                    />
+                                </Grid>
+                                <Grid item xs={12} sm={6} md={4} lg={3}>
+                                    <DiagnosticsKPICard
+                                        title="Crowded Pages"
+                                        value={kpis.crowded_pages?.count || 0}
+                                        description={`${kpis.crowded_pages?.count || 0} pages have more than 10 visuals, which may impact performance`}
+                                        severity={kpis.crowded_pages?.count > 0 ? 'warning' : 'success'}
+                                        icon={ChartBar}
+                                        onClick={kpis.crowded_pages?.count > 0 ? () => handleKPIClick('crowded_pages', 'Crowded Pages') : undefined}
+                                    />
+                                </Grid>
+                                <Grid item xs={12} sm={6} md={4} lg={3}>
+                                    <DiagnosticsKPICard
+                                        title="Many-to-Many Relationships"
+                                        value={kpis.many_to_many_relationships?.count || 0}
+                                        description={`${kpis.many_to_many_relationships?.count || 0} relationships use many-to-many cardinality, which may cause data modeling issues`}
+                                        severity={kpis.many_to_many_relationships?.count > 0 ? 'warning' : 'success'}
+                                        icon={LinkSimple}
+                                        onClick={kpis.many_to_many_relationships?.count > 0 ? () => handleKPIClick('many_to_many_relationships', 'Many-to-Many Relationships') : undefined}
                                     />
                                 </Grid>
                             </Grid>
@@ -573,6 +717,27 @@ const DiagnosticsPage = ({
                         </Box>
                     </>
                 )}
+
+                {/* KPI Details Dialog */}
+                <KPIDetailsDialog
+                    open={kpiDetailsOpen}
+                    onClose={handleCloseKPIDetails}
+                    kpiType={selectedKpiType}
+                    details={kpiDetails}
+                    loading={kpiDetailsLoading}
+                    error={kpiDetailsError}
+                    title={selectedKpiType ? 
+                        selectedKpiType === 'unused_measures' ? 'Unused Measures' :
+                        selectedKpiType === 'unused_columns' ? 'Unused Columns' :
+                        selectedKpiType === 'inactive_relationships' ? 'Inactive Relationships' :
+                        selectedKpiType === 'large_tables' ? 'Large Tables' :
+                        selectedKpiType === 'complex_measures' ? 'Complex Measures' :
+                        selectedKpiType === 'crowded_pages' ? 'Crowded Pages' :
+                        selectedKpiType === 'many_to_many_relationships' ? 'Many-to-Many Relationships' :
+                        'KPI Details'
+                        : 'KPI Details'
+                    }
+                />
             </Box>
         </Fade>
     );

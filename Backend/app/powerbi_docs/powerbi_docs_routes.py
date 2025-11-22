@@ -346,3 +346,57 @@ def get_diagnostics_kpis(collection_name):
     except Exception as e:
         logger.error(f"Error calculating KPIs for {collection_name}: {e}", exc_info=True)
         return error_response(500, 'Failed to calculate diagnostic KPIs')
+
+@powerbi_docs_bp.route('/api/powerbi-docs/get-diagnostics-kpi-details/<collection_name>/<kpi_type>', methods=['GET'])
+@cross_origin(supports_credentials=True)
+@auth_required
+def get_diagnostics_kpi_details(collection_name, kpi_type):
+    """
+    Endpoint to get detailed items for a specific KPI type.
+    
+    Args:
+        collection_name: The collection name
+        kpi_type: One of 'unused_measures', 'unused_columns', 'inactive_relationships',
+                  'large_tables', 'complex_measures', 'crowded_pages', 'many_to_many_relationships'
+    """
+    try:
+        # Validate collection_name
+        if not _validate_collection_name(collection_name):
+            return error_response(400, 'Invalid collection name format')
+        
+        # Validate kpi_type
+        valid_kpi_types = [
+            'unused_measures', 
+            'unused_columns', 
+            'inactive_relationships',
+            'large_tables',
+            'complex_measures',
+            'crowded_pages',
+            'many_to_many_relationships'
+        ]
+        if kpi_type not in valid_kpi_types:
+            return error_response(400, f'Invalid KPI type. Must be one of: {", ".join(valid_kpi_types)}')
+        
+        summaries, filename, _ = _get_summaries_by_collection(collection_name)
+        
+        if not summaries:
+            return error_response(404, 'File summaries not found')
+        
+        # Calculate KPIs from summaries
+        kpis = diagnostics_kpi_service.calculate_kpis(summaries)
+        
+        # Return only the requested KPI details
+        kpi_data = kpis.get(kpi_type, {})
+        
+        return jsonify({
+            'collection_name': collection_name,
+            'filename': filename,
+            'kpi_type': kpi_type,
+            'details': kpi_data.get('items', []),
+            'count': kpi_data.get('count', 0),
+            'status': 'success'
+        })
+    
+    except Exception as e:
+        logger.error(f"Error getting KPI details for {collection_name}/{kpi_type}: {e}", exc_info=True)
+        return error_response(500, 'Failed to get KPI details')
