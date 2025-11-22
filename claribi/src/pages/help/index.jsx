@@ -182,7 +182,7 @@ const HelpPage = () => {
   return (
     <Box sx={{ 
       minHeight: '100vh', 
-      bgcolor: theme.palette.background.default,
+      bgcolor: theme.palette.background.chat,
       py: 4,
       width: '100%'
     }}>
@@ -510,7 +510,7 @@ const HelpPage = () => {
               <Box sx={{ 
                 mb: 3, 
                 p: 3, 
-                bgcolor: theme.palette.background.default,
+                bgcolor: theme.palette.background.chat,
                 borderRadius: 2, 
                 border: `1px solid ${theme.palette.divider}`,
                 transition: 'all 0.2s ease',
@@ -537,7 +537,7 @@ const HelpPage = () => {
               <Box sx={{ 
                 mb: 3, 
                 p: 3, 
-                bgcolor: theme.palette.background.default,
+                bgcolor: theme.palette.background.chat,
                 borderRadius: 2, 
                 border: `1px solid ${theme.palette.divider}`,
                 transition: 'all 0.2s ease',
@@ -564,7 +564,7 @@ const HelpPage = () => {
               <Box sx={{ 
                 mb: 3, 
                 p: 3, 
-                bgcolor: theme.palette.background.default,
+                bgcolor: theme.palette.background.chat,
                 borderRadius: 2, 
                 border: `1px solid ${theme.palette.divider}`,
                 transition: 'all 0.2s ease',
@@ -591,7 +591,7 @@ const HelpPage = () => {
               <Box sx={{ 
                 mb: 3, 
                 p: 3, 
-                bgcolor: theme.palette.background.default,
+                bgcolor: theme.palette.background.chat,
                 borderRadius: 2, 
                 border: `1px solid ${theme.palette.divider}`,
                 transition: 'all 0.2s ease',
@@ -618,7 +618,7 @@ const HelpPage = () => {
               <Box sx={{ 
                 mb: 3, 
                 p: 3, 
-                bgcolor: theme.palette.background.default,
+                bgcolor: theme.palette.background.chat,
                 borderRadius: 2, 
                 border: `1px solid ${theme.palette.divider}`,
                 transition: 'all 0.2s ease',
@@ -645,7 +645,7 @@ const HelpPage = () => {
               <Box sx={{ 
                 mb: 3, 
                 p: 3, 
-                bgcolor: theme.palette.background.default,
+                bgcolor: theme.palette.background.chat,
                 borderRadius: 2, 
                 border: `1px solid ${theme.palette.divider}`,
                 transition: 'all 0.2s ease',

@@ -24,12 +24,11 @@ import {
     ShieldCheckIcon,
     ChartBarIcon,
     PresentationChartIcon,
-    LightbulbIcon,
     SparkleIcon,
     ArrowLeft,
     CaretDownIcon
 } from '@phosphor-icons/react';
-import { analyzePowerBISection, parseImprovementRecommendations, applyImprovementRecommendation, getGeneratedDocs /*, updateDocumentationSection */ } from '../../services/powerbiDocsService';
+import { analyzePowerBISection, getGeneratedDocs /*, updateDocumentationSection */ } from '../../services/powerbiDocsService';
 import DocumentationSection from './components/DocumentationSection';
 import CustomInstructionsModal from './components/CustomInstructionsModal';
 import documentExportService from '../../services/documentExportService';
@@ -44,8 +43,6 @@ const DocumentationPage = ({
 }) => {
     const theme = useTheme();
     const [documentation, setDocumentation] = useState(null);
-    const [parsedRecommendations, setParsedRecommendations] = useState([]);
-    const [applyingRecommendation, setApplyingRecommendation] = useState(null);
     const [error, setError] = useState(null);
     const [activeTab, setActiveTab] = useState(0);
     const [showInstructionsModal, setShowInstructionsModal] = useState(false);
@@ -94,30 +91,9 @@ const DocumentationPage = ({
             title: 'Security Analysis', 
             icon: <ShieldCheckIcon size={20} />, 
             description: 'Security assessment and compliance review'
-        },
-        { 
-            id: 'improvement_recommendations', 
-            title: 'Improvement Recommendations', 
-            icon: <LightbulbIcon size={20} />, 
-            description: 'Performance and optimization suggestions'
         }
     ];
 
-
-    const handleApplyRecommendation = useCallback((recommendation) => {
-        if (!selectedFile) {
-            setError('Please select a file first');
-            return;
-        }
-
-        // Create the initial message for the chat
-        const initialMessage = `Please guide me step-by-step on how to implement this recommendation: ${recommendation.title} - ${recommendation.description}`;
-        
-        // Set the chat state
-        setChatInitialMessage(initialMessage);
-        setShowChat(true);
-        setError(null);
-    }, [selectedFile]);
 
     const handleCloseChat = () => {
         setShowChat(false);
@@ -193,22 +169,6 @@ const DocumentationPage = ({
                     [sectionId]: result.analysis
                 }
             }));
-
-            // Special handling for improvement_recommendations - extract structured data
-            if (sectionId === 'improvement_recommendations' && result.analysis && typeof result.analysis === 'object') {
-                if (result.analysis.recommendations) {
-                    setParsedRecommendations(result.analysis.recommendations);
-                } else if (result.analysis.raw_text) {
-                    // If backend returns structured format but parsing failed, try to parse again
-                    try {
-                        const parsedResult = await parseImprovementRecommendations(selectedFile.collection_name);
-                        setParsedRecommendations(parsedResult.recommendations || []);
-                    } catch (parseError) {
-                        console.error('Error parsing recommendations:', parseError);
-                        setParsedRecommendations([]);
-                    }
-                }
-            }
 
         } catch (err) {
             setError(err.error || `An error occurred while generating ${sectionId.replace('_', ' ')}`);
@@ -345,17 +305,6 @@ const DocumentationPage = ({
                         }
                     }));
 
-                    // Handle improvement recommendations specially
-                    const improvementData = generatedSections.improvement_recommendations?.content;
-                    if (improvementData) {
-                        if (improvementData.recommendations) {
-                            // Direct object format
-                            setParsedRecommendations(improvementData.recommendations);
-                        } else if (improvementData.content && improvementData.content.recommendations) {
-                            // New wrapped format
-                            setParsedRecommendations(improvementData.content.recommendations);
-                        }
-                    }
                 }
             } catch (err) {
                 console.error('Error loading existing docs:', err);
@@ -436,24 +385,6 @@ const DocumentationPage = ({
                 }
             }));
             
-            // Handle improvement recommendations parsing
-            const improvementIndex = sectionsToGenerate.findIndex(s => s.id === 'improvement_recommendations');
-            if (improvementIndex !== -1 && results[improvementIndex]) {
-                const result = results[improvementIndex];
-                if (result.analysis && typeof result.analysis === 'object' && result.analysis.recommendations) {
-                    // Backend already parsed the recommendations
-                    setParsedRecommendations(result.analysis.recommendations);
-                } else {
-                    // Fallback to old parsing method
-                    try {
-                        const parsedResult = await parseImprovementRecommendations(selectedFile.collection_name);
-                        setParsedRecommendations(parsedResult.recommendations || []);
-                    } catch (parseError) {
-                        console.error('Error parsing recommendations:', parseError);
-                        setParsedRecommendations([]);
-                    }
-                }
-            }
             
         } catch (err) {
             setError(err.error || 'An error occurred while generating documentation');
@@ -470,7 +401,7 @@ const DocumentationPage = ({
             <Box sx={{ 
                 display: 'flex',
                 height: '100vh',
-                bgcolor: theme.palette.background.default,
+                bgcolor: theme.palette.background.chat,
                 alignItems: 'center',
                 justifyContent: 'center'
             }}>
@@ -484,21 +415,22 @@ const DocumentationPage = ({
             <Box sx={{ 
                 display: 'flex',
                 height: '100vh',
-                bgcolor: theme.palette.background.default
+                bgcolor: theme.palette.background.chat
             }}>
                 {/* Main Documentation Area */}
                 <Box sx={{ 
                     flex: showChat ? 1 : 1,
-                    px: { xs: 2, sm: 3, md: 4, lg: 6 }, 
                     width: showChat ? `${100 - chatWidth}%` : '100%',
-                    bgcolor: theme.palette.background.default,
+                    bgcolor: theme.palette.background.chat,
                     minHeight: '100vh',
-                    overflow: 'auto'
+                    overflow: 'auto',
+                    display: 'flex',
+                    flexDirection: 'column'
                 }}>
                 {/* Header */}
                 <Box 
                     sx={{ 
-                        bgcolor: theme.palette.background.default,
+                        bgcolor: theme.palette.sidebar.background,
                         py: 1.5,
                         px: 3,
                         borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`
@@ -570,6 +502,8 @@ const DocumentationPage = ({
                     </Box>
                 </Box>
 
+                {/* Main Content Area with padding */}
+                <Box sx={{ px: 4, py: 4, flexGrow: 1 }}>
                 {/* Compact Tab Navigation */}
                 <Paper 
                     sx={{ 
@@ -604,7 +538,7 @@ const DocumentationPage = ({
                                 justifyContent: 'center',
                                 gap: showChat ? 0.5 : 0,
                                 '&:hover': {
-                                    backgroundColor: 'rgba(0, 0, 0, 0.04)'
+                                    backgroundColor: theme.palette.background.hover
                                 },
                                 '&.Mui-selected': {
                                     fontWeight: 600,
@@ -653,7 +587,7 @@ const DocumentationPage = ({
                 </Paper>
 
                 {/* Pre-rendered Section Content for Fast Switching */}
-                <Box sx={{ maxWidth: '100%', overflow: 'hidden' }}>
+                <Box sx={{ maxWidth: '100%', overflow: 'visible' }}>
                     {sections.map((section, index) => (
                         <Box 
                             key={section.id}
@@ -661,7 +595,8 @@ const DocumentationPage = ({
                                 display: activeTab === index ? 'block' : 'none',
                                 minHeight: '400px', // Prevent layout shift
                                 opacity: allSectionsPreloaded ? 1 : 0.7,
-                                transition: 'opacity 0.2s ease-in-out'
+                                transition: 'opacity 0.2s ease-in-out',
+                                overflow: 'visible'
                             }}
                         >
                             <DocumentationSection
@@ -679,13 +614,11 @@ const DocumentationPage = ({
                                 onRegenerate={handleRegenerateClick}
                                 onExport={handleExportSection}
                                 onGenerate={handleGenerateSection}
-                                parsedRecommendations={parsedRecommendations}
-                                applyingRecommendation={applyingRecommendation}
-                                onApplyRecommendation={handleApplyRecommendation}
                                 theme={theme}
                             />
                         </Box>
                     ))}
+                </Box>
                 </Box>
                 </Box>
 

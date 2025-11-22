@@ -1,9 +1,11 @@
 import React from 'react';
-import { Dialog, DialogTitle, DialogContent, DialogActions, IconButton } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, DialogActions, IconButton, useTheme } from '@mui/material';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faXmark } from '@fortawesome/free-solid-svg-icons';
 
 const Modal = ({ open, onClose, title, children, actions, maxWidth = 'sm', contentSx = {}, ...props }) => {
+  const theme = useTheme();
+  
   return (
     <Dialog
       open={open}
@@ -30,10 +32,12 @@ const Modal = ({ open, onClose, title, children, actions, maxWidth = 'sm', conte
               position: 'absolute',
               right: 8,
               top: 8,
-              color: (theme) => theme.palette.grey[500],
-              backgroundColor: 'rgba(0, 0, 0, 0.05)',
+              color: theme.palette.grey[500],
+              backgroundColor: theme.palette.background.hover,
               '&:hover': {
-                backgroundColor: 'rgba(0, 0, 0, 0.1)',
+                backgroundColor: theme.palette.mode === 'dark' 
+                  ? 'rgba(255, 255, 255, 0.12)' 
+                  : 'rgba(0, 0, 0, 0.08)',
               },
               width: 32,
               height: 32

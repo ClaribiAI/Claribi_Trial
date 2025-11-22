@@ -19,7 +19,8 @@ import {
     ChatCircle,
     FileText,
     CloudArrowUp,
-    CheckCircle
+    CheckCircle,
+    Stethoscope
 } from '@phosphor-icons/react';
 import { getUploadedFiles, uploadPowerBIFile } from '../../services/powerbiChatService';
 import FileTable from '../../components/ui/FileTable';
@@ -105,6 +106,10 @@ const Home = () => {
         navigate('/powerbi-docs', { state: { selectedFile: file } });
     };
 
+    const handleDiagnosticsClick = (file) => {
+        navigate('/powerbi-diagnostics', { state: { selectedFile: file } });
+    };
+
     const handleSelectionDialogClose = () => {
         setSelectionDialogOpen(false);
         setSelectedFile(null);
@@ -119,6 +124,12 @@ const Home = () => {
     const handleOpenInDocs = () => {
         if (selectedFile) {
             navigate('/powerbi-docs', { state: { selectedFile } });
+        }
+    };
+
+    const handleOpenInDiagnostics = () => {
+        if (selectedFile) {
+            navigate('/powerbi-diagnostics', { state: { selectedFile } });
         }
     };
 
@@ -251,7 +262,7 @@ const Home = () => {
             {/* Header */}
             <Box 
                 sx={{ 
-                    bgcolor: theme.palette.background.chat,
+                    bgcolor: theme.palette.sidebar.background,
                     py: 3,
                     px: 4,
                     borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`
@@ -338,10 +349,10 @@ const Home = () => {
                             sx={{ 
                                 p: 4, 
                                 borderRadius: 4, 
-                                bgcolor: theme.palette.mode === 'dark' ? alpha('#FCC000', 0.1) : alpha(theme.palette.primary.main, 0.08),
-                                color: theme.palette.mode === 'dark' ? '#FCC000' : theme.palette.primary.main,
+                                bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.primary.main, 0.1) : alpha(theme.palette.primary.main, 0.08),
+                                color: theme.palette.primary.main,
                                 mb: 4,
-                                border: `2px solid ${theme.palette.mode === 'dark' ? alpha('#FCC000', 0.2) : alpha(theme.palette.primary.main, 0.15)}`,
+                                border: `2px solid ${theme.palette.mode === 'dark' ? alpha(theme.palette.primary.main, 0.2) : alpha(theme.palette.primary.main, 0.15)}`,
                                 boxShadow: theme.palette.mode === 'dark' ? '0 8px 32px rgba(0,0,0,0.3)' : '0 8px 32px rgba(0,0,0,0.08)'
                             }}
                         >
@@ -423,6 +434,7 @@ const Home = () => {
                         actionType="both"
                         onChatClick={handleChatClick}
                         onDocsClick={handleDocsClick}
+                        onDiagnosticsClick={handleDiagnosticsClick}
                     />
                 )}
                             </Box>
@@ -457,7 +469,7 @@ const Home = () => {
                 </DialogTitle>
                 <DialogContent sx={{ pt: 1, pb: 2 }}>
 
-                    <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 3 }}>
+                    <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 3, flexWrap: 'wrap' }}>
                         {/* Chat Option */}
                         <Button
                             onClick={handleOpenInChat}
@@ -477,7 +489,7 @@ const Home = () => {
                                     : alpha(theme.palette.primary.main, 0.05),
                                 height: 'auto',
                                 minHeight: 80,
-                                flex: 1,
+                                flex: { xs: '1 1 100%', sm: '1 1 calc(33.333% - 16px)' },
                                 display: 'flex',
                                 flexDirection: 'column',
                                 alignItems: 'center',
@@ -495,12 +507,13 @@ const Home = () => {
                                 transition: 'all 0.2s ease'
                             }}
                         >
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-                                <ChatCircle size={24} />
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, mb: 1 }}>
+                                <ChatCircle size={24} color="currentColor" />
                                 <Typography variant="h6" sx={{ 
                                     fontWeight: 600,
                                     fontSize: '1.125rem',
-                                    color: 'inherit'
+                                    color: 'inherit',
+                                    whiteSpace: 'nowrap'
                                 }}>
                                     Interactive Chat
                             </Typography>
@@ -534,7 +547,7 @@ const Home = () => {
                                     : alpha(theme.palette.secondary.main, 0.05),
                                 height: 'auto',
                                 minHeight: 80,
-                                flex: 1,
+                                flex: { xs: '1 1 100%', sm: '1 1 calc(33.333% - 16px)' },
                                     display: 'flex', 
                                 flexDirection: 'column',
                                     alignItems: 'center', 
@@ -552,12 +565,13 @@ const Home = () => {
                                 transition: 'all 0.2s ease'
                             }}
                         >
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-                                <FileText size={24} />
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, mb: 1 }}>
+                                <FileText size={24} color="currentColor" />
                                 <Typography variant="h6" sx={{ 
                                     fontWeight: 600,
                                     fontSize: '1.125rem',
-                                    color: 'inherit'
+                                    color: 'inherit',
+                                    whiteSpace: 'nowrap'
                                 }}>
                                     Generate Documentation
                                 </Typography>
@@ -569,6 +583,64 @@ const Home = () => {
                                 textAlign: 'center'
                             }}>
                                 Create comprehensive documentation and analysis reports. Get detailed insights on data models, security, and recommendations.
+                            </Typography>
+                        </Button>
+
+                        {/* Diagnostics Option */}
+                        <Button
+                            onClick={handleOpenInDiagnostics}
+                            variant="outlined"
+                            sx={{ 
+                                borderRadius: 3,
+                                px: 4,
+                                py: 3,
+                                fontFamily: "'Inter', 'Nunito Sans', sans-serif",
+                                fontWeight: 600,
+                                fontSize: '1rem',
+                                textTransform: 'none',
+                                borderColor: alpha(theme.palette.primary.main, 0.3),
+                                color: theme.palette.primary.main,
+                                bgcolor: theme.palette.mode === 'dark' 
+                                    ? alpha(theme.palette.background.paper, 0.8)
+                                    : alpha(theme.palette.primary.main, 0.05),
+                                height: 'auto',
+                                minHeight: 80,
+                                flex: { xs: '1 1 100%', sm: '1 1 calc(33.333% - 16px)' },
+                                display: 'flex', 
+                                flexDirection: 'column',
+                                alignItems: 'center', 
+                                textAlign: 'center',
+                                '&:hover': {
+                                    borderColor: theme.palette.primary.main,
+                                    bgcolor: theme.palette.mode === 'dark'
+                                        ? alpha(theme.palette.background.paper, 0.9)
+                                        : alpha(theme.palette.primary.main, 0.1),
+                                    transform: 'translateY(-2px)',
+                                    boxShadow: theme.palette.mode === 'dark' 
+                                        ? '0 8px 24px rgba(0,0,0,0.3)' 
+                                        : '0 8px 24px rgba(0,0,0,0.1)'
+                                },
+                                transition: 'all 0.2s ease'
+                            }}
+                        >
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, mb: 1 }}>
+                                <Stethoscope size={24} color="currentColor" />
+                                <Typography variant="h6" sx={{ 
+                                    fontWeight: 600,
+                                    fontSize: '1.125rem',
+                                    color: 'inherit',
+                                    whiteSpace: 'nowrap'
+                                }}>
+                                    Run Diagnostics
+                                </Typography>
+                            </Box>
+                            <Typography variant="body2" sx={{ 
+                                color: theme.palette.text.secondary,
+                                fontSize: '0.875rem',
+                                lineHeight: 1.5,
+                                textAlign: 'center'
+                            }}>
+                                Get actionable improvement recommendations for performance, optimization, and best practices. Identify areas for enhancement.
                             </Typography>
                         </Button>
                     </Box>
@@ -589,7 +661,7 @@ const Home = () => {
                             color: theme.palette.text.primary,
                             '&:hover': {
                                 borderColor: alpha(theme.palette.divider, 0.5),
-                                bgcolor: alpha(theme.palette.background.default, 0.5)
+                                bgcolor: alpha(theme.palette.background.chat, 0.5)
                             }
                         }}
                     >

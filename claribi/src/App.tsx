@@ -12,6 +12,7 @@ import { createAppTheme } from './theme.js';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import PowerBIDocumentation from './pages/powerbi-docs';
 import PowerBIChat from './pages/powerbi-chat';
+import PowerBIDiagnostics from './pages/powerbi-diagnostics';
 import Home from './pages/home';
 import NotFound from './pages/not-found';
 import './App.css';
@@ -43,6 +44,13 @@ const AppContent: FC = () => {
             <ProtectedRoute>
               <Layout fullWidth>
                 <PowerBIChat />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/powerbi-diagnostics" element={
+            <ProtectedRoute>
+              <Layout fullWidth>
+                <PowerBIDiagnostics />
               </Layout>
             </ProtectedRoute>
           } />

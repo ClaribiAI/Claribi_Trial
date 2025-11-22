@@ -22,7 +22,7 @@ const NotFound = () => {
         width: '100%',
         px: 3,
         py: 8,
-        bgcolor: theme.palette.background.default,
+        bgcolor: theme.palette.background.chat,
         textAlign: 'center'
       }}
     >

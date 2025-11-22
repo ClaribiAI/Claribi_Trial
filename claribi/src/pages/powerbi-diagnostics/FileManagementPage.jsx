@@ -3,43 +3,40 @@ import {
     Box,
     Typography,
     Button,
+    Alert,
     useTheme,
-    alpha,
-    Alert
+    alpha
 } from '@mui/material';
 import {
-    CloudArrowUp,
-    FileText,
-    ChartBar
+    CloudArrowUpIcon,
+    Stethoscope
 } from '@phosphor-icons/react';
-import { getUploadedFiles } from '../../services/powerbiChatService';
+import { getUploadedFiles } from '../../services/powerbiDocsService';
 import FileTable from '../../components/ui/FileTable';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
-import { useNotification } from '../../contexts/NotificationContext';
 
 const FileManagementPage = ({ onFileSelect, onUploadNew }) => {
     const theme = useTheme();
-    const { showNotification } = useNotification();
     const [files, setFiles] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [filesLoading, setFilesLoading] = useState(true);
     const [error, setError] = useState(null);
 
+    // Load files on component mount
     useEffect(() => {
         loadFiles();
     }, []);
 
     const loadFiles = async () => {
         try {
-            setLoading(true);
+            setFilesLoading(true);
             setError(null);
-            const uploadedFiles = await getUploadedFiles();
-            setFiles(uploadedFiles);
+            const response = await getUploadedFiles();
+            setFiles(response.files || []);
         } catch (err) {
             console.error('Error loading files:', err);
             setError(err.message || 'Failed to load files');
-            showNotification('Failed to load files. Please try again.', 'error');
         } finally {
-            setLoading(false);
+            setFilesLoading(false);
         }
     };
 
@@ -47,35 +44,13 @@ const FileManagementPage = ({ onFileSelect, onUploadNew }) => {
         onFileSelect(file);
     };
 
-    const handleUploadClick = () => {
-        onUploadNew();
-    };
-
     const handleFileDelete = (deletedFile) => {
         // Remove the deleted file from the local state
         setFiles(prev => prev.filter(f => f.collection_name !== deletedFile.collection_name));
     };
 
-    if (loading) {
-        return (
-            <Box 
-                sx={{ 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    alignItems: 'center', 
-                    justifyContent: 'center', 
-                    height: '100%',
-                    py: 8,
-                    px: 4
-                }}
-            >
-                <LoadingSpinner size={48} />
-            </Box>
-        );
-    }
-
     return (
-        <Box sx={{ width: '100%', height: '100vh', display: 'flex', flexDirection: 'column' }}>
+        <>
             {/* Header */}
             <Box 
                 sx={{ 
@@ -93,20 +68,19 @@ const FileManagementPage = ({ onFileSelect, onUploadNew }) => {
                             fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif",
                             mb: 0.5
                         }}>
-                            Intelligent Chat
+                            Diagnostics - Improvement Recommendations
                         </Typography>
                         <Typography variant="h6" sx={{ 
                             color: theme.palette.text.secondary, 
                             fontWeight: 400
                         }}>
-                            Expert data model analysis and comprehensive dataset assistance
+                            Get actionable improvement recommendations for performance, optimization, and best practices
                         </Typography>
                     </Box>
                 </Box>
-
             </Box>
 
-            {/* Main Content */}
+            {/* File Table */}
             <Box 
                 sx={{ 
                     flexGrow: 1, 
@@ -118,7 +92,21 @@ const FileManagementPage = ({ onFileSelect, onUploadNew }) => {
                     overflow: 'hidden'
                 }}
             >
-                {error ? (
+                {filesLoading ? (
+                    <Box 
+                        sx={{ 
+                            display: 'flex', 
+                            flexDirection: 'column', 
+                            alignItems: 'center', 
+                            justifyContent: 'center', 
+                            height: '100%',
+                            py: 8,
+                            px: 4
+                        }}
+                    >
+                        <LoadingSpinner size={48} />
+                    </Box>
+                ) : error ? (
                     <Box 
                         sx={{ 
                             display: 'flex', 
@@ -168,14 +156,14 @@ const FileManagementPage = ({ onFileSelect, onUploadNew }) => {
                             sx={{ 
                                 p: 4, 
                                 borderRadius: 4, 
-                                bgcolor: theme.palette.mode === 'dark' ? alpha('#FCC000', 0.1) : alpha(theme.palette.primary.main, 0.08),
-                                color: theme.palette.mode === 'dark' ? '#FCC000' : theme.palette.primary.main,
+                                bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.primary.main, 0.1) : alpha(theme.palette.primary.main, 0.08),
+                                color: theme.palette.primary.main,
                                 mb: 4,
-                                border: `2px solid ${theme.palette.mode === 'dark' ? alpha('#FCC000', 0.2) : alpha(theme.palette.primary.main, 0.15)}`,
+                                border: `2px solid ${theme.palette.mode === 'dark' ? alpha(theme.palette.primary.main, 0.2) : alpha(theme.palette.primary.main, 0.15)}`,
                                 boxShadow: theme.palette.mode === 'dark' ? '0 8px 32px rgba(0,0,0,0.3)' : '0 8px 32px rgba(0,0,0,0.08)'
                             }}
                         >
-                            <ChartBar size={64} />
+                            <Stethoscope size={64} />
                         </Box>
                         <Typography variant="h3" sx={{ 
                             fontWeight: 700, 
@@ -192,13 +180,13 @@ const FileManagementPage = ({ onFileSelect, onUploadNew }) => {
                             lineHeight: 1.6,
                             fontWeight: 400
                         }}>
-                            Upload a Power BI (.pbix) file to get started. I'll analyze your data model and provide expert assistance with your dataset.
+                            Upload a Power BI (.pbix) file to get started. I'll analyze your data model and provide actionable improvement recommendations.
                         </Typography>
                         
                         <Button
                             variant="contained"
-                            startIcon={<CloudArrowUp size={20} color={theme.palette.mode === 'dark' ? '#000000' : '#ffffff'} />}
-                            onClick={handleUploadClick}
+                            startIcon={<CloudArrowUpIcon size={20} color={theme.palette.mode === 'dark' ? '#000000' : '#ffffff'} />}
+                            onClick={onUploadNew}
                             sx={{
                                 borderRadius: 3,
                                 px: 4,
@@ -223,13 +211,15 @@ const FileManagementPage = ({ onFileSelect, onUploadNew }) => {
                     <FileTable 
                         files={files} 
                         onFileClick={handleFileClick}
-                        onUploadNew={handleUploadClick}
+                        onUploadNew={onUploadNew}
                         onFileDelete={handleFileDelete}
+                        actionType="diagnostics"
                     />
                 )}
             </Box>
-        </Box>
+        </>
     );
 };
 
 export default FileManagementPage;
+

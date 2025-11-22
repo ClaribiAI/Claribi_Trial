@@ -142,7 +142,7 @@ const ConfirmationDialog = ({
                         minWidth: 100,
                         '&:hover': {
                             borderColor: alpha(theme.palette.divider, 0.5),
-                            bgcolor: alpha(theme.palette.background.default, 0.5),
+                            bgcolor: alpha(theme.palette.background.chat, 0.5),
                             transform: 'translateY(-1px)',
                             boxShadow: theme.palette.mode === 'dark' 
                                 ? '0 4px 12px rgba(0,0,0,0.3)' 

@@ -54,7 +54,7 @@ const FileManagementPage = ({ onFileSelect, onUploadNew }) => {
             {/* Header */}
             <Box 
                 sx={{ 
-                    bgcolor: theme.palette.background.chat,
+                    bgcolor: theme.palette.sidebar.background,
                     py: 3,
                     px: 4,
                     borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`
@@ -156,10 +156,10 @@ const FileManagementPage = ({ onFileSelect, onUploadNew }) => {
                             sx={{ 
                                 p: 4, 
                                 borderRadius: 4, 
-                                bgcolor: theme.palette.mode === 'dark' ? alpha('#FCC000', 0.1) : alpha(theme.palette.primary.main, 0.08),
-                                color: theme.palette.mode === 'dark' ? '#FCC000' : theme.palette.primary.main,
+                                bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.primary.main, 0.1) : alpha(theme.palette.primary.main, 0.08),
+                                color: theme.palette.primary.main,
                                 mb: 4,
-                                border: `2px solid ${theme.palette.mode === 'dark' ? alpha('#FCC000', 0.2) : alpha(theme.palette.primary.main, 0.15)}`,
+                                border: `2px solid ${theme.palette.mode === 'dark' ? alpha(theme.palette.primary.main, 0.2) : alpha(theme.palette.primary.main, 0.15)}`,
                                 boxShadow: theme.palette.mode === 'dark' ? '0 8px 32px rgba(0,0,0,0.3)' : '0 8px 32px rgba(0,0,0,0.08)'
                             }}
                         >

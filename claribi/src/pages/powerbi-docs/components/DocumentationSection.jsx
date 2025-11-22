@@ -33,7 +33,6 @@ import {
 } from '@phosphor-icons/react';
 import MarkdownRenderer from '../../../components/ui/MarkdownRenderer';
 import LoadingOverlay from './LoadingOverlay';
-import RecommendationCard from './RecommendationCard';
 // Editing functionality commented out
 // import RichTextEditor from './RichTextEditor';
 
@@ -53,25 +52,12 @@ const DocumentationSection = memo(({
     onRegenerate, 
     onExport, 
     onGenerate, 
-    parsedRecommendations, 
-    applyingRecommendation, 
-    onApplyRecommendation, 
     theme 
 }) => {
-    // Memoize sorted recommendations to prevent re-sorting on every render
-    const sortedRecommendations = useMemo(() => {
-        if (!parsedRecommendations || parsedRecommendations.length === 0) return [];
-        
-        return [...parsedRecommendations].sort((a, b) => {
-            const priorityOrder = { high: 3, medium: 2, low: 1 };
-            const aPriority = priorityOrder[a.priority] || 0;
-            const bPriority = priorityOrder[b.priority] || 0;
-            return bPriority - aPriority; // High priority first
-        });
-    }, [parsedRecommendations]);
     return (
         <Fade in={true} timeout={600}>
             <Card 
+                elevation={0}
                 sx={{ 
                     borderRadius: 3,
                     boxShadow: theme.shadows[3],
@@ -117,7 +103,7 @@ const DocumentationSection = memo(({
                                                 size="small"
                                                 sx={{
                                                     '&:hover': {
-                                                        backgroundColor: 'rgba(0, 0, 0, 0.04)'
+                                                        backgroundColor: theme.palette.background.hover
                                                     }
                                                 }}
                                             >
@@ -134,7 +120,7 @@ const DocumentationSection = memo(({
                                             size="small"
                                             sx={{
                                                 '&:hover': {
-                                                    backgroundColor: 'rgba(0, 0, 0, 0.04)'
+                                                    backgroundColor: theme.palette.background.hover
                                                 }
                                             }}
                                         >
@@ -178,7 +164,7 @@ const DocumentationSection = memo(({
                                                 color="primary"
                                                 sx={{
                                                     '&:hover': {
-                                                        backgroundColor: 'rgba(0, 0, 0, 0.04)'
+                                                        backgroundColor: theme.palette.background.hover
                                                     },
                                                     '&:disabled': {
                                                         opacity: 0.6
@@ -202,7 +188,7 @@ const DocumentationSection = memo(({
                                                 color="secondary"
                                                 sx={{
                                                     '&:hover': {
-                                                        backgroundColor: 'rgba(0, 0, 0, 0.04)'
+                                                        backgroundColor: theme.palette.background.hover
                                                     },
                                                     '&:disabled': {
                                                         opacity: 0.6
@@ -245,60 +231,10 @@ const DocumentationSection = memo(({
                     sx={{ pb: 1 }}
                 />
                 
-                <CardContent sx={{ pt: 0, position: 'relative' }}>
+                <CardContent sx={{ pt: 0, position: 'relative', bgcolor: 'transparent' }}>
                     <LoadingOverlay open={sectionLoading[section.id]} theme={theme} />
                     
                     {content ? (
-                        <Box>
-                            {/* Special handling for improvement recommendations */}
-                            {section.id === 'improvement_recommendations' && parsedRecommendations.length > 0 ? (
-                                <Box>
-                                    <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
-                                        <AlertTitle>Interactive Recommendations</AlertTitle>
-                                        Click "Apply Fix" to have Claribi Console Chat guide you through the specific improvement.
-                                    </Alert>
-                                    
-                                    <Box mb={4}>
-                                        {sortedRecommendations.map((rec) => (
-                                            <RecommendationCard
-                                                key={rec.id}
-                                                recommendation={rec}
-                                                onApply={(recommendation) => onApplyRecommendation(recommendation)}
-                                                isApplying={applyingRecommendation === rec.id}
-                                            />
-                                        ))}
-                                    </Box>
-                                </Box>
-                            ) : null}
-                            
-                            {/* Only show content paper if not improvement_recommendations with parsed recommendations */}
-                            {!(section.id === 'improvement_recommendations' && parsedRecommendations.length > 0) && (
-                                <Paper 
-                                    sx={{ 
-                                        p: 3, 
-                                        bgcolor: alpha(theme.palette.background.paper, 0.6),
-                                        border: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
-                                        borderRadius: 2,
-                                        position: 'relative',
-                                        overflow: 'hidden',
-                                        '& .markdown-content': {
-                                            overflow: 'hidden',
-                                            '& table': {
-                                                maxWidth: '100%',
-                                                width: '100%'
-                                            }
-                                        }
-                                    }}
-                                >
-                                    {/* Editing functionality commented out */}
-                                    {/* {editingSection === section.id ? (
-                                        <RichTextEditor
-                                            value={editedContent[section.id] || ''}
-                                            onChange={(value) => onChange(section.id, value)}
-                                            placeholder="Edit your content here..."
-                                            minHeight={400}
-                                        />
-                                    ) : ( */}
                                     <Box 
                                             sx={{
                                                 '& h1': { 
@@ -365,16 +301,21 @@ const DocumentationSection = memo(({
                                                     fontStyle: 'italic', 
                                                     color: theme.palette.text.secondary,
                                                     mb: 2,
-                                                    bgcolor: theme.palette.mode === 'dark' ? alpha('#FCC000', 0.05) : alpha(theme.palette.primary.main, 0.02),
+                                                    bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.primary.main, 0.05) : alpha(theme.palette.primary.main, 0.02),
                                                     py: 1,
                                                     borderRadius: '0 4px 4px 0'
+                                                },
+                                                '& .markdown-content': {
+                                                    overflow: 'hidden',
+                                                    '& table': {
+                                                        maxWidth: '100%',
+                                                        width: '100%'
+                                                    }
                                                 }
                                             }}
                                         >
                                             {(() => {
-                                                const contentToDisplay = section.id === 'improvement_recommendations' && typeof content === 'object' && content.raw_text 
-                                                    ? content.raw_text 
-                                                    : (typeof content === 'string' ? content : JSON.stringify(content, null, 2));
+                                                const contentToDisplay = typeof content === 'string' ? content : JSON.stringify(content, null, 2);
                                                 
                                                 // Check if content is HTML (contains HTML tags)
                                                 const isHTML = typeof contentToDisplay === 'string' && 
@@ -397,10 +338,6 @@ const DocumentationSection = memo(({
                                                 }
                                             })()}
                                         </Box>
-                                    {/* )} */}
-                                </Paper>
-                            )}
-                        </Box>
                     ) : (
                         <Box 
                             display="flex" 

@@ -10,6 +10,7 @@ from app.powerbi_docs.powerbi_service_pbix import PowerBIPbixService
 from app.powerbi_docs.ai_client import ai_client
 from app.powerbi_docs.services.token_tracking_service import powerbi_docs_token_tracking_service
 from app.powerbi_docs.services.generated_docs_service import generated_docs_service
+from app.powerbi_docs.services.diagnostics_kpi_service import diagnostics_kpi_service
 from app.core.responses import error_response
 from app.core.database import get_db_cursor
 from app.powerbi_chat.services.vector_store_service import vector_store_service
@@ -201,6 +202,10 @@ def analyze_pbix_section_route(section):
             custom_instructions
         )
         
+        # Log content length before saving
+        analysis_length = len(str(section_analysis)) if section_analysis else 0
+        logger.info(f"Section analysis complete for {section} - Length: {analysis_length} chars, preparing to save")
+        
         # Save generated content to database with graceful error handling
         try:
             generated_docs_service.save_generated_section(
@@ -310,3 +315,34 @@ def parse_improvement_recommendations_route():
     except Exception as e:
         logger.error(f"Error parsing recommendations: {e}", exc_info=True)
         return error_response(500, 'Failed to parse improvement recommendations')
+
+@powerbi_docs_bp.route('/api/powerbi-docs/get-diagnostics-kpis/<collection_name>', methods=['GET'])
+@cross_origin(supports_credentials=True)
+@auth_required
+def get_diagnostics_kpis(collection_name):
+    """
+    Endpoint to get diagnostic KPIs for a specific collection.
+    """
+    try:
+        # Validate collection_name
+        if not _validate_collection_name(collection_name):
+            return error_response(400, 'Invalid collection name format')
+        
+        summaries, filename, _ = _get_summaries_by_collection(collection_name)
+        
+        if not summaries:
+            return error_response(404, 'File summaries not found')
+        
+        # Calculate KPIs from summaries
+        kpis = diagnostics_kpi_service.calculate_kpis(summaries)
+        
+        return jsonify({
+            'collection_name': collection_name,
+            'filename': filename,
+            'kpis': kpis,
+            'status': 'success'
+        })
+    
+    except Exception as e:
+        logger.error(f"Error calculating KPIs for {collection_name}: {e}", exc_info=True)
+        return error_response(500, 'Failed to calculate diagnostic KPIs')

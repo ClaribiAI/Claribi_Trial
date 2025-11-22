@@ -20,7 +20,7 @@ class AIClient:
         if cls._model is None:
             try:
                 genai.configure(api_key=config.GOOGLE_API_KEY)
-                cls._model = genai.GenerativeModel('gemini-2.5-flash-lite-preview-06-17')
+                cls._model = genai.GenerativeModel('gemini-2.5-flash-lite')
                 logger.info("Gemini 1.5 Flash model initialized successfully.")
             except Exception as e:
                 logger.error(f"Failed to initialize AI model: {str(e)}", exc_info=True)
@@ -64,6 +64,10 @@ class AIClient:
             if not hasattr(response, 'text') or not response.text:
                 logger.error(f"AI API returned empty or invalid response{context_str}")
                 raise Exception(f"AI content generation returned empty response for context '{context}'.")
+
+            # Log response length to track completeness
+            response_length = len(response.text) if response.text else 0
+            logger.info(f"Gemini response received{context_str} - Length: {response_length} chars")
 
             # Extract token usage metadata
             token_usage = {

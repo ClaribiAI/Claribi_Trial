@@ -5,27 +5,17 @@ const createAppTheme = (isDarkMode = false) => createTheme({
     mode: isDarkMode ? 'dark' : 'light',
     primary: {
       main: isDarkMode ? '#FCC000' : '#555555',
-      light: isDarkMode ? '#FFD700' : '#777777',
       dark: isDarkMode ? '#E6B800' : '#333333',
       contrastText: isDarkMode ? '#000000' : '#ffffff',
     },
     secondary: {
       main: isDarkMode ? '#FCC000' : '#666666',
-      light: isDarkMode ? '#FFD700' : '#999999',
       dark: isDarkMode ? '#E6B800' : '#444444',
-      contrastText: isDarkMode ? '#000000' : '#ffffff',
-    },
-    black: {
-      main: isDarkMode ? '#FCC000' : '#000000',
-      light: isDarkMode ? '#FFD700' : '#333333',
-      dark: isDarkMode ? '#E6B800' : '#000000',
       contrastText: isDarkMode ? '#000000' : '#ffffff',
     },
     background: {
       default: isDarkMode ? '#121212' : '#EEEEEE',
       paper: isDarkMode ? '#1E1E1E' : '#ffffff',
-      sidebar: isDarkMode ? '#1E1E1E' : '#f8f9fa',
-      content: isDarkMode ? '#1E1E1E' : '#ffffff',
       input: isDarkMode ? '#2A2A2A' : '#f5f5f5',
       hover: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
       chat: isDarkMode ? '#141414' : '#ffffff',
@@ -34,7 +24,6 @@ const createAppTheme = (isDarkMode = false) => createTheme({
       primary: isDarkMode ? '#FFFFFF' : '#1a1a1a',
       secondary: isDarkMode ? '#B0B0B0' : '#6b7280',
       disabled: isDarkMode ? '#666666' : '#9e9e9e',
-      hint: isDarkMode ? '#666666' : '#9e9e9e',
     },
     divider: isDarkMode ? 'rgba(255, 255, 255, 0.12)' : '#e9ecef',
     action: {
@@ -62,22 +51,12 @@ const createAppTheme = (isDarkMode = false) => createTheme({
       icon: isDarkMode ? '#B0B0B0' : '#6b7280',
     },
     input: {
-      background: isDarkMode ? '#2A2A2A' : '#f5f5f5',
-      text: isDarkMode ? '#E0E0E0' : 'inherit',
-      placeholder: isDarkMode ? '#B0B0B0' : 'inherit',
       border: isDarkMode ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)',
       focusBorder: isDarkMode ? '#B0B0B0' : '#555555',
     },
     code: {
       background: isDarkMode ? 'rgba(252, 192, 0, 0.2)' : 'rgba(85, 85, 85, 0.1)',
       text: isDarkMode ? '#FCC000' : '#555555',
-      blockBackground: isDarkMode ? '#1A1A1A' : '#f5f5f5',
-    },
-    icon: {
-      primary: isDarkMode ? '#FFFFFF' : '#000000',
-      secondary: isDarkMode ? '#B0B0B0' : '#6b7280',
-      disabled: isDarkMode ? '#666666' : '#9e9e9e',
-      hover: isDarkMode ? '#FCC000' : '#555555',
     }
   },
   typography: {

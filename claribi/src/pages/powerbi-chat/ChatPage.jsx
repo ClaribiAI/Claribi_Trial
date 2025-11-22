@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
     Box,
     Typography,
@@ -83,6 +83,15 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
     const [menuAnchorEl, setMenuAnchorEl] = useState(null);
     const menuOpen = Boolean(menuAnchorEl);
 
+    // Check if chat limit is reached (max 3 chats per report)
+    const isChatLimitReached = useMemo(() => {
+        if (!pbixFile) return false;
+        const fileId = getFileId(pbixFile);
+        if (!fileId) return false;
+        const existingChats = getChatList(fileId);
+        return existingChats.length >= 3;
+    }, [pbixFile, chatTabs.length]);
+
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
@@ -101,6 +110,14 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
         const fileId = getFileId(pbixFile);
         if (!fileId) {
             handleMenuClose();
+            return;
+        }
+        
+        // Check if maximum number of chats (3) has been reached
+        const existingChats = getChatList(fileId);
+        if (existingChats.length >= 3) {
+            handleMenuClose();
+            showNotification('Maximum of 3 chats per report reached. Please delete an existing chat to create a new one.', 'warning');
             return;
         }
         
@@ -911,7 +928,7 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
                             <Box
                                 sx={{
                                     p: 2,
-                                    bgcolor: theme.palette.mode === 'dark' ? '#2A2A2A' : '#F5F5F5',
+                                    bgcolor: theme.palette.background.input,
                                     color: theme.palette.text.primary,
                                     borderRadius: '18px 0px 18px 18px',
                                     maxWidth: '100%',
@@ -1019,7 +1036,7 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
             {/* Header */}
             <Box 
                 sx={{ 
-                    bgcolor: theme.palette.background.paper,
+                    bgcolor: theme.palette.sidebar.background,
                     py: 1.5,
                     px: 3,
                     borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`
@@ -1113,11 +1130,17 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
                             }
                         }}
                     >
-                        <MenuItem onClick={handleStartNewChat}>
+                        <MenuItem 
+                            onClick={handleStartNewChat}
+                            disabled={isChatLimitReached}
+                        >
                             <ListItemIcon>
                                 <ChatCircle size={20} />
                             </ListItemIcon>
-                            <ListItemText>Start New Chat</ListItemText>
+                            <ListItemText>
+                                Start New Chat
+                                {isChatLimitReached && ' (Limit: 3 chats)'}
+                            </ListItemText>
                         </MenuItem>
                     </Menu>
 
@@ -1287,26 +1310,33 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
                         </Tabs>
                         
                         {/* Plus button to create new chat */}
-                        <Tooltip title="New chat">
-                            <IconButton
-                                onClick={handleStartNewChat}
-                                size="small"
-                                sx={{
-                                    width: 32,
-                                    height: 32,
-                                    borderRadius: 1.5,
-                                    bgcolor: 'transparent',
-                                    color: theme.palette.text.secondary,
-                                    '&:hover': {
-                                        bgcolor: alpha(theme.palette.primary.main, 0.1),
-                                        color: theme.palette.primary.main,
-                                        transform: 'scale(1.05)'
-                                    },
-                                    transition: 'all 0.2s ease'
-                                }}
-                            >
-                                <Plus size={18} />
-                            </IconButton>
+                        <Tooltip title={isChatLimitReached ? "Maximum of 3 chats per report reached" : "New chat"}>
+                            <span>
+                                <IconButton
+                                    onClick={handleStartNewChat}
+                                    disabled={isChatLimitReached}
+                                    size="small"
+                                    sx={{
+                                        width: 32,
+                                        height: 32,
+                                        borderRadius: 1.5,
+                                        bgcolor: 'transparent',
+                                        color: theme.palette.text.secondary,
+                                        '&:hover': {
+                                            bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                            color: theme.palette.primary.main,
+                                            transform: 'scale(1.05)'
+                                        },
+                                        '&:disabled': {
+                                            opacity: 0.5,
+                                            cursor: 'not-allowed'
+                                        },
+                                        transition: 'all 0.2s ease'
+                                    }}
+                                >
+                                    <Plus size={18} />
+                                </IconButton>
+                            </span>
                         </Tooltip>
                     </Box>
                 )}

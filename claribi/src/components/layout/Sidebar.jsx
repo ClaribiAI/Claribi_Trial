@@ -35,7 +35,8 @@ import {
   Plus,
   Files,
   Sun,
-  Moon
+  Moon,
+  Stethoscope
 } from '@phosphor-icons/react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme as useCustomTheme } from '../../contexts/ThemeContext';
@@ -54,6 +55,7 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
     { text: 'Home', icon: <House size={20} />, path: '/' },
     { text: 'Instant Documentation', icon: <Files size={20} />, path: '/powerbi-docs' },
     { text: 'Intelligent Chat', icon: <ChatCircle size={20} />, path: '/powerbi-chat' },
+    { text: 'Diagnostics', icon: <Stethoscope size={20} />, path: '/powerbi-diagnostics' },
   ];
 
   // All menu items are available to authenticated users
@@ -78,7 +80,7 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
       return location.pathname === path;
     }
     // For exact matches, use exact equality
-    if (path === '/powerbi-docs' || path === '/powerbi-chat') {
+    if (path === '/powerbi-docs' || path === '/powerbi-chat' || path === '/powerbi-diagnostics') {
       return location.pathname === path;
     }
     // For other paths, use startsWith
@@ -121,7 +123,7 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
           borderRadius: 3,
           transition: 'all 0.2s ease',
           '&:hover': {
-            backgroundColor: 'rgba(0, 0, 0, 0.04)',
+            backgroundColor: theme.palette.background.hover,
             transform: 'translateY(-2px)',
           }
         }}

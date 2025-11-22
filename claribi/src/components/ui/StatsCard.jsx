@@ -183,8 +183,8 @@ const StatsCard = () => {
                                     p: 1.5,
                                     borderRadius: 1.5,
                                     bgcolor: theme.palette.mode === 'dark' 
-                                        ? alpha(theme.palette.background.default, 0.5)
-                                        : alpha(theme.palette.background.default, 0.3),
+                                        ? alpha(theme.palette.background.chat, 0.5)
+                                        : alpha(theme.palette.background.chat, 0.3),
                                     border: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
                                     transition: 'all 0.2s ease',
                                     flex: 1,
@@ -192,8 +192,8 @@ const StatsCard = () => {
                                     cursor: 'pointer',
                                     '&:hover': {
                                         bgcolor: theme.palette.mode === 'dark' 
-                                            ? alpha(theme.palette.background.default, 0.7)
-                                            : alpha(theme.palette.background.default, 0.5),
+                                            ? alpha(theme.palette.background.chat, 0.7)
+                                            : alpha(theme.palette.background.chat, 0.5),
                                         borderColor: alpha(accentColor, 0.3),
                                         transform: 'translateY(-1px)'
                                     }
@@ -323,8 +323,8 @@ const StatsCard = () => {
                                 component={Paper}
                                 sx={{
                                     bgcolor: theme.palette.mode === 'dark'
-                                        ? alpha(theme.palette.background.default, 0.5)
-                                        : alpha(theme.palette.background.default, 0.3),
+                                        ? alpha(theme.palette.background.chat, 0.5)
+                                        : alpha(theme.palette.background.chat, 0.3),
                                     border: `1px solid ${theme.palette.divider}`
                                 }}
                             >
@@ -416,8 +416,8 @@ const StatsCard = () => {
                                 p: 2,
                                 borderRadius: 1.5,
                                 bgcolor: theme.palette.mode === 'dark'
-                                    ? alpha(theme.palette.background.default, 0.5)
-                                    : alpha(theme.palette.background.default, 0.3),
+                                    ? alpha(theme.palette.background.chat, 0.5)
+                                    : alpha(theme.palette.background.chat, 0.3),
                                 border: `1px solid ${theme.palette.divider}`,
                                 mb: 2
                             }}

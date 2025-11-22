@@ -38,7 +38,8 @@ import {
     TreeStructure,
     Code,
     CaretUp,
-    CaretDown
+    CaretDown,
+    Stethoscope
 } from '@phosphor-icons/react';
 import { deletePowerBISession } from '../../services/powerbiChatService';
 import { useNotification } from '../../contexts/NotificationContext';
@@ -46,7 +47,7 @@ import LoadingSpinner from './LoadingSpinner';
 import ConfirmationDialog from './ConfirmationDialog';
 import { clearChatHistory } from '../../utils/chatHistoryStorage';
 
-const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, actionType = 'chat', onChatClick, onDocsClick }) => {
+const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, actionType = 'chat', onChatClick, onDocsClick, onDiagnosticsClick }) => {
     const theme = useTheme();
     const { showNotification } = useNotification();
     const [anchorEl, setAnchorEl] = React.useState(null);
@@ -177,7 +178,7 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, actionType =
             <Box display="flex" justifyContent="flex-end" alignItems="center" mb={3} sx={{ flexShrink: 0 }}>
                 <Button
                     variant="contained"
-                    startIcon={<CloudArrowUp size={20} color={theme.palette.mode === 'dark' ? '#000000' : '#ffffff'} />}
+                    startIcon={<CloudArrowUp size={20} color={theme.palette.primary.contrastText} />}
                     onClick={onUploadNew}
                     sx={{
                         borderRadius: 3,
@@ -380,9 +381,36 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, actionType =
                                                         <FileText size={18} />
                                                     </IconButton>
                                                 </Tooltip>
+                                                {onDiagnosticsClick && (
+                                                    <Tooltip title="Run diagnostics">
+                                                        <IconButton
+                                                            size="small"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (onDiagnosticsClick) onDiagnosticsClick(file);
+                                                            }}
+                                                            sx={{
+                                                                color: theme.palette.primary.main,
+                                                                '&:hover': {
+                                                                    bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                                                    transform: 'scale(1.1)'
+                                                                },
+                                                                transition: 'all 0.2s ease'
+                                                            }}
+                                                        >
+                                                            <Stethoscope size={18} />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                )}
                                             </>
                                         ) : (
-                                            <Tooltip title={actionType === 'chat' ? "Chat with this file" : "Generate documentation"}>
+                                            <Tooltip title={
+                                                actionType === 'chat' 
+                                                    ? "Chat with this file" 
+                                                    : actionType === 'diagnostics'
+                                                    ? "Run diagnostics"
+                                                    : "Generate documentation"
+                                            }>
                                                 <IconButton
                                                     size="small"
                                                     onClick={(e) => handleFileClick(file)}
@@ -395,7 +423,12 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, actionType =
                                                         transition: 'all 0.2s ease'
                                                     }}
                                                 >
-                                                    {actionType === 'chat' ? <ChatCircle size={18} /> : <FileText size={18} />}
+                                                    {actionType === 'chat' 
+                                                        ? <ChatCircle size={18} /> 
+                                                        : actionType === 'diagnostics'
+                                                        ? <Stethoscope size={18} />
+                                                        : <FileText size={18} />
+                                                    }
                                                 </IconButton>
                                             </Tooltip>
                                         )}
@@ -695,7 +728,7 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, actionType =
 
                             {/* Additional Info */}
                             <Box sx={{ 
-                                bgcolor: alpha(theme.palette.background.default, 0.5),
+                                bgcolor: theme.palette.background.hover,
                                 borderRadius: 2,
                                 p: 2.5,
                                 border: `1px solid ${alpha(theme.palette.divider, 0.1)}`
@@ -746,7 +779,7 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, actionType =
                             color: theme.palette.text.primary,
                             '&:hover': {
                                 borderColor: alpha(theme.palette.divider, 0.5),
-                                bgcolor: alpha(theme.palette.background.default, 0.5),
+                                bgcolor: theme.palette.background.hover,
                                 transform: 'translateY(-1px)',
                                 boxShadow: theme.palette.mode === 'dark' 
                                     ? '0 4px 12px rgba(0,0,0,0.3)' 

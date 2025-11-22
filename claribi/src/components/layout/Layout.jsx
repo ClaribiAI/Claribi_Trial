@@ -21,7 +21,7 @@ const Layout = ({ children, fullWidth = false }) => {
       width: '100%', 
       overflow: 'hidden', 
       position: 'relative',
-      bgcolor: theme.palette.background.default
+      bgcolor: theme.palette.background.chat
     }}>
 
       <Box 
@@ -84,7 +84,7 @@ const Layout = ({ children, fullWidth = false }) => {
             overflow: 'auto',
             width: '100%',
             height: '100%',
-            background: theme.palette.background.default,
+            background: theme.palette.background.chat,
             display: 'flex',
             flexDirection: 'column',
             margin: 0,
@@ -100,7 +100,7 @@ const Layout = ({ children, fullWidth = false }) => {
               flexDirection: 'column',
               margin: 0,
               padding: 0,
-              bgcolor: theme.palette.background.default
+              bgcolor: theme.palette.background.chat
             }}>
               {children}
             </Box>
@@ -116,7 +116,7 @@ const Layout = ({ children, fullWidth = false }) => {
               justifyContent: 'flex-start',
               maxWidth: '1400px',
               mx: 'auto',
-              bgcolor: theme.palette.background.default
+              bgcolor: theme.palette.background.chat
             }}>
               {children}
             </Box>
