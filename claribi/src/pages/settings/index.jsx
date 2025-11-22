@@ -16,7 +16,13 @@ import {
   Button,
   Link,
   alpha,
-  Alert
+  Alert,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow
 } from '@mui/material';
 import {
   User,
@@ -26,7 +32,8 @@ import {
   Cookie,
   Trash,
   FileText,
-  Shield
+  Shield,
+  ChartBar
 } from '@phosphor-icons/react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -39,6 +46,7 @@ import {
   setCookiePreferences,
   deleteAllData
 } from '../../services/settings';
+import statsService from '../../services/statsService';
 
 const SettingsPage = () => {
   const muiTheme = useMuiTheme();
@@ -61,6 +69,10 @@ const SettingsPage = () => {
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // Token usage state
+  const [tokenUsage, setTokenUsage] = useState(null);
+  const [tokenUsageLoading, setTokenUsageLoading] = useState(true);
 
   // Load email and subscription from user data
   useEffect(() => {
@@ -88,6 +100,26 @@ const SettingsPage = () => {
 
     loadUserData();
   }, [currentUser]);
+
+  // Load token usage data
+  useEffect(() => {
+    const loadTokenUsage = async () => {
+      setTokenUsageLoading(true);
+      try {
+        const response = await statsService.getUserTokenUsage();
+        if (response.success && response.data) {
+          setTokenUsage(response.data);
+        }
+      } catch (error) {
+        console.error('Error loading token usage:', error);
+        showNotification('Failed to load token usage', 'error');
+      } finally {
+        setTokenUsageLoading(false);
+      }
+    };
+
+    loadTokenUsage();
+  }, [showNotification]);
   
   // Format subscription name for display
   const formatSubscriptionName = (sub) => {
@@ -96,6 +128,12 @@ const SettingsPage = () => {
     }
     // Capitalize first letter and add "Plan" suffix
     return sub.charAt(0).toUpperCase() + sub.slice(1).toLowerCase() + ' Plan';
+  };
+
+  // Format number with commas
+  const formatNumber = (num) => {
+    if (num === null || num === undefined) return '0';
+    return num.toLocaleString('en-US');
   };
 
   // Handle theme mode change
@@ -231,6 +269,97 @@ const SettingsPage = () => {
               </Typography>
             </Box>
           </SettingItem>
+        </SettingSection>
+
+        {/* Usage Section */}
+        <SettingSection icon={ChartBar} title="Usage">
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Token usage breakdown across all features
+            </Typography>
+            {tokenUsageLoading ? (
+              <Box sx={{ p: 2, textAlign: 'center' }}>
+                <Typography variant="body2" color="text.secondary">
+                  Loading...
+                </Typography>
+              </Box>
+            ) : tokenUsage ? (
+              <TableContainer
+                component={Paper}
+                elevation={0}
+                sx={{
+                  border: `1px solid ${alpha(muiTheme.palette.divider, 0.1)}`,
+                  borderRadius: 2,
+                  overflow: 'hidden',
+                }}
+              >
+                <Table size="small">
+                  <TableHead>
+                    <TableRow
+                      sx={{
+                        bgcolor: alpha(muiTheme.palette.primary.main, 0.05),
+                      }}
+                    >
+                      <TableCell sx={{ fontWeight: 600 }}>Feature</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 600 }}>Input</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 600 }}>Output</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 600 }}>Overhead</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 600 }}>Total</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 500 }}>Chat</TableCell>
+                      <TableCell align="right">{formatNumber(tokenUsage.chat_input_tokens || 0)}</TableCell>
+                      <TableCell align="right">{formatNumber(tokenUsage.chat_output_tokens || 0)}</TableCell>
+                      <TableCell align="right">{formatNumber(tokenUsage.chat_overhead_tokens || 0)}</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 600 }}>
+                        {formatNumber(tokenUsage.chat_tokens || 0)}
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 500 }}>Docs</TableCell>
+                      <TableCell align="right">{formatNumber(tokenUsage.docs_input_tokens || 0)}</TableCell>
+                      <TableCell align="right">{formatNumber(tokenUsage.docs_output_tokens || 0)}</TableCell>
+                      <TableCell align="right">-</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 600 }}>
+                        {formatNumber(tokenUsage.docs_tokens || 0)}
+                      </TableCell>
+                    </TableRow>
+                    <TableRow
+                      sx={{
+                        bgcolor: alpha(muiTheme.palette.primary.main, 0.05),
+                        '& .MuiTableCell-root': {
+                          fontWeight: 600,
+                          borderTop: `2px solid ${alpha(muiTheme.palette.primary.main, 0.2)}`,
+                        },
+                      }}
+                    >
+                      <TableCell>Total</TableCell>
+                      <TableCell align="right">
+                        {formatNumber((tokenUsage.chat_input_tokens || 0) + (tokenUsage.docs_input_tokens || 0))}
+                      </TableCell>
+                      <TableCell align="right">
+                        {formatNumber((tokenUsage.chat_output_tokens || 0) + (tokenUsage.docs_output_tokens || 0))}
+                      </TableCell>
+                      <TableCell align="right">
+                        {formatNumber(tokenUsage.chat_overhead_tokens || 0)}
+                      </TableCell>
+                      <TableCell align="right" sx={{ color: muiTheme.palette.primary.main }}>
+                        {formatNumber(tokenUsage.total_tokens || 0)}
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : (
+              <Box sx={{ p: 2, textAlign: 'center' }}>
+                <Typography variant="body2" color="text.secondary">
+                  No token usage data available
+                </Typography>
+              </Box>
+            )}
+          </Box>
         </SettingSection>
 
         {/* Personalization Section */}

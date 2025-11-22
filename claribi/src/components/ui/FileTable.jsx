@@ -47,7 +47,7 @@ import LoadingSpinner from './LoadingSpinner';
 import ConfirmationDialog from './ConfirmationDialog';
 import { clearChatHistory } from '../../utils/chatHistoryStorage';
 
-const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, actionType = 'chat', onChatClick, onDocsClick, onDiagnosticsClick }) => {
+const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, actionType = 'chat', onChatClick, onDocsClick, onDiagnosticsClick, showUploadButton = true }) => {
     const theme = useTheme();
     const { showNotification } = useNotification();
     const [anchorEl, setAnchorEl] = React.useState(null);
@@ -175,31 +175,33 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, actionType =
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {/* Header with Upload Button */}
-            <Box display="flex" justifyContent="flex-end" alignItems="center" mb={3} sx={{ flexShrink: 0 }}>
-                <Button
-                    variant="contained"
-                    startIcon={<CloudArrowUp size={20} color={theme.palette.primary.contrastText} />}
-                    onClick={onUploadNew}
-                    sx={{
-                        borderRadius: 3,
-                        px: 3,
-                        py: 1,
-                        fontSize: '0.95rem',
-                        fontWeight: 600,
-                        height: 40,
-                        bgcolor: theme.palette.primary.main,
-                        color: theme.palette.primary.contrastText,
-                        '&:hover': { 
-                            bgcolor: theme.palette.primary.dark,
-                            transform: 'translateY(-1px)',
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-                        },
-                        transition: 'all 0.2s ease'
-                    }}
-                >
-                    Upload New
-                </Button>
-            </Box>
+            {showUploadButton && onUploadNew && (
+                <Box display="flex" justifyContent="flex-end" alignItems="center" mb={3} sx={{ flexShrink: 0 }}>
+                    <Button
+                        variant="contained"
+                        startIcon={<CloudArrowUp size={20} color={theme.palette.primary.contrastText} />}
+                        onClick={onUploadNew}
+                        sx={{
+                            borderRadius: 3,
+                            px: 3,
+                            py: 1,
+                            fontSize: '0.95rem',
+                            fontWeight: 600,
+                            height: 40,
+                            bgcolor: theme.palette.primary.main,
+                            color: theme.palette.primary.contrastText,
+                            '&:hover': { 
+                                bgcolor: theme.palette.primary.dark,
+                                transform: 'translateY(-1px)',
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                            },
+                            transition: 'all 0.2s ease'
+                        }}
+                    >
+                        Upload New
+                    </Button>
+                </Box>
+            )}
 
             {/* File Table */}
             <TableContainer 

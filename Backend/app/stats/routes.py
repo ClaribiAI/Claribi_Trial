@@ -104,3 +104,51 @@ def get_user_stats_breakdown():
             "message": "Failed to retrieve statistics breakdown"
         }), 500
 
+
+@stats_bp.route('/user/tokens', methods=['GET'])
+@auth_required
+def get_user_token_usage():
+    """
+    Get token usage statistics for the current authenticated user.
+    
+    Returns:
+        JSON response with token usage statistics:
+        - total_tokens: Combined total from both chat and docs tables
+        - chat_tokens: Total from chat table
+        - docs_tokens: Total from docs table
+        - chat_input_tokens, chat_output_tokens, chat_overhead_tokens: Breakdown from chat
+        - docs_input_tokens, docs_output_tokens: Breakdown from docs
+    """
+    try:
+        # Get current user from request context (set by auth_required)
+        current_user = g.current_user
+        if not current_user:
+            return jsonify({
+                "success": False,
+                "error": "unauthorized",
+                "message": "User not authenticated"
+            }), 401
+        
+        user_ms_object_id = current_user.get('ms_object_id')
+        if not user_ms_object_id:
+            return jsonify({
+                "success": False,
+                "error": "invalid_request",
+                "message": "User ID not found in token"
+            }), 400
+        
+        # Get user token usage
+        token_usage = stats_service.get_user_token_usage(user_ms_object_id)
+        
+        return jsonify({
+            "success": True,
+            "data": token_usage
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error retrieving user token usage: {e}", exc_info=True)
+        return jsonify({
+            "success": False,
+            "error": "server_error",
+            "message": "Failed to retrieve token usage"
+        }), 500

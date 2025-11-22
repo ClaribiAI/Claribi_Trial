@@ -3,32 +3,23 @@ import { useNavigate } from 'react-router-dom';
 import {
     Box,
     Typography,
-    Card,
-    CardContent,
     useTheme,
-    alpha,
     Alert,
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
     Button,
     Snackbar
 } from '@mui/material';
 import {
-    ChatCircle,
-    FileText,
     CloudArrowUp,
-    CheckCircle,
-    Stethoscope
+    CheckCircle
 } from '@phosphor-icons/react';
 import { uploadPowerBIFile } from '../../services/powerbiChatService';
-import FileTable from '../../components/ui/FileTable';
-import LoadingSpinner from '../../components/ui/LoadingSpinner';
-import StatsCard from '../../components/ui/StatsCard';
 import UploadConfirmationDialog from '../../components/ui/UploadConfirmationDialog';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useFiles } from '../../contexts/FileContext';
+import statsService from '../../services/statsService';
+import StatsCards from './components/StatsCards';
+import FileManagementPage from './FileManagementPage';
+import FileActionSelectionDialog from './components/FileActionSelectionDialog';
 
 const Home = () => {
     const theme = useTheme();
@@ -39,6 +30,13 @@ const Home = () => {
     // State management
     const [selectionDialogOpen, setSelectionDialogOpen] = useState(false);
     const [selectedFile, setSelectedFile] = useState(null);
+    const [statsLoading, setStatsLoading] = useState(true);
+    const [statsData, setStatsData] = useState({
+        timeSaved: 0,
+        documentsGenerated: 0,
+        chatQueries: 0
+    });
+    const [uploadError, setUploadError] = useState(null);
     
     // Get time-based greeting
     const getTimeBasedGreeting = () => {
@@ -62,6 +60,49 @@ const Home = () => {
     const [pendingFile, setPendingFile] = useState(null);
     
     const fileInputRef = useRef(null);
+
+    // Initialize session start time on first load
+    useEffect(() => {
+        if (!sessionStorage.getItem('session_start')) {
+            sessionStorage.setItem('session_start', Date.now().toString());
+        }
+    }, []);
+
+    // Fetch stats on component mount
+    useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                // First, try to get cached stats (synchronous, no loading state needed)
+                const cached = statsService.getCachedStats();
+                if (cached && cached.success && cached.data) {
+                    setStatsData({
+                        timeSaved: cached.data.time_saved || 0,
+                        documentsGenerated: cached.data.documents_generated || 0,
+                        chatQueries: cached.data.chat_queries || 0
+                    });
+                    setStatsLoading(false);
+                    return; // Use cached data, don't fetch from backend
+                }
+
+                // No cache available, fetch from backend
+                setStatsLoading(true);
+                const response = await statsService.getUserStats(false); // Don't use cache, fetch fresh
+                if (response.success && response.data) {
+                    setStatsData({
+                        timeSaved: response.data.time_saved || 0,
+                        documentsGenerated: response.data.documents_generated || 0,
+                        chatQueries: response.data.chat_queries || 0
+                    });
+                }
+            } catch (error) {
+                console.error('Error fetching stats:', error);
+            } finally {
+                setStatsLoading(false);
+            }
+        };
+        
+        fetchStats();
+    }, []);
 
     const handleNavigateToChat = () => {
         navigate('/powerbi-chat');
@@ -122,27 +163,27 @@ const Home = () => {
 
         // Validate file type
         if (!file.name.toLowerCase().endsWith('.pbix')) {
-            setError('Please select a valid .pbix file');
+            setUploadError('Please select a valid .pbix file');
             return;
         }
 
         // Validate file size (max 100MB)
         const maxSize = 100 * 1024 * 1024;
         if (file.size > maxSize) {
-            setError('File size must be less than 100MB');
+            setUploadError('File size must be less than 100MB');
             return;
         }
 
         // Store file and show confirmation dialog
         setPendingFile(file);
         setShowUploadConfirmation(true);
-        setError(null);
+        setUploadError(null);
     };
 
     const handleConfirmUpload = async (renamedFile) => {
         setUploadLoading(true);
         setUploadProgress(0);
-        setError(null);
+        setUploadError(null);
         setRetryCount(0);
 
         try {
@@ -176,7 +217,7 @@ const Home = () => {
             
             if (shouldRetry) {
                 setRetryCount(prev => prev + 1);
-                setError(`Upload failed (attempt ${retryCount + 1}/3). Retrying in 3 seconds...`);
+                setUploadError(`Upload failed (attempt ${retryCount + 1}/3). Retrying in 3 seconds...`);
                 
                 // Wait 3 seconds before retry (increased from 2 seconds)
                 setTimeout(() => {
@@ -187,13 +228,13 @@ const Home = () => {
             
             // Show specific error messages based on error type
             if (err.message.includes('File too large')) {
-                setError('File is too large. Please try with a file smaller than 100MB.');
+                setUploadError('File is too large. Please try with a file smaller than 100MB.');
             } else if (err.message.includes('Invalid file format')) {
-                setError('Invalid file format. Please ensure you are uploading a valid .pbix file.');
+                setUploadError('Invalid file format. Please ensure you are uploading a valid .pbix file.');
             } else if (err.message.includes('Server error during processing')) {
-                setError('Server error occurred. The server may have restarted. Please try again.');
+                setUploadError('Server error occurred. The server may have restarted. Please try again.');
             } else {
-                setError(err.message || 'Failed to upload file. Please try again.');
+                setUploadError(err.message || 'Failed to upload file. Please try again.');
             }
             setRetryCount(0);
         } finally {
@@ -226,14 +267,14 @@ const Home = () => {
             />
 
             {/* Error Alert */}
-            {error && (
+            {uploadError && (
                 <Box sx={{ px: 2, pb: 1 }}>
                     <Alert 
                         severity="error" 
-                        onClose={() => setError(null)}
+                        onClose={() => setUploadError(null)}
                         sx={{ borderRadius: 2 }}
                     >
-                        {error}
+                        {uploadError}
                     </Alert>
                 </Box>
             )}
@@ -241,20 +282,19 @@ const Home = () => {
             {/* Header */}
             <Box 
                 sx={{ 
-                    bgcolor: theme.palette.sidebar.background,
+                    bgcolor: theme.palette.background.chat,
                     py: 3,
-                    px: 4,
-                    borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`
+                    px: 4
                 }}
             >
                 <Box 
                     display="flex" 
-                    alignItems="flex-start" 
+                    alignItems="center" 
                     justifyContent="space-between" 
                     gap={4}
                     sx={{
                         flexDirection: { xs: 'column', lg: 'row' },
-                        alignItems: { xs: 'stretch', lg: 'flex-start' }
+                        alignItems: { xs: 'stretch', lg: 'center' }
                     }}
                 >
                     <Box flex={1}>
@@ -274,380 +314,56 @@ const Home = () => {
                         </Typography>
                     </Box>
                     
-                    {/* Stats Card */}
-                    <Box sx={{ 
-                        minWidth: { xs: '100%', lg: 360 }, 
-                        maxWidth: { xs: '100%', lg: 420 },
-                        alignSelf: { xs: 'center', lg: 'flex-start' }
-                    }}>
-                        <StatsCard />
-                    </Box>
+                    {/* Upload New Button */}
+                    <Button
+                        variant="contained"
+                        startIcon={<CloudArrowUp size={20} color={theme.palette.primary.contrastText} />}
+                        onClick={handleUploadNew}
+                        sx={{
+                            borderRadius: 3,
+                            px: 3,
+                            py: 1.5,
+                            fontSize: '0.95rem',
+                            fontWeight: 600,
+                            height: 40,
+                            bgcolor: theme.palette.primary.main,
+                            color: theme.palette.primary.contrastText,
+                            '&:hover': { 
+                                bgcolor: theme.palette.primary.dark,
+                                transform: 'translateY(-1px)',
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                            },
+                            transition: 'all 0.2s ease',
+                            alignSelf: { xs: 'stretch', lg: 'center' }
+                        }}
+                    >
+                        Upload New
+                    </Button>
                 </Box>
             </Box>
 
-            {/* Main Content */}
-            <Box 
-                sx={{
-                    flexGrow: 1,
-                    py: 4,
-                    px: 4,
-                    bgcolor: theme.palette.background.chat,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    overflow: 'hidden'
-                }}
-            >
-                {loading ? (
-                <Box 
-                    sx={{ 
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                            justifyContent: 'center', 
-                            height: '100%',
-                            py: 8,
-                            px: 4
-                    }}
-                >
-                        <LoadingSpinner size={48} />
-                    </Box>
-                ) : files.length === 0 ? (
-                    <Box
-                        sx={{ 
-                            display: 'flex', 
-                            flexDirection: 'column', 
-                            alignItems: 'center', 
-                            justifyContent: 'center', 
-                            height: '100%',
-                            textAlign: 'center',
-                            py: 8,
-                            px: 4
-                        }}
-                    >
-                        <Box 
-                            sx={{ 
-                                p: 4, 
-                                borderRadius: 4, 
-                                bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.primary.main, 0.1) : alpha(theme.palette.primary.main, 0.08),
-                                color: theme.palette.primary.main,
-                                mb: 4,
-                                border: `2px solid ${theme.palette.mode === 'dark' ? alpha(theme.palette.primary.main, 0.2) : alpha(theme.palette.primary.main, 0.15)}`,
-                                boxShadow: theme.palette.mode === 'dark' ? '0 8px 32px rgba(0,0,0,0.3)' : '0 8px 32px rgba(0,0,0,0.08)'
-                            }}
-                        >
-                            <CloudArrowUp size={64} />
-                </Box>
-                <Typography variant="h3" sx={{ 
-                    fontWeight: 700, 
-                    mb: 2, 
-                    color: theme.palette.text.primary,
-                    fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif"
-                }}>
-                            No files uploaded yet
-                </Typography>
-                <Typography variant="h6" sx={{ 
-                    color: theme.palette.text.secondary, 
-                            mb: 6, 
-                    maxWidth: 600,
-                    lineHeight: 1.6,
-                    fontWeight: 400
-                }}>
-                            Upload a Power BI (.pbix) file to get started. Choose between interactive chat or comprehensive documentation generation.
-                </Typography>
+            {/* KPI Cards Section */}
+            <StatsCards statsData={statsData} statsLoading={statsLoading} />
 
-                        <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap', justifyContent: 'center' }}>
-                            <Button
-                                variant="contained"
-                                startIcon={<ChatCircle size={20} color={theme.palette.mode === 'dark' ? '#000000' : '#ffffff'} />}
-                        onClick={handleNavigateToChat}
-                        sx={{
-                                    borderRadius: 3,
-                                    px: 4,
-                                    py: 1.5,
-                                    fontSize: '1rem',
-                                    fontWeight: 600,
-                                    height: 48,
-                                    bgcolor: theme.palette.primary.main,
-                                    color: theme.palette.primary.contrastText,
-                            '&:hover': {
-                                        bgcolor: theme.palette.primary.dark,
-                                        transform: 'translateY(-2px)',
-                                        boxShadow: '0 6px 20px rgba(0,0,0,0.15)'
-                                    },
-                                    transition: 'all 0.2s ease'
-                                }}
-                            >
-                                Start Chatting
-                            </Button>
-                            <Button
-                                variant="contained"
-                                startIcon={<FileText size={20} color={theme.palette.mode === 'dark' ? '#000000' : '#ffffff'} />}
-                                onClick={handleNavigateToDocs}
-                                sx={{ 
-                                    borderRadius: 3, 
-                                    px: 4,
-                                    py: 1.5,
-                                    fontSize: '1rem',
-                                    fontWeight: 600,
-                                    height: 48,
-                                    bgcolor: theme.palette.secondary.main,
-                                    color: theme.palette.secondary.contrastText,
-                                    '&:hover': { 
-                                        bgcolor: theme.palette.secondary.dark,
-                                        transform: 'translateY(-2px)',
-                                        boxShadow: '0 6px 20px rgba(0,0,0,0.15)'
-                                    },
-                                    transition: 'all 0.2s ease'
-                                }}
-                            >
-                                Generate Docs
-                            </Button>
-                        </Box>
-                    </Box>
-                ) : (
-                    <FileTable 
-                        files={files} 
+            {/* Main Content */}
+            <FileManagementPage
                         onFileClick={handleFileClick}
-                        onUploadNew={handleUploadNew}
                         onFileDelete={handleFileDelete}
-                        actionType="both"
                         onChatClick={handleChatClick}
                         onDocsClick={handleDocsClick}
                         onDiagnosticsClick={handleDiagnosticsClick}
+                onUploadNew={handleUploadNew}
                     />
-                )}
-                            </Box>
                             
             {/* Selection Dialog */}
-            <Dialog
+            <FileActionSelectionDialog
                 open={selectionDialogOpen}
                 onClose={handleSelectionDialogClose}
-                maxWidth="md"
-                fullWidth
-                sx={{ zIndex: 1300 }}
-                PaperProps={{
-                    sx: {
-                        borderRadius: 3,
-                        boxShadow: theme.palette.mode === 'dark' 
-                            ? '0 24px 48px rgba(0,0,0,0.4)' 
-                            : '0 24px 48px rgba(0,0,0,0.15)',
-                        zIndex: 1300
-                    }
-                }}
-            >
-                <DialogTitle sx={{ 
-                    pb: 2,
-                    fontFamily: "'Inter', 'Cal Sans', 'Nunito Sans', sans-serif",
-                                fontWeight: 600, 
-                    fontSize: '1.5rem',
-                    letterSpacing: '-0.025em',
-                                color: theme.palette.text.primary,
-                    textAlign: 'center'
-                }}>
-                    Select Action for {selectedFile?.filename || 'File'}
-                </DialogTitle>
-                <DialogContent sx={{ pt: 1, pb: 2 }}>
-
-                    <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 3, flexWrap: 'wrap' }}>
-                        {/* Chat Option */}
-                        <Button
-                            onClick={handleOpenInChat}
-                            variant="outlined"
-                            sx={{
-                                borderRadius: 3,
-                                px: 4,
-                                py: 3,
-                                fontFamily: "'Inter', 'Nunito Sans', sans-serif",
-                                fontWeight: 600,
-                                fontSize: '1rem',
-                                textTransform: 'none',
-                                borderColor: alpha(theme.palette.primary.main, 0.3),
-                                color: theme.palette.primary.main,
-                                bgcolor: theme.palette.mode === 'dark' 
-                                    ? alpha(theme.palette.background.paper, 0.8)
-                                    : alpha(theme.palette.primary.main, 0.05),
-                                height: 'auto',
-                                minHeight: 80,
-                                flex: { xs: '1 1 100%', sm: '1 1 calc(33.333% - 16px)' },
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                textAlign: 'center',
-                                '&:hover': {
-                                    borderColor: theme.palette.primary.main,
-                                    bgcolor: theme.palette.mode === 'dark'
-                                        ? alpha(theme.palette.background.paper, 0.9)
-                                        : alpha(theme.palette.primary.main, 0.1),
-                                    transform: 'translateY(-2px)',
-                                    boxShadow: theme.palette.mode === 'dark' 
-                                        ? '0 8px 24px rgba(0,0,0,0.3)' 
-                                        : '0 8px 24px rgba(0,0,0,0.1)'
-                                },
-                                transition: 'all 0.2s ease'
-                            }}
-                        >
-                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, mb: 1 }}>
-                                <ChatCircle size={24} color="currentColor" />
-                                <Typography variant="h6" sx={{ 
-                                    fontWeight: 600,
-                                    fontSize: '1.125rem',
-                                    color: 'inherit',
-                                    whiteSpace: 'nowrap'
-                                }}>
-                                    Interactive Chat
-                            </Typography>
-                            </Box>
-                            <Typography variant="body2" sx={{ 
-                                color: theme.palette.text.secondary, 
-                                fontSize: '0.875rem',
-                                lineHeight: 1.5,
-                                textAlign: 'center'
-                            }}>
-                                Have real-time conversations with your data. Ask questions, get insights, and receive instant answers about your Power BI dataset.
-                            </Typography>
-                        </Button>
-                            
-                        {/* Docs Option */}
-                        <Button
-                            onClick={handleOpenInDocs}
-                            variant="outlined"
-                                sx={{ 
-                                borderRadius: 3,
-                                px: 4,
-                                py: 3,
-                                fontFamily: "'Inter', 'Nunito Sans', sans-serif",
-                                fontWeight: 600,
-                                fontSize: '1rem',
-                                textTransform: 'none',
-                                borderColor: alpha(theme.palette.secondary.main, 0.3),
-                                color: theme.palette.secondary.main,
-                                bgcolor: theme.palette.mode === 'dark' 
-                                    ? alpha(theme.palette.background.paper, 0.8)
-                                    : alpha(theme.palette.secondary.main, 0.05),
-                                height: 'auto',
-                                minHeight: 80,
-                                flex: { xs: '1 1 100%', sm: '1 1 calc(33.333% - 16px)' },
-                                    display: 'flex', 
-                                flexDirection: 'column',
-                                    alignItems: 'center', 
-                                textAlign: 'center',
-                                '&:hover': {
-                                    borderColor: theme.palette.secondary.main,
-                                    bgcolor: theme.palette.mode === 'dark'
-                                        ? alpha(theme.palette.background.paper, 0.9)
-                                        : alpha(theme.palette.secondary.main, 0.1),
-                                    transform: 'translateY(-2px)',
-                                    boxShadow: theme.palette.mode === 'dark' 
-                                        ? '0 8px 24px rgba(0,0,0,0.3)' 
-                                        : '0 8px 24px rgba(0,0,0,0.1)'
-                                },
-                                transition: 'all 0.2s ease'
-                            }}
-                        >
-                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, mb: 1 }}>
-                                <FileText size={24} color="currentColor" />
-                                <Typography variant="h6" sx={{ 
-                                    fontWeight: 600,
-                                    fontSize: '1.125rem',
-                                    color: 'inherit',
-                                    whiteSpace: 'nowrap'
-                                }}>
-                                    Generate Documentation
-                                </Typography>
-                            </Box>
-                            <Typography variant="body2" sx={{ 
-                                color: theme.palette.text.secondary,
-                                fontSize: '0.875rem',
-                                lineHeight: 1.5,
-                                textAlign: 'center'
-                            }}>
-                                Create comprehensive documentation and analysis reports. Get detailed insights on data models, security, and recommendations.
-                            </Typography>
-                        </Button>
-
-                        {/* Diagnostics Option */}
-                        <Button
-                            onClick={handleOpenInDiagnostics}
-                            variant="outlined"
-                            sx={{ 
-                                borderRadius: 3,
-                                px: 4,
-                                py: 3,
-                                fontFamily: "'Inter', 'Nunito Sans', sans-serif",
-                                fontWeight: 600,
-                                fontSize: '1rem',
-                                textTransform: 'none',
-                                borderColor: alpha(theme.palette.primary.main, 0.3),
-                                color: theme.palette.primary.main,
-                                bgcolor: theme.palette.mode === 'dark' 
-                                    ? alpha(theme.palette.background.paper, 0.8)
-                                    : alpha(theme.palette.primary.main, 0.05),
-                                height: 'auto',
-                                minHeight: 80,
-                                flex: { xs: '1 1 100%', sm: '1 1 calc(33.333% - 16px)' },
-                                display: 'flex', 
-                                flexDirection: 'column',
-                                alignItems: 'center', 
-                                textAlign: 'center',
-                                '&:hover': {
-                                    borderColor: theme.palette.primary.main,
-                                    bgcolor: theme.palette.mode === 'dark'
-                                        ? alpha(theme.palette.background.paper, 0.9)
-                                        : alpha(theme.palette.primary.main, 0.1),
-                                    transform: 'translateY(-2px)',
-                                    boxShadow: theme.palette.mode === 'dark' 
-                                        ? '0 8px 24px rgba(0,0,0,0.3)' 
-                                        : '0 8px 24px rgba(0,0,0,0.1)'
-                                },
-                                transition: 'all 0.2s ease'
-                            }}
-                        >
-                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, mb: 1 }}>
-                                <Stethoscope size={24} color="currentColor" />
-                                <Typography variant="h6" sx={{ 
-                                    fontWeight: 600,
-                                    fontSize: '1.125rem',
-                                    color: 'inherit',
-                                    whiteSpace: 'nowrap'
-                                }}>
-                                    Run Diagnostics
-                                </Typography>
-                            </Box>
-                            <Typography variant="body2" sx={{ 
-                                color: theme.palette.text.secondary,
-                                fontSize: '0.875rem',
-                                lineHeight: 1.5,
-                                textAlign: 'center'
-                            }}>
-                                Get actionable improvement recommendations for performance, optimization, and best practices. Identify areas for enhancement.
-                            </Typography>
-                        </Button>
-                    </Box>
-                </DialogContent>
-                <DialogActions sx={{ p: 3, pt: 1, justifyContent: 'center' }}>
-                    <Button
-                        onClick={handleSelectionDialogClose}
-                        variant="outlined"
-                        sx={{
-                            borderRadius: 2.5,
-                            px: 4,
-                            py: 1.5,
-                            fontFamily: "'Inter', 'Nunito Sans', sans-serif",
-                            fontWeight: 600,
-                            fontSize: '0.875rem',
-                            textTransform: 'none',
-                            borderColor: alpha(theme.palette.divider, 0.3),
-                            color: theme.palette.text.primary,
-                            '&:hover': {
-                                borderColor: alpha(theme.palette.divider, 0.5),
-                                bgcolor: alpha(theme.palette.background.chat, 0.5)
-                            }
-                        }}
-                    >
-                        Cancel
-                    </Button>
-                </DialogActions>
-            </Dialog>
+                selectedFile={selectedFile}
+                onChatClick={handleOpenInChat}
+                onDocsClick={handleOpenInDocs}
+                onDiagnosticsClick={handleOpenInDiagnostics}
+            />
 
             {/* Success Snackbar */}
             <Snackbar

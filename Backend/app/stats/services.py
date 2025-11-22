@@ -148,6 +148,108 @@ class StatsService:
                 'chat_queries': 0,
                 'chat_queries_breakdown_available': False
             }
+    
+    @staticmethod
+    def get_user_token_usage(user_ms_object_id: str) -> Dict[str, Any]:
+        """
+        Get total token usage for a specific user by aggregating from both chat and docs tables.
+        
+        Args:
+            user_ms_object_id: Microsoft Object ID from Azure AD authentication
+            
+        Returns:
+            Dictionary containing token usage statistics:
+            - total_tokens: Combined total from both tables
+            - chat_tokens: Total from chat table
+            - docs_tokens: Total from docs table
+            - chat_input_tokens: Sum of input tokens from chat
+            - chat_output_tokens: Sum of output tokens from chat
+            - chat_overhead_tokens: Sum of overhead tokens from chat
+            - docs_input_tokens: Sum of input tokens from docs
+            - docs_output_tokens: Sum of output tokens from docs
+        """
+        try:
+            token_usage = {
+                'total_tokens': 0,
+                'chat_tokens': 0,
+                'docs_tokens': 0,
+                'chat_input_tokens': 0,
+                'chat_output_tokens': 0,
+                'chat_overhead_tokens': 0,
+                'docs_input_tokens': 0,
+                'docs_output_tokens': 0
+            }
+            
+            # Get chat token usage - aggregate all token fields
+            with get_db_cursor(commit=False) as cursor:
+                cursor.execute("""
+                    SELECT 
+                        COALESCE(SUM(context_analysis_input_tokens), 0),
+                        COALESCE(SUM(context_analysis_output_tokens), 0),
+                        COALESCE(SUM(context_analysis_overhead_tokens), 0),
+                        COALESCE(SUM(final_response_input_tokens), 0),
+                        COALESCE(SUM(final_response_output_tokens), 0),
+                        COALESCE(SUM(final_response_overhead_tokens), 0)
+                    FROM powerbi_chat_token_usage
+                    WHERE user_ms_object_id = %s
+                """, (user_ms_object_id,))
+                
+                result = cursor.fetchone()
+                if result:
+                    context_input = int(result[0]) if result[0] is not None else 0
+                    context_output = int(result[1]) if result[1] is not None else 0
+                    context_overhead = int(result[2]) if result[2] is not None else 0
+                    final_input = int(result[3]) if result[3] is not None else 0
+                    final_output = int(result[4]) if result[4] is not None else 0
+                    final_overhead = int(result[5]) if result[5] is not None else 0
+                    
+                    token_usage['chat_input_tokens'] = context_input + final_input
+                    token_usage['chat_output_tokens'] = context_output + final_output
+                    token_usage['chat_overhead_tokens'] = context_overhead + final_overhead
+                    token_usage['chat_tokens'] = (
+                        token_usage['chat_input_tokens'] + 
+                        token_usage['chat_output_tokens'] + 
+                        token_usage['chat_overhead_tokens']
+                    )
+            
+            # Get docs token usage - aggregate input and output tokens
+            with get_db_cursor(commit=False) as cursor:
+                cursor.execute("""
+                    SELECT 
+                        COALESCE(SUM(input_tokens), 0),
+                        COALESCE(SUM(output_tokens), 0)
+                    FROM powerbi_docs_token_usage
+                    WHERE user_ms_object_id = %s
+                """, (user_ms_object_id,))
+                
+                result = cursor.fetchone()
+                if result:
+                    token_usage['docs_input_tokens'] = int(result[0]) if result[0] is not None else 0
+                    token_usage['docs_output_tokens'] = int(result[1]) if result[1] is not None else 0
+                    token_usage['docs_tokens'] = (
+                        token_usage['docs_input_tokens'] + 
+                        token_usage['docs_output_tokens']
+                    )
+            
+            # Calculate total tokens
+            token_usage['total_tokens'] = token_usage['chat_tokens'] + token_usage['docs_tokens']
+            
+            logger.info(f"Retrieved token usage for user {user_ms_object_id}: total={token_usage['total_tokens']}")
+            return token_usage
+            
+        except Exception as e:
+            logger.error(f"Error retrieving token usage for user {user_ms_object_id}: {e}", exc_info=True)
+            # Return default token usage on error
+            return {
+                'total_tokens': 0,
+                'chat_tokens': 0,
+                'docs_tokens': 0,
+                'chat_input_tokens': 0,
+                'chat_output_tokens': 0,
+                'chat_overhead_tokens': 0,
+                'docs_input_tokens': 0,
+                'docs_output_tokens': 0
+            }
 
 
 # Singleton instance

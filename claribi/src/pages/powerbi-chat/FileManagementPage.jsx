@@ -55,14 +55,22 @@ const FileManagementPage = ({ onFileSelect, onUploadNew }) => {
             {/* Header */}
             <Box 
                 sx={{ 
-                    bgcolor: theme.palette.sidebar.background,
+                    bgcolor: theme.palette.background.chat,
                     py: 3,
-                    px: 4,
-                    borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`
+                    px: 4
                 }}
             >
-                <Box display="flex" alignItems="center" gap={2} mb={2}>
-                    <Box>
+                <Box 
+                    display="flex" 
+                    alignItems="center" 
+                    justifyContent="space-between" 
+                    gap={4}
+                    sx={{
+                        flexDirection: { xs: 'column', lg: 'row' },
+                        alignItems: { xs: 'stretch', lg: 'center' }
+                    }}
+                >
+                    <Box flex={1}>
                         <Typography variant="h4" sx={{ 
                             fontWeight: 700, 
                             color: theme.palette.text.primary,
@@ -78,15 +86,41 @@ const FileManagementPage = ({ onFileSelect, onUploadNew }) => {
                             Expert data model analysis and comprehensive dataset assistance
                         </Typography>
                     </Box>
+                    
+                    {/* Upload New Button */}
+                    <Button
+                        variant="contained"
+                        startIcon={<CloudArrowUp size={20} color={theme.palette.primary.contrastText} />}
+                        onClick={handleUploadClick}
+                        sx={{
+                            borderRadius: 3,
+                            px: 3,
+                            py: 1.5,
+                            fontSize: '0.95rem',
+                            fontWeight: 600,
+                            height: 40,
+                            bgcolor: theme.palette.primary.main,
+                            color: theme.palette.primary.contrastText,
+                            '&:hover': { 
+                                bgcolor: theme.palette.primary.dark,
+                                transform: 'translateY(-1px)',
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                            },
+                            transition: 'all 0.2s ease',
+                            alignSelf: { xs: 'stretch', lg: 'center' }
+                        }}
+                    >
+                        Upload New
+                    </Button>
                 </Box>
-
             </Box>
 
             {/* Main Content */}
             <Box 
                 sx={{ 
                     flexGrow: 1, 
-                    py: 4,
+                    pt: 1,
+                    pb: 4,
                     px: 4,
                     bgcolor: theme.palette.background.chat,
                     display: 'flex',
@@ -201,6 +235,7 @@ const FileManagementPage = ({ onFileSelect, onUploadNew }) => {
                         onFileClick={handleFileClick}
                         onUploadNew={handleUploadClick}
                         onFileDelete={handleFileDelete}
+                        showUploadButton={false}
                     />
                 )}
             </Box>
