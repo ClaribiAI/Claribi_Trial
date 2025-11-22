@@ -7,6 +7,7 @@ import HelpPage from './pages/help';
 import LoginWrapper from './components/auth/LoginWrapper';
 import { AuthProvider } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
+import { FileProvider } from './contexts/FileContext';
 import { useTheme } from './contexts/ThemeContext';
 import { createAppTheme } from './theme.js';
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -84,7 +85,9 @@ const App: FC = () => {
   return (
     <AuthProvider>
       <NotificationProvider>
-        <AppContent />
+        <FileProvider>
+          <AppContent />
+        </FileProvider>
       </NotificationProvider>
     </AuthProvider>
   );

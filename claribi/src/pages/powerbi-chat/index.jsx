@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
     Box,
     Alert,
@@ -14,10 +14,14 @@ import UploadConfirmationDialog from '../../components/ui/UploadConfirmationDial
 import FileManagementPage from './FileManagementPage';
 import ChatPage from './ChatPage';
 import { useNotification } from '../../contexts/NotificationContext';
+import { useFiles } from '../../contexts/FileContext';
 
 const PowerBIChat = () => {
     const { showNotification } = useNotification();
+    const { refreshFiles, files } = useFiles();
     const location = useLocation();
+    const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
     const [currentView, setCurrentView] = useState('file-management'); // 'file-management' or 'chat'
     const [pbixFile, setPbixFile] = useState(null);
     const [uploadLoading, setUploadLoading] = useState(false);
@@ -33,12 +37,30 @@ const PowerBIChat = () => {
 
     const fileInputRef = useRef(null);
 
-    // Handle file selection from navigation state
+    // Handle file selection from navigation state or URL
     useEffect(() => {
         if (location.state?.selectedFile) {
             handleFileSelect(location.state.selectedFile);
         }
     }, [location.state]);
+
+    // Load file from URL fileId parameter
+    useEffect(() => {
+        const fileId = searchParams.get('fileId');
+        if (fileId && files.length > 0) {
+            const file = files.find(f => f.collection_name === fileId);
+            if (file) {
+                const fileWithSessionId = {
+                    ...file,
+                    sessionId: file.collection_name,
+                    name: file.filename
+                };
+                setPbixFile(fileWithSessionId);
+                setIsNewlyUploaded(false);
+                setCurrentView('chat');
+            }
+        }
+    }, [searchParams, files]);
 
     const handleFileUpload = (event) => {
         const file = event.target.files[0];
@@ -74,13 +96,15 @@ const PowerBIChat = () => {
                 setUploadProgress(progress);
             });
             
-            setPbixFile({
+            const fileWithSessionId = {
                 name: renamedFile.name,
                 size: renamedFile.size,
                 uploadId: response.upload_id || Date.now(),
-                sessionId: response.session_id,
+                sessionId: response.session_id || response.collection_name,
+                collection_name: response.session_id || response.collection_name,
                 metadata: response.metadata
-            });
+            };
+            setPbixFile(fileWithSessionId);
             setIsNewlyUploaded(true);
 
             // Show success message
@@ -92,6 +116,11 @@ const PowerBIChat = () => {
             setShowUploadConfirmation(false);
             setPendingFile(null);
             setCurrentView('chat');
+            // Update URL with fileId
+            setSearchParams({ fileId: fileWithSessionId.collection_name });
+            
+            // Refresh the files list to include the new upload
+            await refreshFiles();
 
         } catch (err) {
             console.error('Error uploading file:', err);
@@ -130,6 +159,8 @@ const PowerBIChat = () => {
         setIsNewlyUploaded(false);
         // Don't show success notification for already uploaded files
         setCurrentView('chat');
+        // Update URL with fileId
+        setSearchParams({ fileId: selectedFile.collection_name });
     };
 
     const handleUploadNew = () => {
@@ -152,6 +183,8 @@ const PowerBIChat = () => {
         setPbixFile(null);
         setShowUploadSuccess(false);
         setCurrentView('file-management');
+        // Remove fileId from URL
+        setSearchParams({});
     };
 
     return (

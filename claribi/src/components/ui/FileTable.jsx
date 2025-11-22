@@ -270,18 +270,20 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, actionType =
                                     </Box>
                                 </Box>
                             </TableCell>
-                            <TableCell sx={{ 
-                                fontWeight: 600, 
-                                color: theme.palette.text.primary,
-                                borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                                py: 2,
-                                textAlign: 'center',
-                                width: 120,
-                                position: 'sticky',
-                                top: 0,
-                                zIndex: 10,
-                                bgcolor: theme.palette.background.paper
-                            }}>
+                            <TableCell 
+                                align="center"
+                                sx={{ 
+                                    fontWeight: 600, 
+                                    color: theme.palette.text.primary,
+                                    borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                                    py: 2,
+                                    width: 120,
+                                    position: 'sticky',
+                                    top: 0,
+                                    zIndex: 10,
+                                    bgcolor: theme.palette.background.paper
+                                }}
+                            >
                                 Actions
                             </TableCell>
                         </TableRow>
@@ -335,11 +337,13 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, actionType =
                                         {formatDate(file.upload_time)}
                                     </Typography>
                                 </TableCell>
-                                <TableCell sx={{ 
-                                    py: 2.5,
-                                    borderBottom: 'none',
-                                    textAlign: 'center'
-                                }}>
+                                <TableCell 
+                                    align="center"
+                                    sx={{ 
+                                        py: 2.5,
+                                        borderBottom: 'none'
+                                    }}
+                                >
                                     <Box display="flex" gap={1} justifyContent="center">
                                         {actionType === 'both' ? (
                                             <>

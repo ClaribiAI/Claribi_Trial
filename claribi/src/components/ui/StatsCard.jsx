@@ -148,16 +148,16 @@ const StatsCard = () => {
                 }
             }}
         >
-            <CardContent sx={{ p: 2.5 }}>
+            <CardContent sx={{ p: 1.5 }}>
                 <Typography 
                     variant="subtitle1" 
                     sx={{ 
                         fontWeight: 600,
                         color: textColor,
                         fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif",
-                        mb: 2,
+                        mb: 1.5,
                         textAlign: 'center',
-                        fontSize: '1rem'
+                        fontSize: '0.875rem'
                     }}
                 >
                     Usage Statistics
@@ -168,7 +168,7 @@ const StatsCard = () => {
                         <CircularProgress size={24} />
                     </Box>
                 ) : (
-                    <Box sx={{ display: 'flex', flexDirection: 'row', gap: 1.5, justifyContent: 'space-between' }}>
+                    <Box sx={{ display: 'flex', flexDirection: 'row', gap: 1, justifyContent: 'space-between' }}>
                         {stats.map((stat, index) => {
                         const IconComponent = stat.icon;
                         return (
@@ -179,8 +179,8 @@ const StatsCard = () => {
                                     display: 'flex',
                                     flexDirection: 'column',
                                     alignItems: 'center',
-                                    gap: 1,
-                                    p: 1.5,
+                                    gap: 0.5,
+                                    p: 1,
                                     borderRadius: 1.5,
                                     bgcolor: theme.palette.mode === 'dark' 
                                         ? alpha(theme.palette.background.chat, 0.5)
@@ -201,17 +201,17 @@ const StatsCard = () => {
                             >
                                 <Box
                                     sx={{
-                                        p: 1,
-                                        borderRadius: 1.5,
+                                        p: 0.75,
+                                        borderRadius: 1,
                                         bgcolor: alpha(accentColor, 0.1),
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
-                                        mb: 0.5
+                                        mb: 0.25
                                     }}
                                 >
                                     <IconComponent 
-                                        size={18} 
+                                        size={16} 
                                         color={accentColor}
                                     />
                                 </Box>
@@ -224,8 +224,8 @@ const StatsCard = () => {
                                             color: textColor,
                                             fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif",
                                             lineHeight: 1.1,
-                                            mb: 0.25,
-                                            fontSize: '1.25rem'
+                                            mb: 0.125,
+                                            fontSize: '1rem'
                                         }}
                                     >
                                         {stat.value}
@@ -236,7 +236,7 @@ const StatsCard = () => {
                                                 color: secondaryTextColor,
                                                 fontWeight: 500,
                                                 ml: 0.5,
-                                                fontSize: '0.75rem'
+                                                fontSize: '0.7rem'
                                             }}
                                         >
                                             {stat.unit}
@@ -246,7 +246,7 @@ const StatsCard = () => {
                                         variant="caption"
                                         sx={{
                                             color: secondaryTextColor,
-                                            fontSize: '0.7rem',
+                                            fontSize: '0.65rem',
                                             fontWeight: 500,
                                             textTransform: 'uppercase',
                                             letterSpacing: '0.5px',

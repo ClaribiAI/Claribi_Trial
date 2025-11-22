@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   Box, 
   List, 
@@ -44,12 +44,16 @@ import { useTheme as useCustomTheme } from '../../contexts/ThemeContext';
 const Sidebar = ({ open = false, toggleSidebar }) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const theme = useTheme();
   const { currentUser, logout } = useAuth();
   const { isDarkMode, toggleTheme } = useCustomTheme();
   
   // State for user menu
   const [userMenuAnchorEl, setUserMenuAnchorEl] = useState(null);
+  
+  // Get current fileId from URL to preserve it when navigating
+  const fileId = searchParams.get('fileId');
 
   const menuItems = [
     { text: 'Home', icon: <House size={20} />, path: '/' },
@@ -221,7 +225,7 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
             >
               <Box 
             component={Link}
-                to={item.path}
+                to={item.path === '/' ? item.path : (fileId ? `${item.path}?fileId=${encodeURIComponent(fileId)}` : item.path)}
                 onClick={() => toggleSidebar && toggleSidebar()}
             sx={{ 
               textDecoration: 'none', 

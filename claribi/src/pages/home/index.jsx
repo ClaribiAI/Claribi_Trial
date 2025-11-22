@@ -22,22 +22,21 @@ import {
     CheckCircle,
     Stethoscope
 } from '@phosphor-icons/react';
-import { getUploadedFiles, uploadPowerBIFile } from '../../services/powerbiChatService';
+import { uploadPowerBIFile } from '../../services/powerbiChatService';
 import FileTable from '../../components/ui/FileTable';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import StatsCard from '../../components/ui/StatsCard';
 import UploadConfirmationDialog from '../../components/ui/UploadConfirmationDialog';
 import { useNotification } from '../../contexts/NotificationContext';
+import { useFiles } from '../../contexts/FileContext';
 
 const Home = () => {
     const theme = useTheme();
     const navigate = useNavigate();
     const { showNotification } = useNotification();
+    const { files, loading, error, refreshFiles, removeFile } = useFiles();
     
     // State management
-    const [files, setFiles] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
     const [selectionDialogOpen, setSelectionDialogOpen] = useState(false);
     const [selectedFile, setSelectedFile] = useState(null);
     
@@ -64,26 +63,6 @@ const Home = () => {
     
     const fileInputRef = useRef(null);
 
-    // Load files on component mount
-    useEffect(() => {
-        loadFiles();
-    }, []);
-
-    const loadFiles = async () => {
-        try {
-            setLoading(true);
-            setError(null);
-            const uploadedFiles = await getUploadedFiles();
-            setFiles(uploadedFiles);
-        } catch (err) {
-            console.error('Error loading files:', err);
-            setError(err.message || 'Failed to load files');
-            showNotification('Failed to load files. Please try again.', 'error');
-        } finally {
-            setLoading(false);
-        }
-    };
-
     const handleNavigateToChat = () => {
         navigate('/powerbi-chat');
     };
@@ -99,15 +78,15 @@ const Home = () => {
     };
 
     const handleChatClick = (file) => {
-        navigate('/powerbi-chat', { state: { selectedFile: file } });
+        navigate(`/powerbi-chat?fileId=${encodeURIComponent(file.collection_name)}`, { state: { selectedFile: file } });
     };
 
     const handleDocsClick = (file) => {
-        navigate('/powerbi-docs', { state: { selectedFile: file } });
+        navigate(`/powerbi-docs?fileId=${encodeURIComponent(file.collection_name)}`, { state: { selectedFile: file } });
     };
 
     const handleDiagnosticsClick = (file) => {
-        navigate('/powerbi-diagnostics', { state: { selectedFile: file } });
+        navigate(`/powerbi-diagnostics?fileId=${encodeURIComponent(file.collection_name)}`, { state: { selectedFile: file } });
     };
 
     const handleSelectionDialogClose = () => {
@@ -117,19 +96,19 @@ const Home = () => {
 
     const handleOpenInChat = () => {
         if (selectedFile) {
-            navigate('/powerbi-chat', { state: { selectedFile } });
+            navigate(`/powerbi-chat?fileId=${encodeURIComponent(selectedFile.collection_name)}`, { state: { selectedFile } });
         }
     };
 
     const handleOpenInDocs = () => {
         if (selectedFile) {
-            navigate('/powerbi-docs', { state: { selectedFile } });
+            navigate(`/powerbi-docs?fileId=${encodeURIComponent(selectedFile.collection_name)}`, { state: { selectedFile } });
         }
     };
 
     const handleOpenInDiagnostics = () => {
         if (selectedFile) {
-            navigate('/powerbi-diagnostics', { state: { selectedFile } });
+            navigate(`/powerbi-diagnostics?fileId=${encodeURIComponent(selectedFile.collection_name)}`, { state: { selectedFile } });
         }
     };
 
@@ -181,7 +160,7 @@ const Home = () => {
             setPendingFile(null);
             
             // Reload files to show the new upload
-            await loadFiles();
+            await refreshFiles();
 
         } catch (err) {
             console.error('Error uploading file:', err);
@@ -232,7 +211,7 @@ const Home = () => {
     };
 
     const handleFileDelete = (deletedFile) => {
-        setFiles(prev => prev.filter(f => f.collection_name !== deletedFile.collection_name));
+        removeFile(deletedFile);
     };
 
     return (
@@ -291,14 +270,14 @@ const Home = () => {
                             color: theme.palette.text.secondary, 
                             fontWeight: 400
                         }}>
-                            Choose your Power BI experience. Chat with your Power BI dataset or generate comprehensive documentation.
+                            Choose your Power BI experience. Chat with your Power BI dataset, generate comprehensive documentation, or run diagnostics.
                         </Typography>
                     </Box>
                     
                     {/* Stats Card */}
                     <Box sx={{ 
-                        minWidth: { xs: '100%', lg: 400 }, 
-                        maxWidth: { xs: '100%', lg: 500 },
+                        minWidth: { xs: '100%', lg: 360 }, 
+                        maxWidth: { xs: '100%', lg: 420 },
                         alignSelf: { xs: 'center', lg: 'flex-start' }
                     }}>
                         <StatsCard />

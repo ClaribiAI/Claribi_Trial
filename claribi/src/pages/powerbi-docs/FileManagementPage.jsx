@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
     Box,
     Typography,
@@ -11,42 +11,20 @@ import {
     CloudArrowUpIcon,
     ChartBarIcon
 } from '@phosphor-icons/react';
-import { getUploadedFiles } from '../../services/powerbiDocsService';
 import FileTable from '../../components/ui/FileTable';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import { useFiles } from '../../contexts/FileContext';
 
 const FileManagementPage = ({ onFileSelect, onUploadNew }) => {
     const theme = useTheme();
-    const [files, setFiles] = useState([]);
-    const [filesLoading, setFilesLoading] = useState(true);
-    const [error, setError] = useState(null);
-
-    // Load files on component mount
-    useEffect(() => {
-        loadFiles();
-    }, []);
-
-    const loadFiles = async () => {
-        try {
-            setFilesLoading(true);
-            setError(null);
-            const response = await getUploadedFiles();
-            setFiles(response.files || []);
-        } catch (err) {
-            console.error('Error loading files:', err);
-            setError(err.message || 'Failed to load files');
-        } finally {
-            setFilesLoading(false);
-        }
-    };
+    const { files, loading: filesLoading, error, loadFiles, removeFile } = useFiles();
 
     const handleFileClick = (file) => {
         onFileSelect(file);
     };
 
     const handleFileDelete = (deletedFile) => {
-        // Remove the deleted file from the local state
-        setFiles(prev => prev.filter(f => f.collection_name !== deletedFile.collection_name));
+        removeFile(deletedFile);
     };
 
     return (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
     Box,
     Typography,
@@ -12,36 +12,13 @@ import {
     FileText,
     ChartBar
 } from '@phosphor-icons/react';
-import { getUploadedFiles } from '../../services/powerbiChatService';
 import FileTable from '../../components/ui/FileTable';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
-import { useNotification } from '../../contexts/NotificationContext';
+import { useFiles } from '../../contexts/FileContext';
 
 const FileManagementPage = ({ onFileSelect, onUploadNew }) => {
     const theme = useTheme();
-    const { showNotification } = useNotification();
-    const [files, setFiles] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-
-    useEffect(() => {
-        loadFiles();
-    }, []);
-
-    const loadFiles = async () => {
-        try {
-            setLoading(true);
-            setError(null);
-            const uploadedFiles = await getUploadedFiles();
-            setFiles(uploadedFiles);
-        } catch (err) {
-            console.error('Error loading files:', err);
-            setError(err.message || 'Failed to load files');
-            showNotification('Failed to load files. Please try again.', 'error');
-        } finally {
-            setLoading(false);
-        }
-    };
+    const { files, loading, error, loadFiles, removeFile } = useFiles();
 
     const handleFileClick = (file) => {
         onFileSelect(file);
@@ -52,8 +29,7 @@ const FileManagementPage = ({ onFileSelect, onUploadNew }) => {
     };
 
     const handleFileDelete = (deletedFile) => {
-        // Remove the deleted file from the local state
-        setFiles(prev => prev.filter(f => f.collection_name !== deletedFile.collection_name));
+        removeFile(deletedFile);
     };
 
     if (loading) {

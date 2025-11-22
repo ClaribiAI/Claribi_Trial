@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
     Box,
     Alert,
@@ -13,9 +13,13 @@ import FileSelectionDialog from '../../components/ui/FileSelectionDialog';
 import UploadConfirmationDialog from '../../components/ui/UploadConfirmationDialog';
 import FileManagementPage from './FileManagementPage';
 import DocumentationPage from './DocumentationPage';
+import { useFiles } from '../../contexts/FileContext';
 
 const PowerBIDocumentation = () => {
+    const { refreshFiles, files } = useFiles();
     const location = useLocation();
+    const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
     const [currentView, setCurrentView] = useState('file-management'); // 'file-management' or 'documentation'
     const [selectedFile, setSelectedFile] = useState(null);
     const [showFileSelection, setShowFileSelection] = useState(false);
@@ -30,12 +34,29 @@ const PowerBIDocumentation = () => {
 
     const fileInputRef = useRef(null);
 
-    // Handle file selection from navigation state
+    // Handle file selection from navigation state or URL
     useEffect(() => {
         if (location.state?.selectedFile) {
             handleFileSelect(location.state.selectedFile);
         }
     }, [location.state]);
+
+    // Load file from URL fileId parameter
+    useEffect(() => {
+        const fileId = searchParams.get('fileId');
+        if (fileId && files.length > 0) {
+            const file = files.find(f => f.collection_name === fileId);
+            if (file) {
+                const fileWithSessionId = {
+                    ...file,
+                    sessionId: file.collection_name,
+                    name: file.filename
+                };
+                setSelectedFile(fileWithSessionId);
+                setCurrentView('documentation');
+            }
+        }
+    }, [searchParams, files]);
 
     const handleUploadNew = () => {
         setShowFileSelection(true);
@@ -94,6 +115,11 @@ const PowerBIDocumentation = () => {
             };
             setSelectedFile(fileWithSessionId);
             setCurrentView('documentation');
+            // Update URL with fileId
+            setSearchParams({ fileId: fileWithSessionId.collection_name });
+            
+            // Refresh the files list to include the new upload
+            await refreshFiles();
 
         } catch (err) {
             console.error('Error uploading file:', err);
@@ -130,6 +156,8 @@ const PowerBIDocumentation = () => {
         };
         setSelectedFile(fileWithSessionId);
         setCurrentView('documentation');
+        // Update URL with fileId
+        setSearchParams({ fileId: file.collection_name });
     };
 
     const handleFileSelect = (selectedFile) => {
@@ -145,6 +173,8 @@ const PowerBIDocumentation = () => {
         setShowUploadSuccess(true);
         setSuccessMessage('File selected successfully!');
         setTimeout(() => setShowUploadSuccess(false), 6000);
+        // Update URL with fileId
+        setSearchParams({ fileId: selectedFile.collection_name });
     };
 
     const handleCloseUploadConfirmation = () => {
@@ -167,6 +197,8 @@ const PowerBIDocumentation = () => {
         setSelectedFile(null);
         setShowUploadSuccess(false);
         setCurrentView('file-management');
+        // Remove fileId from URL
+        setSearchParams({});
     };
 
     return (
