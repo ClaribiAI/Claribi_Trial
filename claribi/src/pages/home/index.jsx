@@ -16,16 +16,36 @@ import { uploadPowerBIFile } from '../../services/powerbiChatService';
 import UploadConfirmationDialog from '../../components/ui/UploadConfirmationDialog';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useFiles } from '../../contexts/FileContext';
+import { useAuth } from '../../contexts/AuthContext';
 import statsService from '../../services/statsService';
+import { shouldShowOnboarding, dismissOnboarding } from '../../services/onboardingService';
 import StatsCards from './components/StatsCards';
 import FileManagementPage from './FileManagementPage';
 import FileActionSelectionDialog from './components/FileActionSelectionDialog';
+import OnboardingGuide from '../../components/onboarding/OnboardingGuide';
 
 const Home = () => {
     const theme = useTheme();
     const navigate = useNavigate();
     const { showNotification } = useNotification();
     const { files, loading, error, refreshFiles, removeFile } = useFiles();
+    const { currentUser, loading: authLoading } = useAuth();
+    
+    // Check for login redirect immediately (synchronously) before AuthContext cleans URL params
+    // Use useRef to store this value immediately on component initialization
+    const fromLoginRedirectRef = useRef(false);
+    if (!fromLoginRedirectRef.current) {
+        const urlParams = new URLSearchParams(window.location.search);
+        const authStatus = urlParams.get('auth');
+        const isLoginRedirect = authStatus === 'success';
+        if (isLoginRedirect) {
+            sessionStorage.setItem('from_login_redirect', 'true');
+            fromLoginRedirectRef.current = true;
+        } else {
+            // Also check sessionStorage in case URL was already cleaned
+            fromLoginRedirectRef.current = sessionStorage.getItem('from_login_redirect') === 'true';
+        }
+    }
     
     // State management
     const [selectionDialogOpen, setSelectionDialogOpen] = useState(false);
@@ -37,6 +57,7 @@ const Home = () => {
         chatQueries: 0
     });
     const [uploadError, setUploadError] = useState(null);
+    const [showOnboardingGuide, setShowOnboardingGuide] = useState(false);
     
     // Get time-based greeting
     const getTimeBasedGreeting = () => {
@@ -66,6 +87,20 @@ const Home = () => {
             sessionStorage.setItem('session_start', Date.now().toString());
         }
     }, []);
+
+    // Check if onboarding guide should be shown (only after login redirect)
+    useEffect(() => {
+        // Check if we came from login redirect (from ref or sessionStorage)
+        const fromLoginRedirect = fromLoginRedirectRef.current || sessionStorage.getItem('from_login_redirect') === 'true';
+        
+        // Only show onboarding if: user is authenticated, guide not dismissed, and came from login
+        if (!authLoading && currentUser && shouldShowOnboarding() && fromLoginRedirect) {
+            // Clear the flag so it doesn't show again on subsequent navigations
+            sessionStorage.removeItem('from_login_redirect');
+            fromLoginRedirectRef.current = false;
+            setShowOnboardingGuide(true);
+        }
+    }, [currentUser, authLoading]);
 
     // Fetch stats on component mount
     useEffect(() => {
@@ -232,6 +267,15 @@ const Home = () => {
         removeFile(deletedFile);
     };
 
+    const handleOnboardingClose = () => {
+        setShowOnboardingGuide(false);
+    };
+
+    const handleOnboardingDismiss = () => {
+        dismissOnboarding();
+        setShowOnboardingGuide(false);
+    };
+
     return (
         <Box sx={{ width: '100%', height: '100vh', display: 'flex', flexDirection: 'column' }}>
             {/* Hidden file input */}
@@ -372,6 +416,13 @@ const Home = () => {
                 onConfirm={handleConfirmUpload}
                 file={pendingFile}
                 isUploading={uploadLoading}
+            />
+
+            {/* Onboarding Guide */}
+            <OnboardingGuide
+                open={showOnboardingGuide}
+                onClose={handleOnboardingClose}
+                onDismiss={handleOnboardingDismiss}
             />
         </Box>
     );

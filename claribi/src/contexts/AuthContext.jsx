@@ -38,6 +38,9 @@ export const AuthProvider = ({ children }) => {
           console.log("Storing JWT token from login callback");
           authService.setToken(jwtToken);
           
+          // Mark that this is a login redirect (before cleaning URL) so onboarding can detect it
+          sessionStorage.setItem('from_login_redirect', 'true');
+          
           // Clean up URL after storing token
           const url = new URL(window.location);
           url.searchParams.delete('auth');
