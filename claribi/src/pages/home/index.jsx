@@ -326,6 +326,7 @@ const Home = () => {
             <FileManagementPage
                         onFileClick={handleFileClick}
                         onFileDelete={handleFileDelete}
+                        onFileRefresh={refreshFiles}
                         onChatClick={handleChatClick}
                         onDocsClick={handleDocsClick}
                         onDiagnosticsClick={handleDiagnosticsClick}

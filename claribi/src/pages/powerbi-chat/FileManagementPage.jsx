@@ -18,7 +18,7 @@ import { useFiles } from '../../contexts/FileContext';
 
 const FileManagementPage = ({ onFileSelect, onUploadNew }) => {
     const theme = useTheme();
-    const { files, loading, error, loadFiles, removeFile } = useFiles();
+    const { files, loading, error, loadFiles, removeFile, refreshFiles } = useFiles();
 
     const handleFileClick = (file) => {
         onFileSelect(file);
@@ -235,6 +235,7 @@ const FileManagementPage = ({ onFileSelect, onUploadNew }) => {
                         onFileClick={handleFileClick}
                         onUploadNew={handleUploadClick}
                         onFileDelete={handleFileDelete}
+                        onFileRefresh={refreshFiles}
                         showUploadButton={false}
                     />
                 )}

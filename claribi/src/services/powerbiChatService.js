@@ -265,7 +265,71 @@ export const uploadPowerBIFile = async (file, onProgress = null) => {
     }
 };
 
+/**
+ * Reupload a Power BI file to replace existing metadata
+ * @param {string} collectionName - The collection name to reupload
+ * @param {File} file - The PBIX file to upload
+ * @param {Function} onProgress - Optional progress callback
+ * @returns {Promise<Object>} Reupload response with metadata
+ */
+export const reuploadPowerBIFile = async (collectionName, file, onProgress = null) => {
+    try {
+        const formData = new FormData();
+        formData.append('pbix_file', file);
+        formData.append('collection_name', collectionName);
 
+        const response = await api.post('/powerbi-chat/reupload', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+            timeout: 300000, // 5 minutes for file uploads
+            onUploadProgress: (progressEvent) => {
+                if (onProgress && progressEvent.total) {
+                    const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                    onProgress(percentCompleted);
+                }
+            },
+        });
+
+        return response.data;
+    } catch (error) {
+        console.error('Error reuploading Power BI file:', error);
+        
+        // Handle specific error types with more detailed messages
+        if (error.code === 'ECONNRESET' || error.code === 'ECONNABORTED') {
+            throw new Error('Connection was interrupted during reupload. This may be due to server restart or network issues. Please try again.');
+        }
+        
+        if (error.response) {
+            const status = error.response.status;
+            const errorMessage = error.response.data?.error || 
+                               error.response.data?.message || 
+                               `Reupload failed: ${status}`;
+            
+            // Handle specific HTTP status codes
+            if (status === 413) {
+                throw new Error('File too large. Please try with a smaller file (under 100MB).');
+            } else if (status === 400) {
+                throw new Error('Invalid file format or missing collection name. Please ensure you are uploading a valid .pbix file.');
+            } else if (status === 500) {
+                throw new Error('Server error during processing. The server may have restarted. Please try again.');
+            } else if (status === 503) {
+                throw new Error('Server temporarily unavailable. Please try again in a few moments.');
+            }
+            
+            throw new Error(errorMessage);
+        } else if (error.request) {
+            if (error.code === 'ECONNABORTED') {
+                throw new Error('Reupload timed out. The file might be too large or the server is taking too long to process. Please try again with a smaller file.');
+            } else if (error.code === 'NETWORK_ERROR') {
+                throw new Error('Network error. Please check your internet connection and try again.');
+            }
+            throw new Error('Network error. Please check your connection and try again.');
+        } else {
+            throw new Error(error.message || 'An unexpected error occurred during reupload');
+        }
+    }
+};
 
 /**
  * Delete a Power BI session (collection) from the vector database

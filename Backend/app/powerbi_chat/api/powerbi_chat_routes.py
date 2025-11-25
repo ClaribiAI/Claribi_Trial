@@ -317,6 +317,194 @@ def upload_powerbi_file():
             logger.error(f"Error during cleanup: {cleanup_error}")
 
 
+@powerbi_chat_bp.route('/powerbi-chat/reupload', methods=['POST', 'OPTIONS'])
+@cross_origin(supports_credentials=True)
+@auth_required
+def reupload_powerbi_file():
+    if request.method == 'OPTIONS': 
+        return jsonify({'status': 'ok'})
+    
+    if 'pbix_file' not in request.files: 
+        return error_response(400, 'PBIX file is required')
+    
+    collection_name = request.form.get('collection_name')
+    if not collection_name:
+        return error_response(400, 'Collection name is required')
+
+    # Extract user information from authentication
+    user = g.current_user
+    user_ms_object_id = user.get('ms_object_id') if user else None
+
+    file = request.files['pbix_file']
+    
+    # Enhanced file validation
+    if not file.filename:
+        return error_response(400, 'No file selected')
+    
+    # Check file size before processing
+    file.seek(0, 2)  # Seek to end
+    file_size = file.tell()
+    file.seek(0)  # Reset to beginning
+    
+    if file_size > config.MAX_CONTENT_LENGTH:
+        return error_response(413, f'File too large. Maximum size is {config.MAX_CONTENT_LENGTH // (1024*1024)}MB')
+    
+    if file_size == 0:
+        return error_response(400, 'Empty file not allowed')
+
+    # Extract existing filename from powerbi_file_summaries before deletion
+    existing_filename = None
+    try:
+        with get_db_cursor(commit=False) as cursor:
+            cursor.execute("""
+                SELECT filename 
+                FROM powerbi_file_summaries 
+                WHERE collection_name = %s
+            """, (collection_name,))
+            result = cursor.fetchone()
+            if result:
+                existing_filename = result[0]
+    except Exception as e:
+        logger.warning(f"Could not retrieve existing file info for {collection_name}: {e}")
+        # Continue with new filename if we can't retrieve existing one
+
+    # Use existing filename if available, otherwise use uploaded file's filename
+    filename_to_use = existing_filename if existing_filename else file.filename
+    # Use current time for upload_time on reupload (to update last modified)
+    from datetime import datetime
+    current_upload_time = datetime.now()
+
+    temp_dir = os.path.join(current_app.instance_path, 'temp_uploads')
+    os.makedirs(temp_dir, exist_ok=True)
+
+    temp_file = tempfile.NamedTemporaryFile(suffix='.pbix', dir=temp_dir, delete=False)
+    temp_filename = temp_file.name
+
+    try:
+        # Save file with progress tracking
+        file.save(temp_filename)
+        temp_file.close()
+
+        # Log file processing start
+        logger.info(f"Starting PBIX reupload processing for collection: {collection_name}, file: {file.filename} (size: {file_size} bytes)")
+        
+        # Delete existing metadata (docs and token usage are always preserved)
+        try:
+            success = vector_store_service.delete_collection(collection_name)
+            if not success:
+                logger.warning(f"Failed to delete existing collection metadata for {collection_name}, continuing anyway")
+        except Exception as e:
+            logger.error(f"Error deleting existing collection metadata: {e}", exc_info=True)
+            return error_response(500, 'Failed to delete existing collection metadata. Please try again.')
+        
+        # Extract documents and metadata using the correct method with error handling
+        try:
+            documents, collection_metadata = PBIXParsingService.extract_and_chunk_with_metadata(temp_filename, filename_to_use)
+            logger.info(f"Successfully extracted {len(documents)} documents from PBIX file")
+        except MemoryError as e:
+            logger.error(f"Memory error processing PBIX file {file.filename}: {e}")
+            return error_response(413, 'File too large to process. Please try with a smaller file.')
+        except Exception as e:
+            logger.error(f"Error extracting PBIX file {file.filename}: {e}")
+            return error_response(400, 'Failed to process PBIX file. The file may be corrupted or in an unsupported format.')
+        
+        # Generate summaries using the powerbi_docs service
+        try:
+            summaries = SummaryGenerationService.generate_summaries_from_metadata(collection_metadata['structured_metadata'])
+            logger.info(f"Successfully generated summaries for {file.filename}")
+        except Exception as e:
+            logger.error(f"Error generating summaries for {file.filename}: {e}")
+            # Continue without summaries rather than failing completely
+            summaries = []
+        
+        # Update collection_metadata with existing filename and current upload_time
+        collection_metadata['filename'] = filename_to_use
+        collection_metadata['upload_time'] = current_upload_time.isoformat()
+        
+        # Create collection with existing collection_name
+        try:
+            vector_store_service.create_collection(documents, collection_name, collection_metadata, ms_object_id=user_ms_object_id)
+            logger.info(f"Successfully recreated vector collection: {collection_name}")
+        except Exception as e:
+            logger.error(f"Error creating vector collection for {file.filename}: {e}")
+            return error_response(500, 'Failed to create vector collection. Please try again.')
+
+        # Update summaries in database (using current time for upload_time)
+        try:
+            import json
+            
+            with get_db_cursor(commit=True) as cursor:
+                # Update summary record using raw SQL
+                cursor.execute("""
+                    UPDATE powerbi_file_summaries 
+                    SET filename = %s, 
+                        upload_time = %s,
+                        semantic_model_summary = %s,
+                        power_query_summary = %s,
+                        visuals_summary = %s,
+                        rls_summary = %s,
+                        ms_object_id = %s,
+                        updated_at = NOW()
+                    WHERE collection_name = %s
+                """, (
+                    filename_to_use,
+                    current_upload_time,
+                    json.dumps(summaries['semantic_model_summary']),
+                    json.dumps(summaries['power_query_summary']),
+                    json.dumps(summaries['visuals_summary']),
+                    json.dumps(summaries.get('rls_summary', {})),
+                    user_ms_object_id,
+                    collection_name
+                ))
+                
+                # If no rows were updated, insert a new record
+                if cursor.rowcount == 0:
+                    cursor.execute("""
+                        INSERT INTO powerbi_file_summaries 
+                        (collection_name, filename, upload_time, semantic_model_summary, power_query_summary, visuals_summary, rls_summary, ms_object_id)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (
+                        collection_name,
+                        filename_to_use,
+                        current_upload_time,
+                        json.dumps(summaries['semantic_model_summary']),
+                        json.dumps(summaries['power_query_summary']),
+                        json.dumps(summaries['visuals_summary']),
+                        json.dumps(summaries.get('rls_summary', {})),
+                        user_ms_object_id
+                    ))
+                
+                logger.info(f"Updated summaries for collection {collection_name}")
+                    
+        except Exception as e:
+            logger.error(f"Error updating summaries to database: {e}", exc_info=True)
+            # Don't fail the reupload if summary saving fails
+
+        return jsonify({
+            'session_id': collection_name,
+            'filename': filename_to_use,
+            'message': f"{len(documents)} chunks created and summaries updated.",
+            'metadata': collection_metadata['summary'],
+            'status': 'success'
+        })
+    except Exception as e:
+        logger.error(f"Failed to process reuploaded PBIX file: {e}", exc_info=True)
+        return error_response(500, 'Failed to analyze the PBIX file.')
+    finally:
+        # Memory cleanup and file cleanup
+        try:
+            # Force garbage collection to free memory
+            import gc
+            gc.collect()
+            
+            # The finally block now reliably deletes the file after all operations are done.
+            if os.path.exists(temp_filename):
+                os.remove(temp_filename)
+                logger.info(f"Cleaned up temporary file: {temp_filename}")
+        except Exception as cleanup_error:
+            logger.error(f"Error during cleanup: {cleanup_error}")
+
+
 @powerbi_chat_bp.route('/powerbi-chat/list-files', methods=['GET', 'OPTIONS'])
 @cross_origin(supports_credentials=True)
 @auth_required

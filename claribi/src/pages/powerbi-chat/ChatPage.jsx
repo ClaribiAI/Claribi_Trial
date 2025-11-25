@@ -27,9 +27,10 @@ import {
     DotsThreeVertical,
     ChatCircle,
     Plus,
-    XCircle
+    XCircle,
+    CloudArrowUp
 } from '@phosphor-icons/react';
-import { sendPowerBIQueryWithUpdates, deletePowerBISession, sendUserClarifications } from '../../services/powerbiChatService';
+import { sendPowerBIQueryWithUpdates, deletePowerBISession, sendUserClarifications, reuploadPowerBIFile } from '../../services/powerbiChatService';
 import MarkdownRenderer from '../../components/ui/MarkdownRenderer';
 import ThinkingProcess from '../../components/ui/ThinkingProcess';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
@@ -84,6 +85,9 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
     const clarificationDialogOpenRef = useRef(false);
     const [menuAnchorEl, setMenuAnchorEl] = useState(null);
     const menuOpen = Boolean(menuAnchorEl);
+    const [reuploadingFile, setReuploadingFile] = useState(false);
+    const [reuploadProgress, setReuploadProgress] = useState(0);
+    const fileInputRef = useRef(null);
 
     // Helper function to render message with clickable links
     const renderMessageWithLinks = (message) => {
@@ -140,6 +144,56 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
 
     const handleMenuClose = () => {
         setMenuAnchorEl(null);
+    };
+
+    // Handle reupload file
+    const handleReuploadFile = () => {
+        if (!pbixFile) return;
+        handleMenuClose();
+        // Trigger file input
+        if (fileInputRef.current) {
+            fileInputRef.current.click();
+        }
+    };
+
+    const handleFileInputChange = async (event) => {
+        const file = event.target.files?.[0];
+        if (!file || !pbixFile) return;
+
+        // Validate file
+        if (!file.name.toLowerCase().endsWith('.pbix')) {
+            showNotification('Please select a valid .pbix file', 'error');
+            return;
+        }
+
+        setReuploadingFile(true);
+        setReuploadProgress(0);
+
+        try {
+            const collectionName = pbixFile.collection_name || pbixFile.sessionId;
+            if (!collectionName) {
+                throw new Error('Collection name not found');
+            }
+
+            await reuploadPowerBIFile(collectionName, file, (progress) => {
+                setReuploadProgress(progress);
+            });
+
+            showNotification(`File "${pbixFile.name}" reuploaded successfully!`, 'success');
+            
+            // Optionally refresh file data - parent component should handle this
+            // For now, just show success message
+        } catch (err) {
+            console.error('Error reuploading file:', err);
+            showNotification(`Failed to reupload "${pbixFile.name}". ${err.message || 'Please try again.'}`, 'error');
+        } finally {
+            setReuploadingFile(false);
+            setReuploadProgress(0);
+            // Reset file input
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
+        }
     };
 
     // Handle start new chat - create a new chat tab
@@ -1106,7 +1160,41 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
     });
 
     return (
-        <Box sx={{ width: '100%', height: '100vh', display: 'flex', flexDirection: 'column' }}>
+        <Box sx={{ width: '100%', height: '100vh', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+            {/* Hidden file input for reupload */}
+            <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pbix"
+                style={{ display: 'none' }}
+                onChange={handleFileInputChange}
+            />
+
+            {/* Loading overlay for reupload */}
+            {reuploadingFile && (
+                <Box
+                    sx={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        bgcolor: alpha(theme.palette.background.paper, 0.9),
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 9999,
+                        gap: 2
+                    }}
+                >
+                    <LoadingSpinner size={60} />
+                    <Typography variant="body1" sx={{ color: theme.palette.text.primary }}>
+                        Reuploading file... {reuploadProgress > 0 && `${reuploadProgress}%`}
+                    </Typography>
+                </Box>
+            )}
+
             {/* Header */}
             <Box 
                 sx={{ 
@@ -1214,6 +1302,21 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
                             <ListItemText>
                                 Start New Chat
                                 {isChatLimitReached && ' (Limit: 3 chats)'}
+                            </ListItemText>
+                        </MenuItem>
+                        <MenuItem 
+                            onClick={handleReuploadFile}
+                            disabled={reuploadingFile || !pbixFile}
+                        >
+                            <ListItemIcon>
+                                {reuploadingFile ? (
+                                    <CircularProgress size={20} />
+                                ) : (
+                                    <CloudArrowUp size={20} />
+                                )}
+                            </ListItemIcon>
+                            <ListItemText>
+                                {reuploadingFile ? 'Reuploading...' : 'Reupload file'}
                             </ListItemText>
                         </MenuItem>
                     </Menu>

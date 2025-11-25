@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, memo } from 'react';
+import React, { useState, useMemo, useCallback, memo, useRef } from 'react';
 import {
     Box,
     Typography,
@@ -28,9 +28,13 @@ import {
     PresentationChartIcon,
     SparkleIcon,
     ArrowLeft,
-    CaretDownIcon
+    CaretDownIcon,
+    DotsThreeVertical,
+    CloudArrowUp
 } from '@phosphor-icons/react';
 import { analyzePowerBISection, getGeneratedDocs /*, updateDocumentationSection */ } from '../../services/powerbiDocsService';
+import { reuploadPowerBIFile } from '../../services/powerbiChatService';
+import { useNotification } from '../../contexts/NotificationContext';
 import DocumentationSection from './components/DocumentationSection';
 import CustomInstructionsModal from './components/CustomInstructionsModal';
 import documentExportService from '../../services/documentExportService';
@@ -44,6 +48,7 @@ const DocumentationPage = ({
     successMessage 
 }) => {
     const theme = useTheme();
+    const { showNotification } = useNotification();
     const [documentation, setDocumentation] = useState(null);
     const [error, setError] = useState(null);
     const [warning, setWarning] = useState(null);
@@ -62,6 +67,15 @@ const DocumentationPage = ({
     // Section selection dropdown state
     const [anchorEl, setAnchorEl] = useState(null);
     const [selectedSections, setSelectedSections] = useState([]);
+    
+    // Menu state for 3 dots
+    const [menuAnchorEl, setMenuAnchorEl] = useState(null);
+    const menuOpen = Boolean(menuAnchorEl);
+    
+    // Reupload state
+    const [reuploadingFile, setReuploadingFile] = useState(false);
+    const [reuploadProgress, setReuploadProgress] = useState(0);
+    const fileInputRef = useRef(null);
     
     // Chat interface state
     const [showChat, setShowChat] = useState(false);
@@ -383,6 +397,64 @@ const DocumentationPage = ({
         setAnchorEl(null);
     };
 
+    // Handle 3 dots menu
+    const handleMenuOpen = (event) => {
+        setMenuAnchorEl(event.currentTarget);
+    };
+
+    const handleMenuClose = () => {
+        setMenuAnchorEl(null);
+    };
+
+    // Handle reupload file
+    const handleReuploadFile = () => {
+        if (!selectedFile) return;
+        handleMenuClose();
+        // Trigger file input
+        if (fileInputRef.current) {
+            fileInputRef.current.click();
+        }
+    };
+
+    const handleFileInputChange = async (event) => {
+        const file = event.target.files?.[0];
+        if (!file || !selectedFile) return;
+
+        // Validate file
+        if (!file.name.toLowerCase().endsWith('.pbix')) {
+            showNotification('Please select a valid .pbix file', 'error');
+            return;
+        }
+
+        setReuploadingFile(true);
+        setReuploadProgress(0);
+
+        try {
+            const collectionName = selectedFile.collection_name;
+            if (!collectionName) {
+                throw new Error('Collection name not found');
+            }
+
+            await reuploadPowerBIFile(collectionName, file, (progress) => {
+                setReuploadProgress(progress);
+            });
+
+            showNotification(`File "${selectedFile.filename}" reuploaded successfully!`, 'success');
+            
+            // Optionally refresh file data - parent component should handle this
+        } catch (err) {
+            console.error('Error reuploading file:', err);
+            showNotification(`Failed to reupload "${selectedFile.filename}". ${err.message || 'Please try again.'}`, 'error');
+        } finally {
+            setReuploadingFile(false);
+            setReuploadProgress(0);
+            // Reset file input
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
+        }
+    };
+
     const handleSectionToggle = (sectionId) => {
         setSelectedSections(prev => 
             prev.includes(sectionId)
@@ -482,8 +554,43 @@ const DocumentationPage = ({
             <Box sx={{ 
                 display: 'flex',
                 height: '100vh',
-                bgcolor: theme.palette.background.chat
+                bgcolor: theme.palette.background.chat,
+                position: 'relative'
             }}>
+                {/* Hidden file input for reupload */}
+                <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pbix"
+                    style={{ display: 'none' }}
+                    onChange={handleFileInputChange}
+                />
+
+                {/* Loading overlay for reupload */}
+                {reuploadingFile && (
+                    <Box
+                        sx={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            bgcolor: alpha(theme.palette.background.paper, 0.9),
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            zIndex: 9999,
+                            gap: 2
+                        }}
+                    >
+                        <LoadingSpinner size={60} />
+                        <Typography variant="body1" sx={{ color: theme.palette.text.primary }}>
+                            Reuploading file... {reuploadProgress > 0 && `${reuploadProgress}%`}
+                        </Typography>
+                    </Box>
+                )}
+
                 {/* Main Documentation Area */}
                 <Box sx={{ 
                     flex: showChat ? 1 : 1,
@@ -566,6 +673,69 @@ const DocumentationPage = ({
                         >
                             {Object.values(sectionLoading).some(isLoading => isLoading) ? 'Generating...' : 'Generate All'}
                         </Button>
+
+                        {/* 3 Dots Menu Button */}
+                        <Tooltip title="More options">
+                            <Button
+                                onClick={handleMenuOpen}
+                                sx={{
+                                    minWidth: 'auto',
+                                    width: 40,
+                                    height: 40,
+                                    borderRadius: 2,
+                                    bgcolor: 'transparent',
+                                    color: theme.palette.text.secondary,
+                                    p: 0,
+                                    '&:hover': {
+                                        bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                        color: theme.palette.primary.main,
+                                        transform: 'scale(1.05)'
+                                    },
+                                    transition: 'all 0.2s ease'
+                                }}
+                            >
+                                <DotsThreeVertical size={20} />
+                            </Button>
+                        </Tooltip>
+
+                        {/* 3 Dots Menu */}
+                        <Menu
+                            anchorEl={menuAnchorEl}
+                            open={menuOpen}
+                            onClose={handleMenuClose}
+                            anchorOrigin={{
+                                vertical: 'bottom',
+                                horizontal: 'right',
+                            }}
+                            transformOrigin={{
+                                vertical: 'top',
+                                horizontal: 'right',
+                            }}
+                            PaperProps={{
+                                sx: {
+                                    mt: 1,
+                                    minWidth: 200,
+                                    borderRadius: 2,
+                                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                                }
+                            }}
+                        >
+                            <MenuItem 
+                                onClick={handleReuploadFile}
+                                disabled={reuploadingFile || !selectedFile}
+                            >
+                                <ListItemIcon>
+                                    {reuploadingFile ? (
+                                        <CircularProgress size={20} />
+                                    ) : (
+                                        <CloudArrowUp size={20} />
+                                    )}
+                                </ListItemIcon>
+                                <ListItemText>
+                                    {reuploadingFile ? 'Reuploading...' : 'Reupload file'}
+                                </ListItemText>
+                            </MenuItem>
+                        </Menu>
                     </Box>
                 </Box>
 

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
     Box,
     Typography,
@@ -15,7 +15,11 @@ import {
     CardContent,
     CardHeader,
     Grid,
-    Link
+    Link,
+    Menu,
+    MenuItem,
+    ListItemIcon,
+    ListItemText
 } from '@mui/material';
 import {
     LightbulbIcon,
@@ -28,9 +32,13 @@ import {
     LinkBreak,
     Stack,
     ChartBar,
-    LinkSimple
+    LinkSimple,
+    DotsThreeVertical,
+    CloudArrowUp
 } from '@phosphor-icons/react';
 import { analyzePowerBISection, parseImprovementRecommendations, getGeneratedDocs, getDiagnosticsKPIs, getDiagnosticsKPIDetails } from '../../services/powerbiDocsService';
+import { reuploadPowerBIFile } from '../../services/powerbiChatService';
+import { useNotification } from '../../contexts/NotificationContext';
 import RecommendationCard from '../powerbi-docs/components/RecommendationCard';
 import DiagnosticsKPICard from './components/DiagnosticsKPICard';
 import KPIDetailsDialog from './components/KPIDetailsDialog';
@@ -44,6 +52,7 @@ const DiagnosticsPage = ({
     successMessage 
 }) => {
     const theme = useTheme();
+    const { showNotification } = useNotification();
     const [recommendations, setRecommendations] = useState([]);
     const [rawContent, setRawContent] = useState(null);
     const [applyingRecommendation, setApplyingRecommendation] = useState(null);
@@ -64,6 +73,15 @@ const DiagnosticsPage = ({
     // Cache for KPI details - keyed by KPI type
     const [kpiDetailsCache, setKpiDetailsCache] = useState(new Map());
     const [kpiDetailsCacheLoading, setKpiDetailsCacheLoading] = useState(false);
+    
+    // Menu state for 3 dots
+    const [menuAnchorEl, setMenuAnchorEl] = useState(null);
+    const menuOpen = Boolean(menuAnchorEl);
+    
+    // Reupload state
+    const [reuploadingFile, setReuploadingFile] = useState(false);
+    const [reuploadProgress, setReuploadProgress] = useState(0);
+    const fileInputRef = useRef(null);
     
     // Chat interface state
     const [showChat, setShowChat] = useState(false);
@@ -101,6 +119,64 @@ const DiagnosticsPage = ({
     const handleCloseChat = () => {
         setShowChat(false);
         setChatInitialMessage('');
+    };
+
+    // Handle 3 dots menu
+    const handleMenuOpen = (event) => {
+        setMenuAnchorEl(event.currentTarget);
+    };
+
+    const handleMenuClose = () => {
+        setMenuAnchorEl(null);
+    };
+
+    // Handle reupload file
+    const handleReuploadFile = () => {
+        if (!selectedFile) return;
+        handleMenuClose();
+        // Trigger file input
+        if (fileInputRef.current) {
+            fileInputRef.current.click();
+        }
+    };
+
+    const handleFileInputChange = async (event) => {
+        const file = event.target.files?.[0];
+        if (!file || !selectedFile) return;
+
+        // Validate file
+        if (!file.name.toLowerCase().endsWith('.pbix')) {
+            showNotification('Please select a valid .pbix file', 'error');
+            return;
+        }
+
+        setReuploadingFile(true);
+        setReuploadProgress(0);
+
+        try {
+            const collectionName = selectedFile.collection_name;
+            if (!collectionName) {
+                throw new Error('Collection name not found');
+            }
+
+            await reuploadPowerBIFile(collectionName, file, (progress) => {
+                setReuploadProgress(progress);
+            });
+
+            showNotification(`File "${selectedFile.filename}" reuploaded successfully!`, 'success');
+            
+            // Optionally refresh file data - parent component should handle this
+        } catch (err) {
+            console.error('Error reuploading file:', err);
+            showNotification(`Failed to reupload "${selectedFile.filename}". ${err.message || 'Please try again.'}`, 'error');
+        } finally {
+            setReuploadingFile(false);
+            setReuploadProgress(0);
+            // Reset file input
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
+        }
     };
 
     // Helper function to render message with clickable links
@@ -416,8 +492,43 @@ const DiagnosticsPage = ({
             <Box sx={{ 
                 display: 'flex',
                 height: '100vh',
-                bgcolor: theme.palette.background.chat
+                bgcolor: theme.palette.background.chat,
+                position: 'relative'
             }}>
+                {/* Hidden file input for reupload */}
+                <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pbix"
+                    style={{ display: 'none' }}
+                    onChange={handleFileInputChange}
+                />
+
+                {/* Loading overlay for reupload */}
+                {reuploadingFile && (
+                    <Box
+                        sx={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            bgcolor: alpha(theme.palette.background.paper, 0.9),
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            zIndex: 9999,
+                            gap: 2
+                        }}
+                    >
+                        <LoadingSpinner size={60} />
+                        <Typography variant="body1" sx={{ color: theme.palette.text.primary }}>
+                            Reuploading file... {reuploadProgress > 0 && `${reuploadProgress}%`}
+                        </Typography>
+                    </Box>
+                )}
+
                 {/* Main Diagnostics Area */}
                 <Box sx={{ 
                     flex: showChat ? 1 : 1,
@@ -474,6 +585,69 @@ const DiagnosticsPage = ({
                             }}>
                                 {selectedFile?.filename}
                             </Typography>
+
+                            {/* 3 Dots Menu Button */}
+                            <Tooltip title="More options">
+                                <Button
+                                    onClick={handleMenuOpen}
+                                    sx={{
+                                        minWidth: 'auto',
+                                        width: 40,
+                                        height: 40,
+                                        borderRadius: 2,
+                                        bgcolor: 'transparent',
+                                        color: theme.palette.text.secondary,
+                                        p: 0,
+                                        '&:hover': {
+                                            bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                            color: theme.palette.primary.main,
+                                            transform: 'scale(1.05)'
+                                        },
+                                        transition: 'all 0.2s ease'
+                                    }}
+                                >
+                                    <DotsThreeVertical size={20} />
+                                </Button>
+                            </Tooltip>
+
+                            {/* 3 Dots Menu */}
+                            <Menu
+                                anchorEl={menuAnchorEl}
+                                open={menuOpen}
+                                onClose={handleMenuClose}
+                                anchorOrigin={{
+                                    vertical: 'bottom',
+                                    horizontal: 'right',
+                                }}
+                                transformOrigin={{
+                                    vertical: 'top',
+                                    horizontal: 'right',
+                                }}
+                                PaperProps={{
+                                    sx: {
+                                        mt: 1,
+                                        minWidth: 200,
+                                        borderRadius: 2,
+                                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                                    }
+                                }}
+                            >
+                                <MenuItem 
+                                    onClick={handleReuploadFile}
+                                    disabled={reuploadingFile || !selectedFile}
+                                >
+                                    <ListItemIcon>
+                                        {reuploadingFile ? (
+                                            <CircularProgress size={20} />
+                                        ) : (
+                                            <CloudArrowUp size={20} />
+                                        )}
+                                    </ListItemIcon>
+                                    <ListItemText>
+                                        {reuploadingFile ? 'Reuploading...' : 'Reupload file'}
+                                    </ListItemText>
+                                </MenuItem>
+                            </Menu>
                         </Box>
                     </Box>
 

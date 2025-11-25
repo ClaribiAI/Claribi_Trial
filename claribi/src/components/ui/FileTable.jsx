@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
     Box,
     Typography,
@@ -41,13 +41,13 @@ import {
     CaretDown,
     Stethoscope
 } from '@phosphor-icons/react';
-import { deletePowerBISession } from '../../services/powerbiChatService';
+import { deletePowerBISession, reuploadPowerBIFile } from '../../services/powerbiChatService';
 import { useNotification } from '../../contexts/NotificationContext';
 import LoadingSpinner from './LoadingSpinner';
 import ConfirmationDialog from './ConfirmationDialog';
 import { clearChatHistory } from '../../utils/chatHistoryStorage';
 
-const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, actionType = 'chat', onChatClick, onDocsClick, onDiagnosticsClick, showUploadButton = true }) => {
+const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, onFileRefresh, actionType = 'chat', onChatClick, onDocsClick, onDiagnosticsClick, showUploadButton = true }) => {
     const theme = useTheme();
     const { showNotification } = useNotification();
     const [anchorEl, setAnchorEl] = React.useState(null);
@@ -58,6 +58,10 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, actionType =
     const [fileToDelete, setFileToDelete] = React.useState(null);
     const [sortBy, setSortBy] = React.useState('date');
     const [sortOrder, setSortOrder] = React.useState('desc');
+    const [reuploadingFile, setReuploadingFile] = React.useState(null);
+    const [reuploadProgress, setReuploadProgress] = React.useState(0);
+    const fileInputRef = React.useRef(null);
+    const fileToReuploadRef = React.useRef(null);
 
     const formatDate = (dateString) => {
         if (!dateString) return 'Unknown';
@@ -162,6 +166,70 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, actionType =
         setFileToDelete(null);
     };
 
+    const handleReuploadFile = () => {
+        if (!selectedFile) return;
+        // Store the file in a ref before closing the menu
+        fileToReuploadRef.current = selectedFile;
+        handleMenuClose();
+        // Use setTimeout to ensure menu is closed before triggering file input
+        setTimeout(() => {
+            if (fileInputRef.current) {
+                // Reset the file input value to ensure onChange fires even if same file is selected
+                fileInputRef.current.value = '';
+                fileInputRef.current.click();
+            }
+        }, 100);
+    };
+
+    const handleFileInputChange = useCallback(async (event) => {
+        const file = event.target.files?.[0];
+        const fileToReupload = fileToReuploadRef.current;
+        
+        if (!file) {
+            fileToReuploadRef.current = null;
+            return;
+        }
+        
+        if (!fileToReupload) {
+            fileToReuploadRef.current = null;
+            return;
+        }
+
+        // Validate file
+        if (!file.name.toLowerCase().endsWith('.pbix')) {
+            showNotification('Please select a valid .pbix file', 'error');
+            fileToReuploadRef.current = null;
+            return;
+        }
+
+        setReuploadingFile(fileToReupload.collection_name);
+        setReuploadProgress(0);
+
+        try {
+            await reuploadPowerBIFile(fileToReupload.collection_name, file, (progress) => {
+                setReuploadProgress(progress);
+            });
+
+            showNotification(`File "${fileToReupload.filename}" reuploaded successfully!`, 'success');
+            
+            // Refresh files list if callback provided
+            if (onFileRefresh) {
+                await onFileRefresh();
+            }
+        } catch (err) {
+            console.error('Error reuploading file:', err);
+            showNotification(`Failed to reupload "${fileToReupload.filename}". ${err.message || 'Please try again.'}`, 'error');
+        } finally {
+            setReuploadingFile(null);
+            setReuploadProgress(0);
+            fileToReuploadRef.current = null;
+            // Reset file input
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
+        }
+    }, [showNotification, onFileDelete]);
+
     const handleViewFile = () => {
         setDetailsDialogOpen(true);
         setAnchorEl(null); // Close menu but keep selectedFile
@@ -173,7 +241,42 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, actionType =
     };
 
     return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
+            {/* Hidden file input for reupload */}
+            <input
+                key="reupload-file-input"
+                ref={fileInputRef}
+                type="file"
+                accept=".pbix"
+                style={{ display: 'none' }}
+                onChange={handleFileInputChange}
+            />
+
+            {/* Loading overlay for reupload */}
+            {reuploadingFile && (
+                <Box
+                    sx={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        bgcolor: alpha(theme.palette.background.paper, 0.9),
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 9999,
+                        gap: 2
+                    }}
+                >
+                    <LoadingSpinner size={60} />
+                    <Typography variant="body1" sx={{ color: theme.palette.text.primary }}>
+                        Reuploading file... {reuploadProgress > 0 && `${reuploadProgress}%`}
+                    </Typography>
+                </Box>
+            )}
+
             {/* Header with Upload Button */}
             {showUploadButton && onUploadNew && (
                 <Box display="flex" justifyContent="flex-end" alignItems="center" mb={3} sx={{ flexShrink: 0 }}>
@@ -496,6 +599,33 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, actionType =
                     </ListItemIcon>
                     <ListItemText 
                         primary="View details"
+                        primaryTypographyProps={{
+                            fontSize: '0.875rem',
+                            fontFamily: "'Inter', 'Nunito Sans', sans-serif",
+                            fontWeight: 500
+                        }}
+                    />
+                </MenuItem>
+                <MenuItem 
+                    onClick={handleReuploadFile}
+                    disabled={reuploadingFile === selectedFile?.collection_name}
+                    sx={{
+                        py: 1.5,
+                        px: 2,
+                        '&:hover': {
+                            bgcolor: alpha(theme.palette.primary.main, 0.08)
+                        }
+                    }}
+                >
+                    <ListItemIcon sx={{ minWidth: 36 }}>
+                        {reuploadingFile === selectedFile?.collection_name ? (
+                            <LoadingSpinner size={18} compact />
+                        ) : (
+                            <CloudArrowUp size={18} color={theme.palette.text.secondary} />
+                        )}
+                    </ListItemIcon>
+                    <ListItemText 
+                        primary={reuploadingFile === selectedFile?.collection_name ? "Reuploading..." : "Reupload file"}
                         primaryTypographyProps={{
                             fontSize: '0.875rem',
                             fontFamily: "'Inter', 'Nunito Sans', sans-serif",

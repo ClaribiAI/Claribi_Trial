@@ -106,7 +106,13 @@ class VectorStoreService:
         logger.info(f"🔍 {operation}: {results_count} results")
 
     def delete_collection(self, collection_name: str) -> bool:
-        """Deletes a collection and all associated database records."""
+        """Deletes a collection and all associated database records.
+        
+        Note: powerbi_generated_docs and powerbi_docs_token_usage are never deleted.
+        
+        Args:
+            collection_name: The name of the collection to delete
+        """
         try:
             # Delete embeddings and collection metadata from LangChain tables
             with get_db_cursor(commit=True) as cursor:
@@ -139,13 +145,10 @@ class VectorStoreService:
                     (collection_name,)
                 )
                 
-                # Delete from powerbi_generated_docs
-                cursor.execute(
-                    "DELETE FROM powerbi_generated_docs WHERE collection_name = %s",
-                    (collection_name,)
-                )
+                # Note: powerbi_generated_docs and powerbi_docs_token_usage are never deleted
+                logger.info(f"Preserved generated docs and token usage for collection: {collection_name}")
                 
-                logger.info(f"Deleted all database records for collection: {collection_name}")
+                logger.info(f"Deleted database records for collection: {collection_name}")
             
             return True
         except Exception as e:

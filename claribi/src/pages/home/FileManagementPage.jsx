@@ -19,6 +19,7 @@ import { useFiles } from '../../contexts/FileContext';
 const FileManagementPage = ({ 
     onFileClick, 
     onFileDelete, 
+    onFileRefresh,
     onChatClick, 
     onDocsClick, 
     onDiagnosticsClick,
@@ -153,6 +154,7 @@ const FileManagementPage = ({
                     files={files} 
                     onFileClick={onFileClick}
                     onFileDelete={onFileDelete}
+                    onFileRefresh={onFileRefresh}
                     actionType="both"
                     onChatClick={onChatClick}
                     onDocsClick={onDocsClick}
