@@ -59,9 +59,41 @@ export const analyzePowerBISection = async (collectionName, section, customInstr
             },
             timeout: 0
         });
-        return response.data;
+        
+        const responseData = response.data;
+        
+        // Check for warning in response (approaching limit)
+        if (responseData.warning && responseData.warning.type === 'approaching_limit') {
+            // Add warning to response data for frontend to handle
+            responseData.warning = responseData.warning;
+        }
+        
+        return responseData;
     } catch (error) {
-        throw error.response?.data || error;
+        // Check for usage limit exceeded error
+        const errorData = error.response?.data || error;
+        
+        // Handle usage limit exceeded - ensure we always show the friendly message
+        if (errorData?.error === 'usage_limit_exceeded') {
+            // Create a user-friendly error object with the message as the main error message
+            const friendlyMessage = errorData.message || 'You have reached your usage limit. Please upgrade your plan to continue generating documentation.';
+            const usageError = new Error(friendlyMessage);
+            usageError.error = 'usage_limit_exceeded';
+            usageError.message = friendlyMessage; // Ensure message is set
+            usageError.current_usage = errorData.current_usage;
+            usageError.limit = errorData.limit;
+            usageError.feature_type = errorData.feature_type || 'docs';
+            throw usageError;
+        }
+        
+        // For other errors, try to extract a friendly message
+        if (error.response?.data?.message) {
+            const friendlyError = new Error(error.response.data.message);
+            friendlyError.error = error.response.data.error;
+            throw friendlyError;
+        }
+        
+        throw errorData;
     }
 };
 

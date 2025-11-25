@@ -16,7 +16,8 @@ import {
     ListItemText,
     Tabs,
     Tab,
-    IconButton
+    IconButton,
+    Link
 } from '@mui/material';
 import {
     PaperPlaneRight,
@@ -43,6 +44,7 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
     const [messages, setMessages] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [warning, setWarning] = useState(null);
     const [thinkingProcess, setThinkingProcess] = useState({
         isVisible: false,
         currentAction: '',
@@ -82,6 +84,41 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
     const clarificationDialogOpenRef = useRef(false);
     const [menuAnchorEl, setMenuAnchorEl] = useState(null);
     const menuOpen = Boolean(menuAnchorEl);
+
+    // Helper function to render message with clickable links
+    const renderMessageWithLinks = (message) => {
+        if (!message) return message;
+        
+        // Regular expression to match URLs
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        const parts = message.split(urlRegex);
+        
+        return parts.map((part, index) => {
+            if (part.match(urlRegex)) {
+                // Extract display text (remove https://)
+                const displayText = part.replace(/^https?:\/\//, '');
+                return (
+                    <Link
+                        key={index}
+                        href={part}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        sx={{
+                            color: 'inherit',
+                            textDecoration: 'underline',
+                            fontWeight: 500,
+                            '&:hover': {
+                                textDecoration: 'underline',
+                            }
+                        }}
+                    >
+                        {displayText}
+                    </Link>
+                );
+            }
+            return <span key={index}>{part}</span>;
+        });
+    };
 
     // Check if chat limit is reached (max 3 chats per report)
     const isChatLimitReached = useMemo(() => {
@@ -620,17 +657,25 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
                 responseMode
             );
     
-            if (response.type === 'clarification_needed') {
+            // Check for warning in response
+            if (response && response.warning) {
+                setWarning(response.warning.message || 'You are approaching your usage limit.');
+            }
+    
+            if (response && response.type === 'clarification_needed') {
                 setIsWaitingForClarifications(true);
                 setClarificationFlow({
                     active: true,
-                    questions: response.user_clarifications,
+                    questions: response.user_clarifications || [],
                     answers: {},
                     originalQuery: originalQuery,
                     currentIndex: 0,
                     clarificationSessionKey: response.clarification_session_key,
                 });
-                const firstQuestion = response.user_clarifications[0];
+                const firstQuestion = response.user_clarifications && response.user_clarifications[0];
+                if (!firstQuestion) {
+                    throw new Error('Invalid clarification response: no questions provided');
+                }
                 setMessages(prev => [...prev, {
                     id: Date.now() + 1,
                     type: 'assistant',
@@ -694,15 +739,44 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
     
         } catch (err) {
             console.error('Error sending message:', err);
-            setError(err.message || 'Failed to send message.');
-            const errorMessage = {
-                id: Date.now() + 1,
-                type: 'assistant',
-                content: 'I apologize, but I encountered an error. Please try again.',
-                timestamp: new Date(),
-                messageType: 'error_response'
-            };
-            setMessages(prev => [...prev, errorMessage]);
+            console.log('Error object details:', {
+                error: err.error,
+                message: err.message,
+                hasErrorProperty: 'error' in err,
+                errorType: typeof err.error
+            });
+            
+            // Stop thinking process on any error
+            setThinkingProcess(prev => ({
+                ...prev,
+                isCompleted: true,
+                isVisible: false
+            }));
+            
+            // Handle usage limit exceeded errors - don't show error message in chat, just the banner
+            // Check multiple ways the error might be identified
+            const isUsageLimitError = err.error === 'usage_limit_exceeded' ||
+                                     (err.message && err.message.includes('usage limit')) ||
+                                     (err.message && err.message.includes('reached your limit'));
+            
+            if (isUsageLimitError) {
+                console.log('Usage limit error detected - skipping chat message');
+                setError(err.message || 'You have reached your usage limit. Please upgrade your plan to continue.');
+                // Don't add error message to chat for usage limit errors - the red banner is enough
+                return; // Exit early to prevent any further processing
+            } else {
+                // For other errors, show error message in chat
+                console.log('Non-token error - showing error message in chat');
+                setError(err.message || 'Failed to send message.');
+                const errorMessage = {
+                    id: Date.now() + 1,
+                    type: 'assistant',
+                    content: 'I apologize, but I encountered an error. Please try again.',
+                    timestamp: new Date(),
+                    messageType: 'error_response'
+                };
+                setMessages(prev => [...prev, errorMessage]);
+            }
         } finally {
             setIsLoading(false);
         }
@@ -1416,6 +1490,19 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
                 <div ref={messagesEndRef} />
             </Box>
 
+            {/* Warning Alert */}
+            {warning && (
+                <Box sx={{ px: 2, pb: 1 }}>
+                    <Alert 
+                        severity="warning" 
+                        onClose={() => setWarning(null)}
+                        sx={{ borderRadius: 2 }}
+                    >
+                        {renderMessageWithLinks(warning)}
+                    </Alert>
+                </Box>
+            )}
+
             {/* Error Alert */}
             {error && (
                 <Box sx={{ px: 2, pb: 1 }}>
@@ -1424,7 +1511,7 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
                         onClose={() => setError(null)}
                         sx={{ borderRadius: 2 }}
                     >
-                        {error}
+                        {renderMessageWithLinks(error)}
                     </Alert>
                 </Box>
             )}

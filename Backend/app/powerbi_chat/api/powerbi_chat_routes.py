@@ -18,6 +18,7 @@ from app.auth2.middleware import auth_required
 from app.core.database import get_db_cursor
 from app.core.responses import error_response
 from app.config.settings import config
+from app.services.token_limit_service import usage_limit_service
 
 logger = logging.getLogger(__name__)
 powerbi_chat_bp = Blueprint('powerbi_chat', __name__)
@@ -37,8 +38,63 @@ def process_powerbi_query_stream():
     user = g.current_user
     user_ms_object_id = user.get('ms_object_id') if user else None
 
+    # Check usage limit BEFORE starting the generator (synchronous check)
+    warning_message = ''
+    if user_ms_object_id:
+        try:
+            allowed, current_usage, limit, message = usage_limit_service.check_usage_limit(
+                user_ms_object_id,
+                feature_type='chat'
+            )
+            
+            logger.info(f"Usage limit check for user {user_ms_object_id}: allowed={allowed}, usage={current_usage}, limit={limit}")
+            
+            if not allowed:
+                logger.warning(f"Usage limit exceeded for user {user_ms_object_id}. Usage: {current_usage}, Limit: {limit}")
+                # Return error response immediately before starting SSE stream
+                def error_stream():
+                    error_data = {
+                        'type': 'error',
+                        'error': 'usage_limit_exceeded',
+                        'message': message,
+                        'current_usage': {'count': current_usage},
+                        'limit': {'count': limit},
+                        'feature_type': 'chat'
+                    }
+                    yield f"data: {json.dumps(error_data)}\n\n"
+                return Response(error_stream(), mimetype='text/event-stream')
+            
+            # Check if approaching limit (only if limit not exceeded)
+            try:
+                is_approaching, approaching_usage, approaching_limit, remaining, approaching_warning = usage_limit_service.check_approaching_limit(
+                    user_ms_object_id,
+                    feature_type='chat'
+                )
+                
+                if is_approaching:
+                    warning_message = approaching_warning
+                    logger.info(f"User {user_ms_object_id} is approaching chat limit. Remaining: {remaining}")
+            except Exception as approaching_check_error:
+                # Log error but don't block request
+                logger.error(f"Error checking approaching limit for user {user_ms_object_id}: {approaching_check_error}", exc_info=True)
+        except Exception as limit_check_error:
+            # Log error but allow request to proceed (fail open)
+            logger.error(f"Error checking usage limit for user {user_ms_object_id}: {limit_check_error}", exc_info=True)
+    else:
+        logger.warning("No user_ms_object_id found, skipping usage limit check")
+
     def generate_updates():
         try:
+            # Send warning message if approaching limit (before other updates)
+            if warning_message:
+                warning_data = {
+                    'type': 'warning',
+                    'warning': 'approaching_limit',
+                    'message': warning_message,
+                    'feature_type': 'chat'
+                }
+                yield f"data: {json.dumps(warning_data)}\n\n"
+            
             # Stream a small initial update to open the SSE channel
             yield f"data: {json.dumps({'type': 'update', 'step': 'initial_retrieval', 'current_action': 'Retrieving initial context from your Power BI file...'})}\n\n"
 

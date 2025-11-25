@@ -6,6 +6,7 @@ Service for retrieving user statistics from the database.
 import logging
 from typing import Dict, Any, Optional
 from app.core.database import get_db_cursor
+from app.config.settings import config
 
 logger = logging.getLogger(__name__)
 
@@ -152,103 +153,100 @@ class StatsService:
     @staticmethod
     def get_user_token_usage(user_ms_object_id: str) -> Dict[str, Any]:
         """
-        Get total token usage for a specific user by aggregating from both chat and docs tables.
+        Get usage counts and limits for a specific user.
         
         Args:
             user_ms_object_id: Microsoft Object ID from Azure AD authentication
             
         Returns:
-            Dictionary containing token usage statistics:
-            - total_tokens: Combined total from both tables
-            - chat_tokens: Total from chat table
-            - docs_tokens: Total from docs table
-            - chat_input_tokens: Sum of input tokens from chat
-            - chat_output_tokens: Sum of output tokens from chat
-            - chat_overhead_tokens: Sum of overhead tokens from chat
-            - docs_input_tokens: Sum of input tokens from docs
-            - docs_output_tokens: Sum of output tokens from docs
+            Dictionary containing usage statistics with limits:
+            - documents_generated: Number of documents generated
+            - chat_queries: Number of chat queries
+            - documents_limit: Limit for documents (None if unlimited)
+            - chat_limit: Limit for chat queries (None if unlimited)
+            - plan_name: User's subscription plan name
         """
         try:
-            token_usage = {
-                'total_tokens': 0,
-                'chat_tokens': 0,
-                'docs_tokens': 0,
-                'chat_input_tokens': 0,
-                'chat_output_tokens': 0,
-                'chat_overhead_tokens': 0,
-                'docs_input_tokens': 0,
-                'docs_output_tokens': 0
+            # Lazy import to avoid circular dependency
+            from app.services.token_limit_service import UsageLimitService
+            
+            # Get user stats (usage counts)
+            stats = StatsService.get_user_stats(user_ms_object_id)
+            
+            # Get user's plan
+            plan_name = UsageLimitService.get_user_plan(user_ms_object_id)
+            
+            # Normalize plan name
+            plan_lower = plan_name.lower() if plan_name else 'none'
+            if plan_lower == 'basic':
+                plan_key = 'Basic'
+            elif plan_lower == 'premium':
+                plan_key = 'Premium'
+            else:
+                plan_key = 'none'
+            
+            # Get limits for this plan
+            plan_limits = config.PLAN_USAGE_LIMITS.get(plan_key, config.PLAN_USAGE_LIMITS.get('none', {}))
+            documents_limit = plan_limits.get('docs')
+            chat_limit = plan_limits.get('chat')
+            
+            usage_data = {
+                'documents_generated': stats.get('documents_generated', 0),
+                'chat_queries': stats.get('chat_queries', 0),
+                'documents_limit': documents_limit,
+                'chat_limit': chat_limit,
+                'plan_name': plan_name
             }
             
-            # Get chat token usage - aggregate all token fields
-            with get_db_cursor(commit=False) as cursor:
-                cursor.execute("""
-                    SELECT 
-                        COALESCE(SUM(context_analysis_input_tokens), 0),
-                        COALESCE(SUM(context_analysis_output_tokens), 0),
-                        COALESCE(SUM(context_analysis_overhead_tokens), 0),
-                        COALESCE(SUM(final_response_input_tokens), 0),
-                        COALESCE(SUM(final_response_output_tokens), 0),
-                        COALESCE(SUM(final_response_overhead_tokens), 0)
-                    FROM powerbi_chat_token_usage
-                    WHERE user_ms_object_id = %s
-                """, (user_ms_object_id,))
+            # Check if approaching limits
+            try:
+                # Check docs approaching limit
+                is_approaching_docs, _, _, remaining_docs, warning_docs = UsageLimitService.check_approaching_limit(
+                    user_ms_object_id,
+                    feature_type='docs'
+                )
+                if is_approaching_docs:
+                    usage_data['documents_approaching_limit'] = True
+                    usage_data['documents_warning_message'] = warning_docs
+                    usage_data['documents_remaining'] = remaining_docs
+                else:
+                    usage_data['documents_approaching_limit'] = False
+                    usage_data['documents_warning_message'] = None
+                    usage_data['documents_remaining'] = remaining_docs if remaining_docs is not None else (documents_limit - stats.get('documents_generated', 0) if documents_limit is not None else None)
                 
-                result = cursor.fetchone()
-                if result:
-                    context_input = int(result[0]) if result[0] is not None else 0
-                    context_output = int(result[1]) if result[1] is not None else 0
-                    context_overhead = int(result[2]) if result[2] is not None else 0
-                    final_input = int(result[3]) if result[3] is not None else 0
-                    final_output = int(result[4]) if result[4] is not None else 0
-                    final_overhead = int(result[5]) if result[5] is not None else 0
-                    
-                    token_usage['chat_input_tokens'] = context_input + final_input
-                    token_usage['chat_output_tokens'] = context_output + final_output
-                    token_usage['chat_overhead_tokens'] = context_overhead + final_overhead
-                    token_usage['chat_tokens'] = (
-                        token_usage['chat_input_tokens'] + 
-                        token_usage['chat_output_tokens'] + 
-                        token_usage['chat_overhead_tokens']
-                    )
+                # Check chat approaching limit
+                is_approaching_chat, _, _, remaining_chat, warning_chat = UsageLimitService.check_approaching_limit(
+                    user_ms_object_id,
+                    feature_type='chat'
+                )
+                if is_approaching_chat:
+                    usage_data['chat_approaching_limit'] = True
+                    usage_data['chat_warning_message'] = warning_chat
+                    usage_data['chat_remaining'] = remaining_chat
+                else:
+                    usage_data['chat_approaching_limit'] = False
+                    usage_data['chat_warning_message'] = None
+                    usage_data['chat_remaining'] = remaining_chat if remaining_chat is not None else (chat_limit - stats.get('chat_queries', 0) if chat_limit is not None else None)
+            except Exception as approaching_check_error:
+                # Log error but don't fail the request
+                logger.error(f"Error checking approaching limits for user {user_ms_object_id}: {approaching_check_error}", exc_info=True)
+                usage_data['documents_approaching_limit'] = False
+                usage_data['documents_warning_message'] = None
+                usage_data['chat_approaching_limit'] = False
+                usage_data['chat_warning_message'] = None
             
-            # Get docs token usage - aggregate input and output tokens
-            with get_db_cursor(commit=False) as cursor:
-                cursor.execute("""
-                    SELECT 
-                        COALESCE(SUM(input_tokens), 0),
-                        COALESCE(SUM(output_tokens), 0)
-                    FROM powerbi_docs_token_usage
-                    WHERE user_ms_object_id = %s
-                """, (user_ms_object_id,))
-                
-                result = cursor.fetchone()
-                if result:
-                    token_usage['docs_input_tokens'] = int(result[0]) if result[0] is not None else 0
-                    token_usage['docs_output_tokens'] = int(result[1]) if result[1] is not None else 0
-                    token_usage['docs_tokens'] = (
-                        token_usage['docs_input_tokens'] + 
-                        token_usage['docs_output_tokens']
-                    )
-            
-            # Calculate total tokens
-            token_usage['total_tokens'] = token_usage['chat_tokens'] + token_usage['docs_tokens']
-            
-            logger.info(f"Retrieved token usage for user {user_ms_object_id}: total={token_usage['total_tokens']}")
-            return token_usage
+            logger.info(f"Retrieved usage data for user {user_ms_object_id}: {usage_data}")
+            return usage_data
             
         except Exception as e:
-            logger.error(f"Error retrieving token usage for user {user_ms_object_id}: {e}", exc_info=True)
-            # Return default token usage on error
+            logger.error(f"Error retrieving usage data for user {user_ms_object_id}: {e}", exc_info=True)
+            # Return default usage data on error
             return {
-                'total_tokens': 0,
-                'chat_tokens': 0,
-                'docs_tokens': 0,
-                'chat_input_tokens': 0,
-                'chat_output_tokens': 0,
-                'chat_overhead_tokens': 0,
-                'docs_input_tokens': 0,
-                'docs_output_tokens': 0
+                'documents_generated': 0,
+                'chat_queries': 0,
+                'documents_limit': None,
+                'chat_limit': None,
+                'plan_name': 'none'
             }
 
 

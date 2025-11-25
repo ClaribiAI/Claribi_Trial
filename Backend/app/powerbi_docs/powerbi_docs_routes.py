@@ -14,6 +14,7 @@ from app.powerbi_docs.services.diagnostics_kpi_service import diagnostics_kpi_se
 from app.core.responses import error_response
 from app.core.database import get_db_cursor
 from app.powerbi_chat.services.vector_store_service import vector_store_service
+from app.services.token_limit_service import usage_limit_service
 
 # Initialize the service with the proper AI client instance
 powerbi_docs_service = PowerBIPbixService(ai_client)
@@ -195,6 +196,43 @@ def analyze_pbix_section_route(section):
         if not summaries:
             return error_response(404, 'File summaries not found')
 
+        # Check usage limit before generating documentation
+        warning_message = ''
+        try:
+            user = get_current_user_from_token()
+            if user and isinstance(user, dict) and user.get('ms_object_id'):
+                user_ms_object_id = user['ms_object_id']
+                allowed, current_usage, limit, message = usage_limit_service.check_usage_limit(
+                    user_ms_object_id,
+                    feature_type='docs'
+                )
+                
+                if not allowed:
+                    return jsonify({
+                        'error': 'usage_limit_exceeded',
+                        'message': message,
+                        'current_usage': {'count': current_usage},
+                        'limit': {'count': limit},
+                        'feature_type': 'docs'
+                    }), 403
+                
+                # Check if approaching limit (only if limit not exceeded)
+                try:
+                    is_approaching, approaching_usage, approaching_limit, remaining, approaching_warning = usage_limit_service.check_approaching_limit(
+                        user_ms_object_id,
+                        feature_type='docs'
+                    )
+                    
+                    if is_approaching:
+                        warning_message = approaching_warning
+                        logger.info(f"User {user_ms_object_id} is approaching docs limit. Remaining: {remaining}")
+                except Exception as approaching_check_error:
+                    # Log error but don't block request
+                    logger.error(f"Error checking approaching limit: {approaching_check_error}", exc_info=True)
+        except Exception as limit_check_error:
+            # Log error but allow request to proceed (fail open)
+            logger.error(f"Error checking usage limit: {limit_check_error}", exc_info=True)
+
         # Analyze the specific section using summaries
         section_analysis, token_usage = powerbi_docs_service.analyze_from_summaries(
             summaries, 
@@ -232,13 +270,23 @@ def analyze_pbix_section_route(section):
             # Log error but don't fail document generation
             logger.error(f"Failed to record token usage for section {section}: {tracking_error}", exc_info=True)
         
-        return jsonify({
+        response_data = {
             'section': section,
             'analysis': section_analysis,
             'custom_instructions': custom_instructions,
             'filename': filename,
             'token_usage': token_usage
-        })
+        }
+        
+        # Include warning message if approaching limit
+        if warning_message:
+            response_data['warning'] = {
+                'type': 'approaching_limit',
+                'message': warning_message,
+                'feature_type': 'docs'
+            }
+        
+        return jsonify(response_data)
 
     except Exception as e:
         logger.error(f"Error analyzing section {section}: {e}", exc_info=True)

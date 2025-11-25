@@ -17,7 +17,9 @@ import {
     FormControlLabel,
     Divider,
     ListItemIcon,
-    ListItemText
+    ListItemText,
+    Alert,
+    Link
 } from '@mui/material';
 import {
     FileTextIcon,
@@ -44,6 +46,7 @@ const DocumentationPage = ({
     const theme = useTheme();
     const [documentation, setDocumentation] = useState(null);
     const [error, setError] = useState(null);
+    const [warning, setWarning] = useState(null);
     const [activeTab, setActiveTab] = useState(0);
     const [showInstructionsModal, setShowInstructionsModal] = useState(false);
     const [currentSectionForRegeneration, setCurrentSectionForRegeneration] = useState(null);
@@ -98,6 +101,41 @@ const DocumentationPage = ({
     const handleCloseChat = () => {
         setShowChat(false);
         setChatInitialMessage('');
+    };
+
+    // Helper function to render message with clickable links
+    const renderMessageWithLinks = (message) => {
+        if (!message) return message;
+        
+        // Regular expression to match URLs
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        const parts = message.split(urlRegex);
+        
+        return parts.map((part, index) => {
+            if (part.match(urlRegex)) {
+                // Extract display text (remove https://)
+                const displayText = part.replace(/^https?:\/\//, '');
+                return (
+                    <Link
+                        key={index}
+                        href={part}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        sx={{
+                            color: 'inherit',
+                            textDecoration: 'underline',
+                            fontWeight: 500,
+                            '&:hover': {
+                                textDecoration: 'underline',
+                            }
+                        }}
+                    >
+                        {displayText}
+                    </Link>
+                );
+            }
+            return <span key={index}>{part}</span>;
+        });
     };
 
     // Drag functionality for resizing chat window
@@ -157,9 +195,15 @@ const DocumentationPage = ({
 
         setSectionLoading(prev => ({ ...prev, [sectionId]: true }));
         setError(null);
+        setWarning(null);
 
         try {
             const result = await analyzePowerBISection(selectedFile.collection_name, sectionId, customInstructions);
+            
+            // Check for warning in response
+            if (result && result.warning && result.warning.type === 'approaching_limit') {
+                setWarning(result.warning.message || 'You are approaching your usage limit.');
+            }
             
             // Update documentation with the result
             setDocumentation(prev => ({
@@ -171,7 +215,15 @@ const DocumentationPage = ({
             }));
 
         } catch (err) {
-            setError(err.error || `An error occurred while generating ${sectionId.replace('_', ' ')}`);
+            // Handle usage limit exceeded errors with user-friendly messages
+            if (err.error === 'usage_limit_exceeded') {
+                // Always use the message property, which contains the friendly message
+                const friendlyMessage = err.message || 'You have reached your usage limit. Please upgrade your plan to continue generating documentation.';
+                setError(friendlyMessage);
+            } else {
+                // For other errors, prefer message over error property
+                setError(err.message || (typeof err === 'string' ? err : err.error) || `An error occurred while generating ${sectionId.replace('_', ' ')}`);
+            }
             console.error('Error:', err);
         } finally {
             setSectionLoading(prev => ({ ...prev, [sectionId]: false }));
@@ -371,6 +423,13 @@ const DocumentationPage = ({
             
             const results = await Promise.all(promises);
             
+            // Check for warnings in results
+            results.forEach((result) => {
+                if (result && result.warning && result.warning.type === 'approaching_limit') {
+                    setWarning(result.warning.message || 'You are approaching your usage limit.');
+                }
+            });
+            
             // Update documentation with all results
             const newDocumentation = {};
             results.forEach((result, index) => {
@@ -387,7 +446,15 @@ const DocumentationPage = ({
             
             
         } catch (err) {
-            setError(err.error || 'An error occurred while generating documentation');
+            // Handle usage limit exceeded errors with user-friendly messages
+            if (err.error === 'usage_limit_exceeded') {
+                // Always use the message property, which contains the friendly message
+                const friendlyMessage = err.message || 'You have reached your usage limit. Please upgrade your plan to continue generating documentation.';
+                setError(friendlyMessage);
+            } else {
+                // For other errors, prefer message over error property
+                setError(err.message || (typeof err === 'string' ? err : err.error) || 'An error occurred while generating documentation');
+            }
             console.error('Error:', err);
         } finally {
             // Clear loading states for all sections
@@ -501,6 +568,30 @@ const DocumentationPage = ({
                         </Button>
                     </Box>
                 </Box>
+
+                    {/* Warning and Error Alerts */}
+                    {(warning || error) && (
+                        <Box sx={{ px: 4, pt: 2 }}>
+                            {warning && (
+                                <Alert 
+                                    severity="warning" 
+                                    onClose={() => setWarning(null)}
+                                    sx={{ mb: error ? 2 : 0, borderRadius: 2 }}
+                                >
+                                    {renderMessageWithLinks(warning)}
+                                </Alert>
+                            )}
+                            {error && (
+                                <Alert 
+                                    severity="error" 
+                                    onClose={() => setError(null)}
+                                    sx={{ borderRadius: 2 }}
+                                >
+                                    {renderMessageWithLinks(error)}
+                                </Alert>
+                            )}
+                        </Box>
+                    )}
 
                 {/* Main Content Area with padding */}
                 <Box sx={{ px: 4, py: 4, flexGrow: 1 }}>

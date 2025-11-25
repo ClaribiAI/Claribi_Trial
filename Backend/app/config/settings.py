@@ -217,5 +217,25 @@ class Config:
         'period': 60,  # Time period in minutes
         'lockout': 30   # Lockout time in minutes
     }
+
+    # Usage limits per subscription plan
+    # Limits are lifetime (no reset) and apply separately to docs and chat
+    # Structure: plan_name -> feature_type -> limit_value
+    # Use None for unlimited
+    PLAN_USAGE_LIMITS = {
+        'Basic': {
+            'docs': 50,      # 50 document generations
+            'chat': 100      # 100 chat queries
+        },
+        'Premium': {
+            'docs': 250,     # 500 document generations
+            'chat': 1000     # 1000 chat queries
+        },
+        'none': {
+            # Users with no subscription no access
+            'docs': 0,
+            'chat': 0
+        }
+    }
 # Create a config instance
 config = Config()

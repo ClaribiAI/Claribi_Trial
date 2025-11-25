@@ -109,15 +109,15 @@ def get_user_stats_breakdown():
 @auth_required
 def get_user_token_usage():
     """
-    Get token usage statistics for the current authenticated user.
+    Get usage counts and limits for the current authenticated user.
     
     Returns:
-        JSON response with token usage statistics:
-        - total_tokens: Combined total from both chat and docs tables
-        - chat_tokens: Total from chat table
-        - docs_tokens: Total from docs table
-        - chat_input_tokens, chat_output_tokens, chat_overhead_tokens: Breakdown from chat
-        - docs_input_tokens, docs_output_tokens: Breakdown from docs
+        JSON response with usage statistics and limits:
+        - documents_generated: Number of documents generated
+        - chat_queries: Number of chat queries
+        - documents_limit: Limit for documents (None if unlimited)
+        - chat_limit: Limit for chat queries (None if unlimited)
+        - plan_name: User's subscription plan name
     """
     try:
         # Get current user from request context (set by auth_required)
@@ -137,18 +137,18 @@ def get_user_token_usage():
                 "message": "User ID not found in token"
             }), 400
         
-        # Get user token usage
-        token_usage = stats_service.get_user_token_usage(user_ms_object_id)
+        # Get user usage data with limits
+        usage_data = stats_service.get_user_token_usage(user_ms_object_id)
         
         return jsonify({
             "success": True,
-            "data": token_usage
+            "data": usage_data
         }), 200
         
     except Exception as e:
-        logger.error(f"Error retrieving user token usage: {e}", exc_info=True)
+        logger.error(f"Error retrieving user usage data: {e}", exc_info=True)
         return jsonify({
             "success": False,
             "error": "server_error",
-            "message": "Failed to retrieve token usage"
+            "message": "Failed to retrieve usage data"
         }), 500

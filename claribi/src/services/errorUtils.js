@@ -30,11 +30,19 @@ export function normalizeApiError(error) {
     if (typeof data === 'string') {
       return { message: data, code: String(status) };
     }
+    // Prioritize message over error field (message is usually more user-friendly)
+    if (typeof data.message === 'string') {
+      return { message: data.message, code: data.error || String(status) };
+    }
+                // Special handling for usage limit errors - ensure we use the message
+                if (data.error === 'usage_limit_exceeded') {
+                    return { 
+                        message: data.message || 'You have reached your usage limit. Please upgrade your plan to continue.', 
+                        code: 'usage_limit_exceeded' 
+                    };
+                }
     if (typeof data.error === 'string') {
       return { message: data.error, code: String(status) };
-    }
-    if (typeof data.message === 'string') {
-      return { message: data.message, code: String(status) };
     }
   }
 

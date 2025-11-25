@@ -14,7 +14,8 @@ import {
     Card,
     CardContent,
     CardHeader,
-    Grid
+    Grid,
+    Link
 } from '@mui/material';
 import {
     LightbulbIcon,
@@ -47,6 +48,7 @@ const DiagnosticsPage = ({
     const [rawContent, setRawContent] = useState(null);
     const [applyingRecommendation, setApplyingRecommendation] = useState(null);
     const [error, setError] = useState(null);
+    const [warning, setWarning] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
     const [initialLoadComplete, setInitialLoadComplete] = useState(false);
     const [kpis, setKpis] = useState(null);
@@ -99,6 +101,41 @@ const DiagnosticsPage = ({
     const handleCloseChat = () => {
         setShowChat(false);
         setChatInitialMessage('');
+    };
+
+    // Helper function to render message with clickable links
+    const renderMessageWithLinks = (message) => {
+        if (!message) return message;
+        
+        // Regular expression to match URLs
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        const parts = message.split(urlRegex);
+        
+        return parts.map((part, index) => {
+            if (part.match(urlRegex)) {
+                // Extract display text (remove https://)
+                const displayText = part.replace(/^https?:\/\//, '');
+                return (
+                    <Link
+                        key={index}
+                        href={part}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        sx={{
+                            color: 'inherit',
+                            textDecoration: 'underline',
+                            fontWeight: 500,
+                            '&:hover': {
+                                textDecoration: 'underline',
+                            }
+                        }}
+                    >
+                        {displayText}
+                    </Link>
+                );
+            }
+            return <span key={index}>{part}</span>;
+        });
     };
 
     const handleKPIClick = useCallback((kpiType, title) => {
@@ -181,9 +218,15 @@ const DiagnosticsPage = ({
 
         setIsLoading(true);
         setError(null);
+        setWarning(null);
 
         try {
             const result = await analyzePowerBISection(selectedFile.collection_name, 'improvement_recommendations', '');
+            
+            // Check for warning in response
+            if (result && result.warning && result.warning.type === 'approaching_limit') {
+                setWarning(result.warning.message || 'You are approaching your usage limit.');
+            }
             
             // Update content
             setRawContent(result.analysis);
@@ -204,7 +247,12 @@ const DiagnosticsPage = ({
                 }
             }
         } catch (err) {
-            setError(err.error || 'An error occurred while generating improvement recommendations');
+            // Handle usage limit exceeded errors with user-friendly messages
+            if (err.error === 'usage_limit_exceeded') {
+                setError(err.message || 'You have reached your usage limit. Please upgrade your plan to continue generating improvement recommendations.');
+            } else {
+                setError(err.message || err.error || 'An error occurred while generating improvement recommendations');
+            }
             console.error('Error:', err);
         } finally {
             setIsLoading(false);
@@ -428,6 +476,30 @@ const DiagnosticsPage = ({
                             </Typography>
                         </Box>
                     </Box>
+
+                    {/* Warning and Error Alerts */}
+                    {(warning || error) && (
+                        <Box sx={{ px: 4, pt: 2 }}>
+                            {warning && (
+                                <Alert 
+                                    severity="warning" 
+                                    onClose={() => setWarning(null)}
+                                    sx={{ mb: error ? 2 : 0, borderRadius: 2 }}
+                                >
+                                    {renderMessageWithLinks(warning)}
+                                </Alert>
+                            )}
+                            {error && (
+                                <Alert 
+                                    severity="error" 
+                                    onClose={() => setError(null)}
+                                    sx={{ borderRadius: 2 }}
+                                >
+                                    {renderMessageWithLinks(error)}
+                                </Alert>
+                            )}
+                        </Box>
+                    )}
 
                     {/* Main Content Area with padding */}
                     <Box sx={{ px: 4, py: 4, flexGrow: 1 }}>

@@ -80,6 +80,8 @@ export const sendPowerBIQueryWithUpdates = async (query, pbixFile = null, onUpda
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let finalResult = null;
+        let streamError = null;
+        let streamWarning = null;
 
         try {
             while (true) {
@@ -98,6 +100,40 @@ export const sendPowerBIQueryWithUpdates = async (query, pbixFile = null, onUpda
                             if (data.type === 'update' && onUpdate) {
                                 console.log('Sending update to handler:', data);
                                 onUpdate(data);
+                            } else if (data.type === 'warning') {
+                                // Handle warning responses, including approaching limit
+                                console.log('Warning received:', data);
+                                if (data.warning === 'approaching_limit') {
+                                    // Create a warning object
+                                    const warningObj = {
+                                        type: 'approaching_limit',
+                                        message: data.message || 'You are approaching your usage limit.',
+                                        feature_type: data.feature_type || 'chat'
+                                    };
+                                    streamWarning = warningObj;
+                                    // Call onUpdate with warning so it can be displayed
+                                    if (onUpdate) {
+                                        onUpdate({ type: 'warning', ...warningObj });
+                                    }
+                                }
+                            } else if (data.type === 'error') {
+                                // Handle error responses, including usage limit exceeded
+                                console.log('Error received:', data);
+                                if (data.error === 'usage_limit_exceeded') {
+                                    // Create a user-friendly error object
+                                    const usageError = new Error(data.message || 'Usage limit exceeded');
+                                    usageError.error = 'usage_limit_exceeded';
+                                    usageError.current_usage = data.current_usage;
+                                    usageError.limit = data.limit;
+                                    usageError.feature_type = data.feature_type || 'chat';
+                                    // Store error and break out of loop
+                                    streamError = usageError;
+                                    break;
+                                } else {
+                                    // Other errors
+                                    streamError = new Error(data.message || 'An error occurred');
+                                    break;
+                                }
                             } else if (data.type === 'final') {
                                 console.log('Final result received:', data);
                                 finalResult = data;
@@ -107,25 +143,60 @@ export const sendPowerBIQueryWithUpdates = async (query, pbixFile = null, onUpda
                                 finalResult = data;
                             }
                         } catch (parseError) {
+                            // If it's a usage limit error, store it
+                            if (parseError.error === 'usage_limit_exceeded') {
+                                streamError = parseError;
+                                break;
+                            }
                             console.warn('Error parsing SSE data:', parseError);
                         }
                     }
+                }
+                
+                // Break out of outer loop if we have an error
+                if (streamError) {
+                    break;
                 }
             }
         } finally {
             reader.releaseLock();
         }
+        
+        // Throw error if one occurred during streaming
+        if (streamError) {
+            console.log('Throwing stream error:', {
+                error: streamError.error,
+                message: streamError.message,
+                hasErrorProperty: 'error' in streamError
+            });
+            throw streamError;
+        }
 
         // If no final result was received, it might be because clarifications are needed
         if (!finalResult) {
             console.log('No final result received, returning clarification_needed');
-            return { type: 'clarification_needed', message: 'Waiting for user clarifications' };
+            const result = { type: 'clarification_needed', message: 'Waiting for user clarifications' };
+            // Include warning if present
+            if (streamWarning) {
+                result.warning = streamWarning;
+            }
+            return result;
         }
         
         console.log('Final result received:', finalResult);
+        // Include warning in final result if present
+        if (streamWarning) {
+            finalResult.warning = streamWarning;
+        }
         return finalResult;
     } catch (error) {
         console.error('Error sending Power BI query with updates:', error);
+        // Preserve the original error object and its properties (especially 'error' property for usage limit errors)
+        if (error.error === 'usage_limit_exceeded') {
+            // Preserve usage limit error with all its properties
+            throw error;
+        }
+        // For other errors, create a new error but preserve the message
         throw new Error(error.message || 'An unexpected error occurred');
     }
 };

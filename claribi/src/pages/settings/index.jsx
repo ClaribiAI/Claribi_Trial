@@ -17,12 +17,10 @@ import {
   Link,
   alpha,
   Alert,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow
+  Card,
+  CardContent,
+  LinearProgress,
+  Grid
 } from '@mui/material';
 import {
   User,
@@ -70,9 +68,9 @@ const SettingsPage = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // Token usage state
-  const [tokenUsage, setTokenUsage] = useState(null);
-  const [tokenUsageLoading, setTokenUsageLoading] = useState(true);
+  // Usage data state
+  const [usageData, setUsageData] = useState(null);
+  const [usageLoading, setUsageLoading] = useState(true);
 
   // Load email and subscription from user data
   useEffect(() => {
@@ -101,24 +99,24 @@ const SettingsPage = () => {
     loadUserData();
   }, [currentUser]);
 
-  // Load token usage data
+  // Load usage data
   useEffect(() => {
-    const loadTokenUsage = async () => {
-      setTokenUsageLoading(true);
+    const loadUsageData = async () => {
+      setUsageLoading(true);
       try {
         const response = await statsService.getUserTokenUsage();
         if (response.success && response.data) {
-          setTokenUsage(response.data);
+          setUsageData(response.data);
         }
       } catch (error) {
-        console.error('Error loading token usage:', error);
-        showNotification('Failed to load token usage', 'error');
+        console.error('Error loading usage data:', error);
+        showNotification('Failed to load usage data', 'error');
       } finally {
-        setTokenUsageLoading(false);
+        setUsageLoading(false);
       }
     };
 
-    loadTokenUsage();
+    loadUsageData();
   }, [showNotification]);
   
   // Format subscription name for display
@@ -134,6 +132,27 @@ const SettingsPage = () => {
   const formatNumber = (num) => {
     if (num === null || num === undefined) return '0';
     return num.toLocaleString('en-US');
+  };
+
+  // Get progress bar color based on usage status
+  const getProgressBarColor = (usage, limit, approachingLimit, remaining, isDocs = false) => {
+    if (limit === null || limit === undefined) {
+      return muiTheme.palette.primary.main; // Unlimited - use primary color
+    }
+    
+    // Limit exceeded (usage >= limit)
+    if (usage >= limit) {
+      return muiTheme.palette.error.main; // Red for exceeded
+    }
+    
+    // Approaching limit (remaining < threshold: 5 for docs, 20 for chat)
+    const threshold = isDocs ? 5 : 20;
+    if (approachingLimit || (remaining !== null && remaining !== undefined && remaining < threshold)) {
+      return muiTheme.palette.warning.main; // Yellow/orange for approaching
+    }
+    
+    // Normal usage
+    return muiTheme.palette.primary.main; // Blue for normal
   };
 
   // Handle theme mode change
@@ -275,87 +294,164 @@ const SettingsPage = () => {
         <SettingSection icon={ChartBar} title="Usage">
           <Box sx={{ mb: 3 }}>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Token usage breakdown across all features
+              Usage limits and remaining capacity
             </Typography>
-            {tokenUsageLoading ? (
+            {usageLoading ? (
               <Box sx={{ p: 2, textAlign: 'center' }}>
                 <Typography variant="body2" color="text.secondary">
                   Loading...
                 </Typography>
               </Box>
-            ) : tokenUsage ? (
-              <TableContainer
-                component={Paper}
-                elevation={0}
-                sx={{
-                  border: `1px solid ${alpha(muiTheme.palette.divider, 0.1)}`,
-                  borderRadius: 2,
-                  overflow: 'hidden',
-                }}
-              >
-                <Table size="small">
-                  <TableHead>
-                    <TableRow
-                      sx={{
-                        bgcolor: alpha(muiTheme.palette.primary.main, 0.05),
-                      }}
-                    >
-                      <TableCell sx={{ fontWeight: 600 }}>Feature</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 600 }}>Input</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 600 }}>Output</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 600 }}>Overhead</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 600 }}>Total</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 500 }}>Chat</TableCell>
-                      <TableCell align="right">{formatNumber(tokenUsage.chat_input_tokens || 0)}</TableCell>
-                      <TableCell align="right">{formatNumber(tokenUsage.chat_output_tokens || 0)}</TableCell>
-                      <TableCell align="right">{formatNumber(tokenUsage.chat_overhead_tokens || 0)}</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 600 }}>
-                        {formatNumber(tokenUsage.chat_tokens || 0)}
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 500 }}>Docs</TableCell>
-                      <TableCell align="right">{formatNumber(tokenUsage.docs_input_tokens || 0)}</TableCell>
-                      <TableCell align="right">{formatNumber(tokenUsage.docs_output_tokens || 0)}</TableCell>
-                      <TableCell align="right">-</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 600 }}>
-                        {formatNumber(tokenUsage.docs_tokens || 0)}
-                      </TableCell>
-                    </TableRow>
-                    <TableRow
-                      sx={{
-                        bgcolor: alpha(muiTheme.palette.primary.main, 0.05),
-                        '& .MuiTableCell-root': {
-                          fontWeight: 600,
-                          borderTop: `2px solid ${alpha(muiTheme.palette.primary.main, 0.2)}`,
-                        },
-                      }}
-                    >
-                      <TableCell>Total</TableCell>
-                      <TableCell align="right">
-                        {formatNumber((tokenUsage.chat_input_tokens || 0) + (tokenUsage.docs_input_tokens || 0))}
-                      </TableCell>
-                      <TableCell align="right">
-                        {formatNumber((tokenUsage.chat_output_tokens || 0) + (tokenUsage.docs_output_tokens || 0))}
-                      </TableCell>
-                      <TableCell align="right">
-                        {formatNumber(tokenUsage.chat_overhead_tokens || 0)}
-                      </TableCell>
-                      <TableCell align="right" sx={{ color: muiTheme.palette.primary.main }}>
-                        {formatNumber(tokenUsage.total_tokens || 0)}
-                      </TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </TableContainer>
+            ) : usageData ? (
+              <Grid container spacing={2}>
+                {/* Chat Usage Card */}
+                <Grid item xs={12} sm={6}>
+                  <Card
+                    elevation={0}
+                    sx={{
+                      border: `1px solid ${alpha(muiTheme.palette.divider, 0.1)}`,
+                      borderRadius: 2,
+                      height: '100%',
+                    }}
+                  >
+                    <CardContent>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                        <ChatCircle size={24} color={muiTheme.palette.primary.main} />
+                        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                          Chat Queries
+                        </Typography>
+                      </Box>
+                      <Box sx={{ mb: 2 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                          <Typography variant="h4" sx={{ fontWeight: 700, color: muiTheme.palette.primary.main }}>
+                            {formatNumber(usageData.chat_queries || 0)}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {usageData.chat_limit === null || usageData.chat_limit === undefined
+                              ? 'Unlimited'
+                              : `of ${formatNumber(usageData.chat_limit)}`}
+                          </Typography>
+                        </Box>
+                        {usageData.chat_limit !== null && usageData.chat_limit !== undefined && (
+                          <>
+                            <LinearProgress
+                              variant="determinate"
+                              value={Math.min(((usageData.chat_queries || 0) / usageData.chat_limit) * 100, 100)}
+                              sx={{
+                                height: 8,
+                                borderRadius: 1,
+                                bgcolor: alpha(getProgressBarColor(
+                                  usageData.chat_queries || 0,
+                                  usageData.chat_limit,
+                                  usageData.chat_approaching_limit,
+                                  usageData.chat_remaining,
+                                  false
+                                ), 0.1),
+                                '& .MuiLinearProgress-bar': {
+                                  borderRadius: 1,
+                                  backgroundColor: getProgressBarColor(
+                                    usageData.chat_queries || 0,
+                                    usageData.chat_limit,
+                                    usageData.chat_approaching_limit,
+                                    usageData.chat_remaining,
+                                    false
+                                  ),
+                                },
+                              }}
+                            />
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
+                              <Typography variant="caption" color="text.secondary">
+                                {usageData.chat_limit - (usageData.chat_queries || 0) > 0
+                                  ? `${formatNumber(usageData.chat_limit - (usageData.chat_queries || 0))} remaining`
+                                  : 'Limit reached'}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {Math.round(((usageData.chat_queries || 0) / usageData.chat_limit) * 100)}% used
+                              </Typography>
+                            </Box>
+                          </>
+                        )}
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+
+                {/* Documents Usage Card */}
+                <Grid item xs={12} sm={6}>
+                  <Card
+                    elevation={0}
+                    sx={{
+                      border: `1px solid ${alpha(muiTheme.palette.divider, 0.1)}`,
+                      borderRadius: 2,
+                      height: '100%',
+                    }}
+                  >
+                    <CardContent>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                        <FileText size={24} color={muiTheme.palette.primary.main} />
+                        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                          Documents Generated
+                        </Typography>
+                      </Box>
+                      <Box sx={{ mb: 2 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                          <Typography variant="h4" sx={{ fontWeight: 700, color: muiTheme.palette.primary.main }}>
+                            {formatNumber(usageData.documents_generated || 0)}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {usageData.documents_limit === null || usageData.documents_limit === undefined
+                              ? 'Unlimited'
+                              : `of ${formatNumber(usageData.documents_limit)}`}
+                          </Typography>
+                        </Box>
+                        {usageData.documents_limit !== null && usageData.documents_limit !== undefined && (
+                          <>
+                            <LinearProgress
+                              variant="determinate"
+                              value={Math.min(((usageData.documents_generated || 0) / usageData.documents_limit) * 100, 100)}
+                              sx={{
+                                height: 8,
+                                borderRadius: 1,
+                                bgcolor: alpha(getProgressBarColor(
+                                  usageData.documents_generated || 0,
+                                  usageData.documents_limit,
+                                  usageData.documents_approaching_limit,
+                                  usageData.documents_remaining,
+                                  true
+                                ), 0.1),
+                                '& .MuiLinearProgress-bar': {
+                                  borderRadius: 1,
+                                  backgroundColor: getProgressBarColor(
+                                    usageData.documents_generated || 0,
+                                    usageData.documents_limit,
+                                    usageData.documents_approaching_limit,
+                                    usageData.documents_remaining,
+                                    true
+                                  ),
+                                },
+                              }}
+                            />
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
+                              <Typography variant="caption" color="text.secondary">
+                                {usageData.documents_limit - (usageData.documents_generated || 0) > 0
+                                  ? `${formatNumber(usageData.documents_limit - (usageData.documents_generated || 0))} remaining`
+                                  : 'Limit reached'}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {Math.round(((usageData.documents_generated || 0) / usageData.documents_limit) * 100)}% used
+                              </Typography>
+                            </Box>
+                          </>
+                        )}
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              </Grid>
             ) : (
               <Box sx={{ p: 2, textAlign: 'center' }}>
                 <Typography variant="body2" color="text.secondary">
-                  No token usage data available
+                  No usage data available
                 </Typography>
               </Box>
             )}
