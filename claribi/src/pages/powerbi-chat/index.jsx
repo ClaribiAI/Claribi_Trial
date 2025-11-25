@@ -28,7 +28,6 @@ const PowerBIChat = () => {
     const [uploadProgress, setUploadProgress] = useState(0);
     const [showUploadSuccess, setShowUploadSuccess] = useState(false);
     const [successMessage, setSuccessMessage] = useState('');
-    const [retryCount, setRetryCount] = useState(0);
     const [showFileSelection, setShowFileSelection] = useState(false);
     const [showUploadConfirmation, setShowUploadConfirmation] = useState(false);
     const [pendingFile, setPendingFile] = useState(null);
@@ -89,7 +88,6 @@ const PowerBIChat = () => {
         setUploadLoading(true);
         setUploadProgress(0);
         setError(null);
-        setRetryCount(0);
 
         try {
             const response = await uploadPowerBIFile(renamedFile, (progress) => {
@@ -124,24 +122,7 @@ const PowerBIChat = () => {
 
         } catch (err) {
             console.error('Error uploading file:', err);
-            
-            // Retry logic for connection errors
-            if ((err.message.includes('Connection was interrupted') || 
-                 err.message.includes('Network error') || 
-                 err.message.includes('ECONNRESET')) && 
-                retryCount < 2) {
-                setRetryCount(prev => prev + 1);
-                setError(`Upload failed (attempt ${retryCount + 1}/3). Retrying...`);
-                
-                // Wait 2 seconds before retry
-                setTimeout(() => {
-                    handleConfirmUpload(renamedFile);
-                }, 2000);
-                return;
-            }
-            
             setError(err.message || 'Failed to upload file. Please try again.');
-            setRetryCount(0);
         } finally {
             setUploadLoading(false);
             setUploadProgress(0);

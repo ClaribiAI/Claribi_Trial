@@ -55,7 +55,6 @@ const Home = () => {
     const [uploadProgress, setUploadProgress] = useState(0);
     const [showUploadSuccess, setShowUploadSuccess] = useState(false);
     const [successMessage, setSuccessMessage] = useState('');
-    const [retryCount, setRetryCount] = useState(0);
     const [showUploadConfirmation, setShowUploadConfirmation] = useState(false);
     const [pendingFile, setPendingFile] = useState(null);
     
@@ -184,7 +183,6 @@ const Home = () => {
         setUploadLoading(true);
         setUploadProgress(0);
         setUploadError(null);
-        setRetryCount(0);
 
         try {
             const response = await uploadPowerBIFile(renamedFile, (progress) => {
@@ -206,26 +204,6 @@ const Home = () => {
         } catch (err) {
             console.error('Error uploading file:', err);
             
-            // Enhanced retry logic for various error types
-            const shouldRetry = (
-                err.message.includes('Connection was interrupted') || 
-                err.message.includes('Network error') || 
-                err.message.includes('ECONNRESET') ||
-                err.message.includes('Server error during processing') ||
-                err.message.includes('Server temporarily unavailable')
-            ) && retryCount < 2;
-            
-            if (shouldRetry) {
-                setRetryCount(prev => prev + 1);
-                setUploadError(`Upload failed (attempt ${retryCount + 1}/3). Retrying in 3 seconds...`);
-                
-                // Wait 3 seconds before retry (increased from 2 seconds)
-                setTimeout(() => {
-                    handleConfirmUpload(renamedFile);
-                }, 3000);
-                return;
-            }
-            
             // Show specific error messages based on error type
             if (err.message.includes('File too large')) {
                 setUploadError('File is too large. Please try with a file smaller than 100MB.');
@@ -236,7 +214,6 @@ const Home = () => {
             } else {
                 setUploadError(err.message || 'Failed to upload file. Please try again.');
             }
-            setRetryCount(0);
         } finally {
             setUploadLoading(false);
             setUploadProgress(0);
