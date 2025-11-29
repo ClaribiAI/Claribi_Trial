@@ -322,7 +322,7 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, onFileRefres
             >
                 <Table stickyHeader>
                     <TableHead>
-                        <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.02) }}>
+                        <TableRow sx={{ bgcolor: theme.palette.background.paper }}>
                             <TableCell 
                                 onClick={() => handleSort('name')}
                                 sx={{ 
@@ -337,7 +337,9 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, onFileRefres
                                     cursor: 'pointer',
                                     userSelect: 'none',
                                     '&:hover': {
-                                        bgcolor: alpha(theme.palette.primary.main, 0.05)
+                                        bgcolor: theme.palette.mode === 'dark' 
+                                            ? '#2A2A2A'
+                                            : '#F5F5F5'
                                     },
                                     transition: 'background-color 0.2s ease'
                                 }}
@@ -363,7 +365,9 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, onFileRefres
                                     cursor: 'pointer',
                                     userSelect: 'none',
                                     '&:hover': {
-                                        bgcolor: alpha(theme.palette.primary.main, 0.05)
+                                        bgcolor: theme.palette.mode === 'dark' 
+                                            ? '#2A2A2A'
+                                            : '#F5F5F5'
                                     },
                                     transition: 'background-color 0.2s ease'
                                 }}

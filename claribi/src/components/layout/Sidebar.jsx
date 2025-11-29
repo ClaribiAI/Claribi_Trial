@@ -18,7 +18,8 @@ import {
   MenuItem,
   Avatar,
   Badge,
-  useTheme
+  useTheme,
+  alpha
 } from '@mui/material';
 import { 
   House, 
@@ -97,10 +98,12 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
       sx={{
         width: { xs: '100%', sm: 80 },
         height: '100vh',
+        maxHeight: '100vh',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        py: 2,
+        pt: 2,
+        pb: { xs: 1, sm: 1.5 },
         position: { xs: 'fixed', sm: 'static' },
         zIndex: { xs: 1200, sm: 1 },
         transform: { xs: open ? 'translateX(0)' : 'translateX(-100%)', sm: 'none' },
@@ -112,6 +115,7 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
           sm: '0 0 0 1px rgba(0,0,0,0.05)' 
         },
         backdropFilter: { xs: 'blur(20px)', sm: 'none' },
+        overflow: 'hidden',
       }}
     >
       <Box 
@@ -122,10 +126,11 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
           flexDirection: 'column', 
           alignItems: 'center', 
           textDecoration: 'none',
-          mb: 4,
-          p: 2,
+          mb: { xs: 1, sm: 1.5 },
+          p: { xs: 1.5, sm: 2 },
           borderRadius: 3,
           transition: 'all 0.2s ease',
+          flexShrink: 0,
           '&:hover': {
             backgroundColor: theme.palette.background.hover,
             transform: 'translateY(-2px)',
@@ -137,9 +142,9 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
           src={isDarkMode ? '/claribi_icon_logo_dark.png' : '/claribi_icon_logo_light.png'}
           alt="Claribi Logo"
           sx={{ 
-            width: 36, 
-            height: 36, 
-            mb: 1,
+            width: { xs: 32, sm: 36 }, 
+            height: { xs: 32, sm: 36 }, 
+            mb: { xs: 0.75, sm: 1 },
             objectFit: 'contain',
             filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.12))',
             transition: 'transform 0.2s ease',
@@ -154,11 +159,11 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
             sx={{ 
               fontFamily: "'Nunito Sans', sans-serif", 
               fontWeight: 900,
-              fontSize: '0.95rem',
+              fontSize: { xs: '0.85rem', sm: '0.95rem' },
               color: theme.palette.text.primary,
               letterSpacing: '0.3px',
               textTransform: 'lowercase',
-              lineHeight: 2
+              lineHeight: { xs: 1.5, sm: 2 }
             }}
           >
             clari<span className="bi-yellow">bi</span>
@@ -168,11 +173,11 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
             sx={{ 
               fontFamily: "'Nunito Sans', sans-serif", 
               fontWeight: 400,
-              fontSize: '0.65rem',
+              fontSize: { xs: '0.6rem', sm: '0.65rem' },
               color: theme.palette.text.primary,
               letterSpacing: '0.3px',
               textTransform: 'lowercase',
-              lineHeight: 1
+              lineHeight: { xs: 0.8, sm: 1 }
             }}
           >
             console
@@ -182,23 +187,44 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
 
       <Box 
         sx={{
-          flexGrow: 1,
+          flex: '1 1 auto',
+          minHeight: 0,
           display: 'flex', 
           flexDirection: 'column', 
           alignItems: 'center',
           justifyContent: 'flex-start',
           width: '100%',
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          '&::-webkit-scrollbar': {
+            width: '4px',
+          },
+          '&::-webkit-scrollbar-track': {
+            background: 'transparent',
+          },
+          '&::-webkit-scrollbar-thumb': {
+            background: alpha(theme.palette.text.secondary, 0.2),
+            borderRadius: '2px',
+            '&:hover': {
+              background: alpha(theme.palette.text.secondary, 0.3),
+            },
+          },
         }}
       >
-        <Box sx={{ mt: 2 }} />
+        <Box sx={{ mt: { xs: 0.5, sm: 1 }, flexShrink: 0 }} />
         <Box 
           sx={{
             display: 'flex', 
             flexDirection: 'column', 
             alignItems: 'center',
-            gap: 0.5,
+            gap: { xs: 0.25, sm: 0.5 },
             width: '100%',
-            px: 1.5,
+            px: { xs: 1, sm: 1.5 },
+            pb: 0.5,
+            flex: '1 1 auto',
+            minHeight: 0,
+            justifyContent: 'flex-start',
+            overflow: 'visible',
           }}
         >
           {filteredMenuItems.map((item) => (
@@ -235,10 +261,12 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
               width: '100%',
               color: 'inherit',
               cursor: 'pointer',
-                  p: 1,
+                  p: { xs: 0.5, sm: 0.75 },
                   borderRadius: 3,
                   position: 'relative',
                   transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  flexShrink: 1,
+                  minHeight: { xs: 40, sm: 44 },
                   '&:hover': {
                     backgroundColor: theme.palette.sidebar.hoverBackground,
                     transform: 'translateY(-1px)',
@@ -255,8 +283,10 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
             <Box 
               className="menuIcon"
               sx={{
-                    width: 44,
-                    height: 44,
+                    width: { xs: 36, sm: 40 },
+                    height: { xs: 36, sm: 40 },
+                    minWidth: { xs: 32, sm: 36 },
+                    minHeight: { xs: 32, sm: 36 },
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -268,6 +298,10 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
                     boxShadow: isActive(item.path) ? '0 4px 16px rgba(0, 0, 0, 0.25)' : '0 2px 8px rgba(0,0,0,0.08)',
                     '&:hover': {
                       boxShadow: isActive(item.path) ? '0 6px 20px rgba(0, 0, 0, 0.3)' : '0 4px 12px rgba(0,0,0,0.12)',
+                    },
+                    '& svg': {
+                      width: { xs: 18, sm: 20 },
+                      height: { xs: 18, sm: 20 },
                     }
               }}
             >
@@ -281,9 +315,10 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
 
       <Divider 
         sx={{ 
-          my: 3, 
+          my: { xs: 1, sm: 1.5 },
           width: '60%',
           borderColor: theme.palette.sidebar.border,
+          flexShrink: 0,
           '&::before, &::after': {
             borderColor: theme.palette.sidebar.border,
           }
@@ -295,10 +330,12 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
           display: 'flex', 
           flexDirection: 'column',
           alignItems: 'center',
-          gap: 0.5,
+          gap: { xs: 0.25, sm: 0.5 },
           padding: 0,
           width: '100%',
-          px: 1.5,
+          px: { xs: 1, sm: 1.5 },
+          pb: { xs: 0.5, sm: 1 },
+          flexShrink: 0,
         }}
       >
         {/* Theme Toggle Button */}
@@ -306,6 +343,9 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
           title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
           placement="right"
           arrow
+          enterDelay={300}
+          leaveDelay={0}
+          disableInteractive={false}
           slotProps={{
             tooltip: {
               sx: {
@@ -332,10 +372,12 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
               width: '100%',
               color: 'inherit',
               cursor: 'pointer',
-              p: 1,
+              p: { xs: 0.5, sm: 0.75 },
               borderRadius: 3,
               position: 'relative',
               transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+              flexShrink: 1,
+              minHeight: { xs: 40, sm: 44 },
               '&:hover': {
                 backgroundColor: theme.palette.sidebar.hoverBackground,
                 transform: 'translateY(-1px)',
@@ -352,8 +394,10 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
             <Box 
               className="themeIcon"
               sx={{
-                width: 44,
-                height: 44,
+                width: { xs: 36, sm: 40 },
+                height: { xs: 36, sm: 40 },
+                minWidth: { xs: 32, sm: 36 },
+                minHeight: { xs: 32, sm: 36 },
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -365,6 +409,12 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
                 boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
                 '&:hover': {
                   boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+                },
+                '& svg': {
+                  width: { xs: 'min(20px, 2.5vh)', sm: 'min(20px, 2.75vh)' },
+                  height: { xs: 'min(20px, 2.5vh)', sm: 'min(20px, 2.75vh)' },
+                  minWidth: 18,
+                  minHeight: 18,
                 }
               }}
             >
@@ -403,10 +453,12 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
                   alignItems: 'center',
             width: '100%',
             color: 'inherit',
-              p: 1.5,
+              p: { xs: 0.5, sm: 0.75 },
               borderRadius: 3,
               position: 'relative',
               transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+              flexShrink: 1,
+              minHeight: { xs: 40, sm: 44 },
                   '&:hover': {
                 backgroundColor: theme.palette.sidebar.hoverBackground,
                 transform: 'translateY(-1px)',
@@ -423,19 +475,25 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
           <Box 
             className="icon"
             sx={{
-                width: 44,
-                height: 44,
+                width: { xs: 36, sm: 40 },
+                height: { xs: 36, sm: 40 },
+                minWidth: { xs: 32, sm: 36 },
+                minHeight: { xs: 32, sm: 36 },
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
                 borderRadius: 3,
                 backgroundColor: isActive('/help') ? theme.palette.sidebar.activeBackground : theme.palette.sidebar.inactiveBackground,
                 color: isActive('/help') ? theme.palette.sidebar.activeText : theme.palette.sidebar.inactiveText,
-                mb: 1,
+                mb: 0,
                 transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                 boxShadow: isActive('/help') ? '0 4px 16px rgba(0, 0, 0, 0.25)' : '0 2px 8px rgba(0,0,0,0.08)',
                 '&:hover': {
                   boxShadow: isActive('/help') ? '0 6px 20px rgba(0, 0, 0, 0.3)' : '0 4px 12px rgba(0,0,0,0.12)',
+                },
+                '& svg': {
+                  width: { xs: 18, sm: 20 },
+                  height: { xs: 18, sm: 20 },
                 }
             }}
           >
@@ -477,9 +535,11 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
             border: 'none',
             background: 'none',
             cursor: 'pointer',
-              p: 1.5,
+              p: { xs: 0.5, sm: 0.75 },
               borderRadius: 3,
               transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+              flexShrink: 1,
+              minHeight: { xs: 40, sm: 44 },
             '&:hover': {
                 backgroundColor: theme.palette.sidebar.hoverBackground,
                 transform: 'translateY(-1px)',
@@ -496,19 +556,25 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
           <Box 
             className="icon"
             sx={{
-                width: 44,
-                height: 44,
+                width: { xs: 36, sm: 40 },
+                height: { xs: 36, sm: 40 },
+                minWidth: { xs: 32, sm: 36 },
+                minHeight: { xs: 32, sm: 36 },
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
                 borderRadius: 3,
                 color: theme.palette.sidebar.inactiveText,
-                mb: 1,
+                mb: 0,
                 transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                 backgroundColor: theme.palette.sidebar.inactiveBackground,
                 boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
                 '&:hover': {
                   boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+                },
+                '& svg': {
+                  width: { xs: 18, sm: 20 },
+                  height: { xs: 18, sm: 20 },
                 }
             }}
           >
@@ -532,21 +598,6 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
                 borderRadius: 3,
                 minWidth: 180,
                 border: `1px solid ${theme.palette.divider}`,
-                '&:before': {
-                  content: '""',
-                  display: 'block',
-                  position: 'absolute',
-                  top: '50%',
-                  left: 0,
-                  width: 12,
-                  height: 12,
-                  bgcolor: 'background.paper',
-                  border: `1px solid ${theme.palette.divider}`,
-                  borderRight: 'none',
-                  borderBottom: 'none',
-                  transform: 'translateY(-50%) translateX(-50%) rotate(45deg)',
-                  zIndex: 0,
-                },
                 fontFamily: "'Nunito Sans', sans-serif",
                 backgroundColor: theme.palette.menu.background,
               },

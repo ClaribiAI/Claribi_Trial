@@ -40,20 +40,20 @@ export const getChatMode = () => {
     try {
       const saved = localStorage.getItem('cookiePreferences');
       if (saved) {
-        return JSON.parse(saved);
+        const prefs = JSON.parse(saved);
+        // Ensure necessary is always true, and remove unused preferences
+        return {
+          necessary: true, // Always true, cannot be disabled
+        };
       }
       // Default preferences
       return {
         necessary: true, // Always true, cannot be disabled
-        analytics: false,
-        marketing: false,
       };
     } catch (error) {
       console.error('Error getting cookie preferences:', error);
       return {
         necessary: true,
-        analytics: false,
-        marketing: false,
       };
     }
   };
@@ -66,8 +66,7 @@ export const getChatMode = () => {
     try {
       // Ensure necessary cookies are always enabled
       const prefs = {
-        ...preferences,
-        necessary: true,
+        necessary: true, // Always true, cannot be disabled
       };
       localStorage.setItem('cookiePreferences', JSON.stringify(prefs));
     } catch (error) {

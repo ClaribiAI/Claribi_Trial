@@ -39,7 +39,7 @@ import ClarificationInput from './ClarificationInput';
 import { useNotification } from '../../contexts/NotificationContext';
 import { loadChatHistory, saveChatHistory, getFileId, clearChatHistory, getChatList, generateChatId, updateChatName } from '../../utils/chatHistoryStorage';
 
-const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseChat, isInline = false }) => {
+const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseChat, isInline = false, isEphemeral = false }) => {
     const theme = useTheme();
     const { showNotification } = useNotification();
     const [messages, setMessages] = useState([]);
@@ -83,6 +83,7 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
     const clarificationDialogOpenRef = useRef(false);
+    const abortControllerRef = useRef(null);
     const [menuAnchorEl, setMenuAnchorEl] = useState(null);
     const menuOpen = Boolean(menuAnchorEl);
     const [reuploadingFile, setReuploadingFile] = useState(false);
@@ -223,8 +224,10 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
         setActiveChatId(newChatId);
         
         // Save empty history to ensure chat is in the list (with name)
-        saveChatHistory(fileId, newChatId, []);
-        updateChatName(fileId, newChatId, newTabName);
+        if (!isEphemeral) {
+            saveChatHistory(fileId, newChatId, []);
+            updateChatName(fileId, newChatId, newTabName);
+        }
         
         // Clear all state for new chat
         setMessages([]);
@@ -335,13 +338,14 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
     // Track the previous message count to only scroll when new messages are added
     const prevMessageCountRef = useRef(0);
     
-    useEffect(() => {
-        // Only scroll to bottom when new messages are actually added
-        if (messages.length > prevMessageCountRef.current && messages.length > 0) {
-            scrollToBottom();
-        }
-        prevMessageCountRef.current = messages.length;
-    }, [messages.length]);
+    // Auto-scroll disabled - removed automatic scrolling to bottom
+    // useEffect(() => {
+    //     // Only scroll to bottom when new messages are actually added
+    //     if (messages.length > prevMessageCountRef.current && messages.length > 0) {
+    //         scrollToBottom();
+    //     }
+    //     prevMessageCountRef.current = messages.length;
+    // }, [messages.length]);
 
     // Load chat tabs and initialize active chat when pbixFile changes
     useEffect(() => {
@@ -349,6 +353,17 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
             setHistoryLoaded(false);
             setChatTabs([]);
             setActiveChatId(null);
+            return;
+        }
+
+        // For ephemeral chats, skip history loading and use a temporary chat ID
+        if (isEphemeral) {
+            const tempChatId = generateChatId();
+            setActiveChatId(tempChatId);
+            setChatTabs([]); // No tabs for ephemeral chats
+            setConversationHistory([]);
+            setMessages([]);
+            setHistoryLoaded(true);
             return;
         }
 
@@ -390,7 +405,7 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
             updateChatName(fileId, newChatId, initialChatName);
             setHistoryLoaded(true);
         }
-    }, [pbixFile]);
+    }, [pbixFile, isEphemeral]);
 
     // Load chat history for a specific chat
     const loadChatHistoryForChat = (fileId, chatId) => {
@@ -579,7 +594,7 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
 
 
 
-    const handleSendMessage = useCallback(async (messageToSend, responseMode = 'detailed') => {
+    const handleSendMessage = useCallback(async (messageToSend, responseMode = 'detailed', skipUserMessage = false) => {
         const message = messageToSend;
         if (!message?.trim() || isLoading) return;
         
@@ -589,14 +604,17 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
             return;
         }
     
-        const userMessage = { 
-            id: Date.now(), 
-            type: 'user', 
-            content: message.trim(), 
-            timestamp: new Date(),
-            messageType: 'user_query'
-        };
-        setMessages(prev => [...prev, userMessage]);
+        // Skip adding user message to display for ephemeral chats with initial message
+        if (!skipUserMessage) {
+            const userMessage = { 
+                id: Date.now(), 
+                type: 'user', 
+                content: message.trim(), 
+                timestamp: new Date(),
+                messageType: 'user_query'
+            };
+            setMessages(prev => [...prev, userMessage]);
+        }
         
         // Add user message to conversation history
         const newConversationHistory = [...conversationHistory, {
@@ -610,7 +628,7 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
         
         // Save the full history (with user message) to localStorage immediately
         const fileId = getFileId(pbixFile);
-        if (fileId && activeChatId) {
+        if (fileId && activeChatId && !isEphemeral) {
             saveChatHistory(fileId, activeChatId, newConversationHistory);
         }
         
@@ -630,6 +648,10 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
             followUpQueries: [],
             isCompleted: false,
         });
+        
+        // Create new AbortController for this request
+        const abortController = new AbortController();
+        abortControllerRef.current = abortController;
     
         try {
             const handleRealTimeUpdate = (updateData) => {
@@ -708,7 +730,8 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
                 pbixFile, 
                 handleRealTimeUpdate,
                 summarizedHistory,
-                responseMode
+                responseMode,
+                abortController.signal
             );
     
             // Check for warning in response
@@ -764,9 +787,12 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
                 // Load full history from localStorage to add assistant response
                 const fileId = getFileId(pbixFile);
                 let fullHistory = [];
-                if (fileId && activeChatId) {
+                if (fileId && activeChatId && !isEphemeral) {
                     const loadedFullHistory = loadChatHistory(fileId, activeChatId);
                     fullHistory = loadedFullHistory || [];
+                } else {
+                    // For ephemeral chats, use current conversation history
+                    fullHistory = conversationHistory;
                 }
                 
                 // Add assistant response to full conversation history with RAG context key
@@ -777,8 +803,8 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
                     timestamp: new Date()
                 }];
                 
-                // Save full history to localStorage
-                if (fileId && activeChatId) {
+                // Save full history to localStorage (skip for ephemeral chats)
+                if (fileId && activeChatId && !isEphemeral) {
                     saveChatHistory(fileId, activeChatId, updatedHistory);
                 }
                 
@@ -807,6 +833,13 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
                 isVisible: false
             }));
             
+            // Handle cancellation - don't show error message for user-initiated cancellation
+            if (err.isCancelled || err.name === 'AbortError' || (err.message && err.message.includes('cancelled'))) {
+                console.log('Request cancelled by user');
+                // Don't show error message for cancellation
+                return; // Exit early without showing error
+            }
+            
             // Handle usage limit exceeded errors - don't show error message in chat, just the banner
             // Check multiple ways the error might be identified
             const isUsageLimitError = err.error === 'usage_limit_exceeded' ||
@@ -833,8 +866,24 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
             }
         } finally {
             setIsLoading(false);
+            abortControllerRef.current = null; // Clear the abort controller reference
         }
     }, [isLoading, pbixFile, conversationHistory, addActionToHistory, summarizeConversationHistory]);
+
+    // Handle stop action
+    const handleStop = useCallback(() => {
+        if (abortControllerRef.current) {
+            console.log('Stopping response generation...');
+            abortControllerRef.current.abort();
+            abortControllerRef.current = null;
+            setIsLoading(false);
+            setThinkingProcess(prev => ({
+                ...prev,
+                isCompleted: true,
+                isVisible: false
+            }));
+        }
+    }, []);
 
     // Auto-send initial message if provided
     useEffect(() => {
@@ -843,13 +892,14 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
             // Wait a moment for the component to be fully mounted, then auto-send
             const timer = setTimeout(() => {
                 console.log('Calling handleSendMessage with initial message');
-                handleSendMessage(initialMessage);
+                // Skip showing user message for ephemeral chats
+                handleSendMessage(initialMessage, 'detailed', isEphemeral);
                 setInitialMessageSent(true);
             }, 500);
             
             return () => clearTimeout(timer);
         }
-    }, [initialMessage, pbixFile, handleSendMessage, initialMessageSent]);
+    }, [initialMessage, pbixFile, handleSendMessage, initialMessageSent, isEphemeral]);
 
 
     // Inline clarification handlers
@@ -934,9 +984,12 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
             // Load full history from localStorage to add assistant response
             const fileId = getFileId(pbixFile);
             let fullHistory = [];
-            if (fileId && activeChatId) {
+            if (fileId && activeChatId && !isEphemeral) {
                 const loadedFullHistory = loadChatHistory(fileId, activeChatId);
                 fullHistory = loadedFullHistory || [];
+            } else {
+                // For ephemeral chats, use current conversation history
+                fullHistory = conversationHistory;
             }
             
             // Add assistant response to full conversation history
@@ -946,8 +999,8 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
                 timestamp: new Date()
             }];
             
-            // Save full history to localStorage
-            if (fileId && activeChatId) {
+            // Save full history to localStorage (skip for ephemeral chats)
+            if (fileId && activeChatId && !isEphemeral) {
                 saveChatHistory(fileId, activeChatId, updatedHistory);
             }
             
@@ -1200,8 +1253,7 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
                 sx={{ 
                     bgcolor: theme.palette.sidebar.background,
                     py: 1.5,
-                    px: 3,
-                    borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`
+                    px: 3
                 }}
             >
                 <Box display="flex" alignItems="center" gap={2}>
@@ -1246,80 +1298,87 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
                         </Typography>
                     )}
 
-                    {/* Menu Button - 3 dots */}
-                    <Tooltip title="More options">
-                        <Button
-                            onClick={handleMenuOpen}
-                            sx={{
-                                minWidth: 'auto',
-                                width: 40,
-                                height: 40,
-                                borderRadius: 2,
-                                bgcolor: 'transparent',
-                                color: theme.palette.text.secondary,
-                                p: 0,
-                                '&:hover': {
-                                    bgcolor: alpha(theme.palette.primary.main, 0.1),
-                                    color: theme.palette.primary.main,
-                                    transform: 'scale(1.05)'
-                                },
-                                transition: 'all 0.2s ease'
-                            }}
-                        >
-                            <DotsThreeVertical size={20} />
-                        </Button>
-                    </Tooltip>
+                    {/* Spacer to push close button to the right for ephemeral chats */}
+                    {isEphemeral && onCloseChat && <Box sx={{ flex: 1 }} />}
 
-                    {/* Menu */}
-                    <Menu
-                        anchorEl={menuAnchorEl}
-                        open={menuOpen}
-                        onClose={handleMenuClose}
-                        anchorOrigin={{
-                            vertical: 'bottom',
-                            horizontal: 'right',
-                        }}
-                        transformOrigin={{
-                            vertical: 'top',
-                            horizontal: 'right',
-                        }}
-                        PaperProps={{
-                            sx: {
-                                mt: 1,
-                                minWidth: 200,
-                                borderRadius: 2,
-                                boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-                            }
-                        }}
-                    >
-                        <MenuItem 
-                            onClick={handleStartNewChat}
-                            disabled={isChatLimitReached}
-                        >
-                            <ListItemIcon>
-                                <ChatCircle size={20} />
-                            </ListItemIcon>
-                            <ListItemText>
-                                Start New Chat
-                                {isChatLimitReached && ' (Limit: 3 chats)'}
-                            </ListItemText>
-                        </MenuItem>
-                        <MenuItem 
-                            onClick={handleReuploadFile}
-                            disabled={reuploadingFile || !pbixFile}
-                        >
-                            <ListItemIcon>
-                                {reuploadingFile ? (
-                                    <CircularProgress size={20} />
-                                ) : (
-                                    <CloudArrowUp size={20} />
-                                )}
-                            </ListItemIcon>
-                            <ListItemText>
-                                {reuploadingFile ? 'Reuploading...' : 'Reupload file'}
-                            </ListItemText>
-                        </MenuItem>
-                    </Menu>
+                    {/* Menu Button - 3 dots - hide for ephemeral chats */}
+                    {!isEphemeral && (
+                        <>
+                            <Tooltip title="More options">
+                                <Button
+                                    onClick={handleMenuOpen}
+                                    sx={{
+                                        minWidth: 'auto',
+                                        width: 40,
+                                        height: 40,
+                                        borderRadius: 2,
+                                        bgcolor: 'transparent',
+                                        color: theme.palette.text.secondary,
+                                        p: 0,
+                                        '&:hover': {
+                                            bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                            color: theme.palette.primary.main,
+                                            transform: 'scale(1.05)'
+                                        },
+                                        transition: 'all 0.2s ease'
+                                    }}
+                                >
+                                    <DotsThreeVertical size={20} />
+                                </Button>
+                            </Tooltip>
+
+                            {/* Menu */}
+                            <Menu
+                                anchorEl={menuAnchorEl}
+                                open={menuOpen}
+                                onClose={handleMenuClose}
+                                anchorOrigin={{
+                                    vertical: 'bottom',
+                                    horizontal: 'right',
+                                }}
+                                transformOrigin={{
+                                    vertical: 'top',
+                                    horizontal: 'right',
+                                }}
+                                PaperProps={{
+                                    sx: {
+                                        mt: 1,
+                                        minWidth: 200,
+                                        borderRadius: 2,
+                                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                                    }
+                                }}
+                            >
+                                <MenuItem 
+                                    onClick={handleStartNewChat}
+                                    disabled={isChatLimitReached}
+                                >
+                                    <ListItemIcon>
+                                        <ChatCircle size={20} />
+                                    </ListItemIcon>
+                                    <ListItemText>
+                                        Start New Chat
+                                        {isChatLimitReached && ' (Limit: 3 chats)'}
+                                    </ListItemText>
+                                </MenuItem>
+                                <MenuItem 
+                                    onClick={handleReuploadFile}
+                                    disabled={reuploadingFile || !pbixFile}
+                                >
+                                    <ListItemIcon>
+                                        {reuploadingFile ? (
+                                            <CircularProgress size={20} />
+                                        ) : (
+                                            <CloudArrowUp size={20} />
+                                        )}
+                                    </ListItemIcon>
+                                    <ListItemText>
+                                        {reuploadingFile ? 'Reuploading...' : 'Reupload file'}
+                                    </ListItemText>
+                                </MenuItem>
+                            </Menu>
+                        </>
+                    )}
 
                     {/* Close Button - only show when used inline */}
                     {onCloseChat && (
@@ -1348,8 +1407,8 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
                     )}
                 </Box>
                 
-                {/* Chat Tabs - show below file name only if there are multiple chats */}
-                {chatTabs.length > 1 && (
+                {/* Chat Tabs - show below file name only if there are multiple chats and not ephemeral */}
+                {chatTabs.length > 1 && !isEphemeral && (
                     <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
                         <Tabs
                             value={chatTabs.findIndex(tab => tab.id === activeChatId)}
@@ -1486,12 +1545,13 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
                             ))}
                         </Tabs>
                         
-                        {/* Plus button to create new chat */}
-                        <Tooltip title={isChatLimitReached ? "Maximum of 3 chats per report reached" : "New chat"}>
-                            <span>
-                                <IconButton
-                                    onClick={handleStartNewChat}
-                                    disabled={isChatLimitReached}
+                        {/* Plus button to create new chat - hide for ephemeral chats */}
+                        {!isEphemeral && (
+                            <Tooltip title={isChatLimitReached ? "Maximum of 3 chats per report reached" : "New chat"}>
+                                <span>
+                                    <IconButton
+                                        onClick={handleStartNewChat}
+                                        disabled={isChatLimitReached}
                                     size="small"
                                     sx={{
                                         width: 32,
@@ -1515,6 +1575,7 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
                                 </IconButton>
                             </span>
                         </Tooltip>
+                        )}
                     </Box>
                 )}
             </Box>
@@ -1576,7 +1637,11 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
                 })}
                 
                 {/* Show thinking process during processing (when no final response yet) - but not when waiting for clarifications */}
-                {thinkingProcess.isVisible && messages.length > 0 && messages[messages.length - 1].type !== 'assistant' && !isWaitingForClarifications && (
+                {/* Also show when ephemeral chat has no messages yet (initial message hidden) */}
+                {thinkingProcess.isVisible && !isWaitingForClarifications && (
+                    (messages.length > 0 && messages[messages.length - 1].type !== 'assistant') || 
+                    (isEphemeral && messages.length === 0)
+                ) ? (
                     <Box mb={2}>
                         <ThinkingProcess
                             isVisible={thinkingProcess.isVisible}
@@ -1588,7 +1653,7 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
                             actionHistory={actionHistory}
                         />
                     </Box>
-                )}
+                ) : null}
                 
                 <div ref={messagesEndRef} />
             </Box>
@@ -1638,8 +1703,9 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
                 ) : (
                     <ChatInput
                         onSendMessage={handleSendMessage}
+                        onStop={handleStop}
                         isLoading={isLoading}
-                            placeholder="Ask me anything about your Power BI dataset..."
+                        placeholder="Ask me anything about your Power BI dataset..."
                         disabled={false}
                     />
                 )}

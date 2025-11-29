@@ -34,19 +34,19 @@ const ConfirmationDialog = ({
         switch (type) {
             case 'danger':
                 return {
-                    icon: <Trash size={24} />,
+                    icon: <Trash size={24} color={theme.palette.error.main} />,
                     color: theme.palette.error.main,
                     bgColor: alpha(theme.palette.error.main, 0.1)
                 };
             case 'info':
                 return {
-                    icon: <Warning size={24} />,
+                    icon: <Warning size={24} color={theme.palette.info.main} />,
                     color: theme.palette.info.main,
                     bgColor: alpha(theme.palette.info.main, 0.1)
                 };
             default: // warning
                 return {
-                    icon: <Warning size={24} />,
+                    icon: <Warning size={24} color={theme.palette.warning.main} />,
                     color: theme.palette.warning.main,
                     bgColor: alpha(theme.palette.warning.main, 0.1)
                 };

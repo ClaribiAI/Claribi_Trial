@@ -4,7 +4,8 @@ import logging
 import json
 import re
 from datetime import datetime
-from typing import Dict, Any, List, Tuple, Callable
+from typing import Dict, Any, List, Tuple, Callable, Optional
+from threading import Event
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
@@ -40,11 +41,14 @@ class RAGOrchestrationService:
             'total_documents_retrieved': 0
         }
 
-    def start_query(self, collection_name: str, query: str, update_callback: Callable = None, conversation_history: List[Dict] = None, response_mode: str = 'detailed', user_ms_object_id: str = None) -> RAGResult:
+    def start_query(self, collection_name: str, query: str, update_callback: Callable = None, conversation_history: List[Dict] = None, response_mode: str = 'detailed', user_ms_object_id: str = None, cancellation_event: Optional[Event] = None) -> RAGResult:
         """
         Starts the RAG process and uses a callback to send real-time updates.
         """
         def send_update(step, message, details=None):
+            # Check for cancellation before sending update
+            if cancellation_event and cancellation_event.is_set():
+                raise InterruptedError("Request cancelled by client")
             if update_callback:
                 update_payload = {"type": "update", "step": step, "message": message}
                 if details:
@@ -53,7 +57,15 @@ class RAGOrchestrationService:
             else:
                 logger.warning("No update_callback provided to orchestration service")
 
+        def check_cancellation():
+            """Helper to check and raise if cancelled"""
+            if cancellation_event and cancellation_event.is_set():
+                logger.info("Request cancelled, stopping RAG orchestration")
+                raise InterruptedError("Request cancelled by client")
+
         logger.info(f"Starting orchestration for query on '{collection_name}'")
+        check_cancellation()
+        
         self._reset_token_tracker()
         retriever = vector_store_service.get_retriever(collection_name)
         
@@ -75,7 +87,9 @@ class RAGOrchestrationService:
                 if role in ['user', 'assistant', 'system']:
                     conversation_context += f"{role.upper()}: {content}\n\n"
         send_update("initial_retrieval", "Retrieving initial documents from your PBIX file...")
+        check_cancellation()
         initial_docs = retriever.invoke(query)
+        check_cancellation()
         vector_store_service.log_retrieval_operation(query, len(initial_docs), "initial_retrieval")
         self.token_usage_tracker['total_retrieval_operations'] += 1
         self.token_usage_tracker['total_documents_retrieved'] += len(initial_docs)
@@ -95,8 +109,10 @@ class RAGOrchestrationService:
             return RAGResult("NEEDS_CLARIFICATION", {"user_clarifications": user_friendly_question, "context_for_continuation": {"collection_name": collection_name, "original_query": query, "initial_context": ""}})
 
         send_update("context_analysis", "Analyzing context to see if more information is needed...")
+        check_cancellation()
         
-        sufficient, follow_up, clarifications = self._analyze_context(query, initial_context)
+        sufficient, follow_up, clarifications = self._analyze_context(query, initial_context, cancellation_event)
+        check_cancellation()
         logger.info("follow_up: %s", follow_up)
         # Handle search steps first, even if clarifications are needed
         if not sufficient and follow_up:
@@ -106,6 +122,7 @@ class RAGOrchestrationService:
             
             # Send individual search generation updates
             for i, follow_up_item in enumerate(follow_up):
+                check_cancellation()
                 query_text = follow_up_item.get("query", "")
                 summary_text = follow_up_item.get("summary", "")
 
@@ -124,7 +141,9 @@ class RAGOrchestrationService:
             
             # Execute searches and send completion updates
             logger.info("Executing parallel search retrieval...")
-            additional_docs = self._retrieve_parallel(retriever, query_strings)
+            check_cancellation()
+            additional_docs = self._retrieve_parallel(retriever, query_strings, cancellation_event)
+            check_cancellation()
             
             # Log retrieval operations for follow-up queries
             for i, query_text in enumerate(query_strings):
@@ -136,6 +155,7 @@ class RAGOrchestrationService:
             
             # Count results per query by running individual retrievals
             for i, follow_up_item in enumerate(follow_up):
+                check_cancellation()
                 query_text = follow_up_item.get("query", "")
                 summary_text = follow_up_item.get("summary", "")
                 
@@ -165,9 +185,11 @@ class RAGOrchestrationService:
             return RAGResult("NEEDS_CLARIFICATION", {"user_clarifications": clarifications, "context_for_continuation": {"collection_name": collection_name, "original_query": query, "initial_context": final_context, "pre_fetched_context": pre_fetched_context}})
         
         send_update("final_generation", "Generating the final answer...")
+        check_cancellation()
         
         # Generate final response
-        final_answer = self._generate_final_response(query, final_context, response_mode)
+        final_answer = self._generate_final_response(query, final_context, response_mode, cancellation_event)
+        check_cancellation()
         
         # Cache the RAG context for potential follow-up questions
         rag_context_key = cache_manager.set({
@@ -241,13 +263,21 @@ class RAGOrchestrationService:
             "rag_context_key": rag_context_key
         })
 
-    def _analyze_context(self, q: str, ctx: str) -> Tuple[bool, List[Dict[str, str]], List[str]]:
+    def _analyze_context(self, q: str, ctx: str, cancellation_event: Optional[Event] = None) -> Tuple[bool, List[Dict[str, str]], List[str]]:
+        # Check for cancellation before LLM call
+        if cancellation_event and cancellation_event.is_set():
+            raise InterruptedError("Request cancelled by client")
+            
         # Create the chain but invoke LLM directly to preserve metadata
         prompt = PromptTemplate(template=CONTEXT_ANALYSIS_PROMPT, input_variables=["context", "question"])
         formatted_prompt = prompt.format(question=q, context=ctx)
         
         # Use the enhanced logging method from LLM service
         llm_response = llm_service.invoke_with_logging(formatted_prompt, "context_analysis", self.token_usage_tracker)
+        
+        # Check for cancellation after LLM call
+        if cancellation_event and cancellation_event.is_set():
+            raise InterruptedError("Request cancelled by client")
         
         # Parse the response content
         response = llm_response.content
@@ -282,7 +312,11 @@ class RAGOrchestrationService:
             logger.warning(f"Failed to parse JSON from context analysis: {e}")
             return True, [], []
 
-    def _generate_final_response(self, query: str, context: str, response_mode: str = 'detailed') -> str:
+    def _generate_final_response(self, query: str, context: str, response_mode: str = 'detailed', cancellation_event: Optional[Event] = None) -> str:
+        # Check for cancellation before LLM call
+        if cancellation_event and cancellation_event.is_set():
+            raise InterruptedError("Request cancelled by client")
+            
         # Choose the appropriate prompt template based on response mode
         if response_mode == 'concise':
             prompt = PromptTemplate(template=FINAL_RESPONSE_PROMPT_CONCISE, input_variables=["context", "question"])
@@ -293,6 +327,10 @@ class RAGOrchestrationService:
         
         # Use the enhanced logging method from LLM service
         llm_response = llm_service.invoke_with_logging(formatted_prompt, "final_response_generation", self.token_usage_tracker)
+        
+        # Check for cancellation after LLM call
+        if cancellation_event and cancellation_event.is_set():
+            raise InterruptedError("Request cancelled by client")
         
         return llm_response.content
 
@@ -331,10 +369,28 @@ class RAGOrchestrationService:
         
         return "\n\n".join(context_parts)
 
-    def _retrieve_parallel(self, retriever, queries: List[str]) -> List:
+    def _retrieve_parallel(self, retriever, queries: List[str], cancellation_event: Optional[Event] = None) -> List:
         if not queries: return []
+        
+        # Check for cancellation before starting parallel retrieval
+        if cancellation_event and cancellation_event.is_set():
+            raise InterruptedError("Request cancelled by client")
+            
         with ThreadPoolExecutor() as executor:
-            docs = [doc for future in as_completed([executor.submit(retriever.invoke, q) for q in queries]) for doc in future.result()]
+            futures = [executor.submit(retriever.invoke, q) for q in queries]
+            docs = []
+            for future in as_completed(futures):
+                # Check for cancellation during parallel retrieval
+                if cancellation_event and cancellation_event.is_set():
+                    # Cancel remaining futures
+                    for f in futures:
+                        f.cancel()
+                    raise InterruptedError("Request cancelled by client")
+                try:
+                    result = future.result()
+                    docs.extend(result)
+                except Exception as e:
+                    logger.warning(f"Error in parallel retrieval: {e}")
         return list({doc.page_content: doc for doc in docs}.values())
 
     def _reset_token_tracker(self):

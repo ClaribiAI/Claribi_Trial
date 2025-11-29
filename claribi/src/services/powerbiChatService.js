@@ -43,9 +43,10 @@ export const sendPowerBIQuery = async (query, pbixFile = null) => {
  * @param {Function} onUpdate - Callback function for real-time updates
  * @param {Array} conversationHistory - Previous conversation history for context
  * @param {string} responseMode - Response detail level: 'detailed' or 'concise'
+ * @param {AbortSignal} abortSignal - Optional abort signal to cancel the request
  * @returns {Promise<Object>} The assistant's response with RAG details
  */
-export const sendPowerBIQueryWithUpdates = async (query, pbixFile = null, onUpdate = null, conversationHistory = [], responseMode = 'detailed') => {
+export const sendPowerBIQueryWithUpdates = async (query, pbixFile = null, onUpdate = null, conversationHistory = [], responseMode = 'detailed', abortSignal = null) => {
     try {
         const requestData = {
             query: query,
@@ -68,7 +69,8 @@ export const sendPowerBIQueryWithUpdates = async (query, pbixFile = null, onUpda
                 'Accept': 'text/plain',
                 'Authorization': jwtToken ? `Bearer ${jwtToken}` : ''
             },
-            body: JSON.stringify(requestData)
+            body: JSON.stringify(requestData),
+            signal: abortSignal
         });
         
         console.log('Streaming response status:', response.status, response.statusText);
@@ -85,6 +87,15 @@ export const sendPowerBIQueryWithUpdates = async (query, pbixFile = null, onUpda
 
         try {
             while (true) {
+                // Check if aborted
+                if (abortSignal && abortSignal.aborted) {
+                    console.log('Request aborted by user');
+                    reader.cancel();
+                    streamError = new Error('Request cancelled by user');
+                    streamError.isCancelled = true;
+                    break;
+                }
+                
                 const { done, value } = await reader.read();
                 
                 if (done) break;
@@ -191,6 +202,14 @@ export const sendPowerBIQueryWithUpdates = async (query, pbixFile = null, onUpda
         return finalResult;
     } catch (error) {
         console.error('Error sending Power BI query with updates:', error);
+        
+        // Handle abort/cancellation
+        if (error.name === 'AbortError' || error.isCancelled) {
+            const cancelError = new Error('Request cancelled by user');
+            cancelError.isCancelled = true;
+            throw cancelError;
+        }
+        
         // Preserve the original error object and its properties (especially 'error' property for usage limit errors)
         if (error.error === 'usage_limit_exceeded') {
             // Preserve usage limit error with all its properties

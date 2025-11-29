@@ -32,7 +32,7 @@ import {
     DotsThreeVertical,
     CloudArrowUp
 } from '@phosphor-icons/react';
-import { analyzePowerBISection, getGeneratedDocs /*, updateDocumentationSection */ } from '../../services/powerbiDocsService';
+import { analyzePowerBISection, getGeneratedDocs, rewriteDocumentationSection /*, updateDocumentationSection */ } from '../../services/powerbiDocsService';
 import { reuploadPowerBIFile } from '../../services/powerbiChatService';
 import { useNotification } from '../../contexts/NotificationContext';
 import DocumentationSection from './components/DocumentationSection';
@@ -60,6 +60,7 @@ const DocumentationPage = ({
     // const [editingSection, setEditingSection] = useState(null);
     // const [editedContent, setEditedContent] = useState({});
     const [sectionLoading, setSectionLoading] = useState({});
+    const [rewriteLoading, setRewriteLoading] = useState(false);
     // const [sectionSaving, setSectionSaving] = useState({});
     const [initialLoadComplete, setInitialLoadComplete] = useState(false);
     const [allSectionsPreloaded, setAllSectionsPreloaded] = useState(false);
@@ -121,9 +122,12 @@ const DocumentationPage = ({
     const renderMessageWithLinks = (message) => {
         if (!message) return message;
         
+        // Convert to string if it's not already a string
+        const messageStr = typeof message === 'string' ? message : String(message);
+        
         // Regular expression to match URLs
         const urlRegex = /(https?:\/\/[^\s]+)/g;
-        const parts = message.split(urlRegex);
+        const parts = messageStr.split(urlRegex);
         
         return parts.map((part, index) => {
             if (part.match(urlRegex)) {
@@ -265,6 +269,64 @@ const DocumentationPage = ({
             setError(error.message);
         }
     };
+
+    const handleRewriteSection = useCallback(async (sectionId, selectedText, startPosition, endPosition, rewriteStyle, onComplete) => {
+        if (!selectedFile?.collection_name) {
+            showNotification('Please select a file first', 'error');
+            if (onComplete) onComplete();
+            return;
+        }
+
+        setRewriteLoading(true);
+        setError(null);
+
+        try {
+            const result = await rewriteDocumentationSection(
+                selectedFile.collection_name,
+                sectionId,
+                selectedText,
+                startPosition,
+                endPosition,
+                rewriteStyle
+            );
+            
+            // Update documentation with the rewritten content
+            // Use functional update to ensure we're working with latest state
+            setDocumentation(prev => {
+                // Create a new object to ensure React detects the change
+                const updated = {
+                    ...prev,
+                    documentation: {
+                        ...prev?.documentation,
+                        [sectionId]: result.updated_content
+                    }
+                };
+                return updated;
+            });
+
+            const styleLabels = {
+                concise: 'Concise',
+                professional: 'Professional',
+                casual: 'Casual'
+            };
+
+            showNotification(`Text rewritten in ${styleLabels[rewriteStyle] || rewriteStyle} style`, 'success');
+            
+            // Small delay to ensure state update and DOM re-render complete
+            // This ensures the next selection uses the latest content
+            await new Promise(resolve => setTimeout(resolve, 100));
+        } catch (err) {
+            console.error('Error rewriting section:', err);
+            const errorMessage = err.message || err.error || 'Failed to rewrite text. Please try again.';
+            showNotification(errorMessage, 'error');
+        } finally {
+            setRewriteLoading(false);
+            // Close menu after backend responds
+            if (onComplete) {
+                onComplete();
+            }
+        }
+    }, [selectedFile, showNotification]);
 
     // Editing functionality commented out
     // const handleEditContent = useCallback((sectionId) => {
@@ -606,8 +668,7 @@ const DocumentationPage = ({
                     sx={{ 
                         bgcolor: theme.palette.sidebar.background,
                         py: 1.5,
-                        px: 3,
-                        borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`
+                        px: 3
                     }}
                 >
                     <Box display="flex" alignItems="center" gap={2}>
@@ -875,6 +936,8 @@ const DocumentationPage = ({
                                 onRegenerate={handleRegenerateClick}
                                 onExport={handleExportSection}
                                 onGenerate={handleGenerateSection}
+                                onRewrite={handleRewriteSection}
+                                rewriteLoading={rewriteLoading}
                                 theme={theme}
                             />
                         </Box>

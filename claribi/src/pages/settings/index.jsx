@@ -16,11 +16,12 @@ import {
   Button,
   Link,
   alpha,
-  Alert,
   Card,
   CardContent,
   LinearProgress,
-  Grid
+  Grid,
+  IconButton,
+  Tooltip
 } from '@mui/material';
 import {
   User,
@@ -31,7 +32,8 @@ import {
   Trash,
   FileText,
   Shield,
-  ChartBar
+  ChartBar,
+  Info
 } from '@phosphor-icons/react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -41,8 +43,7 @@ import {
   getChatMode,
   setChatMode,
   getCookiePreferences,
-  setCookiePreferences,
-  deleteAllData
+  setCookiePreferences
 } from '../../services/settings';
 import statsService from '../../services/statsService';
 
@@ -66,7 +67,6 @@ const SettingsPage = () => {
 
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
 
   // Usage data state
   const [usageData, setUsageData] = useState(null);
@@ -170,44 +170,16 @@ const SettingsPage = () => {
     showNotification('Chat mode preference saved', 'success');
   };
 
-  // Handle cookie preference change
-  const handleCookiePreferenceChange = (preference) => {
-    const newPrefs = {
-      ...cookiePrefs,
-      [preference]: !cookiePrefs[preference],
-    };
-    setCookiePrefs(newPrefs);
-    setCookiePreferences(newPrefs);
-    showNotification('Cookie preferences updated', 'success');
+
+  // Handle delete all data - show support contact message
+  const handleDeleteAllData = () => {
+    setDeleteDialogOpen(false);
   };
 
-  // Handle delete all data
-  const handleDeleteAllData = async () => {
-    setDeleting(true);
-    try {
-      const success = deleteAllData(false);
-      if (success) {
-        showNotification('All data deleted successfully', 'success');
-        // Logout and redirect to login
-        setTimeout(() => {
-          logout();
-        }, 1000);
-      } else {
-        showNotification('Failed to delete all data', 'error');
-      }
-    } catch (error) {
-      console.error('Error deleting data:', error);
-      showNotification('Failed to delete all data', 'error');
-    } finally {
-      setDeleting(false);
-      setDeleteDialogOpen(false);
-    }
-  };
-
-  const SettingSection = ({ icon: Icon, title, children }) => (
+  const SettingSection = ({ icon: Icon, title, children, iconColor }) => (
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
-        <Icon size={20} color={muiTheme.palette.primary.main} />
+        <Icon size={20} color={iconColor || muiTheme.palette.primary.main} />
         <Typography variant="h6" sx={{ fontWeight: 600 }}>
           {title}
         </Typography>
@@ -217,13 +189,49 @@ const SettingsPage = () => {
     </Box>
   );
 
-  const SettingItem = ({ label, description, children }) => (
+  const SettingItem = ({ label, description, children, infoTooltip }) => (
     <Box sx={{ mb: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 2 }}>
         <Box sx={{ flex: 1 }}>
-          <Typography variant="body1" sx={{ fontWeight: 500, mb: 0.5 }}>
-            {label}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+            <Typography variant="body1" sx={{ fontWeight: 500 }}>
+              {label}
+            </Typography>
+            {infoTooltip && (
+              <Tooltip 
+                title={infoTooltip}
+                arrow
+                placement="top"
+                slotProps={{
+                  tooltip: {
+                    sx: {
+                      maxWidth: 400,
+                      fontSize: '0.875rem',
+                      bgcolor: muiTheme.palette.mode === 'dark' 
+                        ? 'rgba(255, 255, 255, 0.95)' 
+                        : 'rgba(0, 0, 0, 0.95)',
+                      color: muiTheme.palette.mode === 'dark' 
+                        ? 'rgba(0, 0, 0, 0.87)' 
+                        : 'rgba(255, 255, 255, 0.87)',
+                    }
+                  }
+                }}
+              >
+                <IconButton 
+                  size="small" 
+                  sx={{ 
+                    p: 0.5,
+                    color: muiTheme.palette.text.secondary,
+                    '&:hover': {
+                      color: muiTheme.palette.primary.main,
+                    }
+                  }}
+                >
+                  <Info size={16} weight="fill" />
+                </IconButton>
+              </Tooltip>
+            )}
+          </Box>
           {description && (
             <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
               {description}
@@ -506,6 +514,7 @@ const SettingsPage = () => {
           <SettingItem
             label="Necessary Cookies"
             description="Required for the application to function properly"
+            infoTooltip="These cookies and local storage are essential for the application to function correctly. We use them to keep you securely logged in, remember your chat conversations, save your preferences (such as theme and chat settings), and maintain your current session. These cannot be disabled as they are required for core functionality. All data is stored securely and is only used to provide you with a seamless, personalized experience. For more detailed information, please read our Privacy Policy and Terms of Service."
           >
             <FormControlLabel
               control={
@@ -519,55 +528,18 @@ const SettingsPage = () => {
               sx={{ m: 0 }}
             />
           </SettingItem>
-
-          <SettingItem
-            label="Analytics Cookies"
-            description="Help us improve the application by collecting usage data"
-          >
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={cookiePrefs.analytics}
-                  onChange={() => handleCookiePreferenceChange('analytics')}
-                  color="primary"
-                />
-              }
-              label={cookiePrefs.analytics ? 'Enabled' : 'Disabled'}
-              sx={{ m: 0 }}
-            />
-          </SettingItem>
-
-          <SettingItem
-            label="Marketing Cookies"
-            description="Used for personalized advertising"
-          >
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={cookiePrefs.marketing}
-                  onChange={() => handleCookiePreferenceChange('marketing')}
-                  color="primary"
-                />
-              }
-              label={cookiePrefs.marketing ? 'Enabled' : 'Disabled'}
-              sx={{ m: 0 }}
-            />
-          </SettingItem>
         </SettingSection>
 
         {/* Data Management Section */}
-        <SettingSection icon={Trash} title="Data Management">
-          <Alert severity="warning" sx={{ mb: 2 }}>
-            Deleting all data will remove all your preferences, settings, and stored information. You will be logged out after deletion.
-          </Alert>
+        <SettingSection icon={Trash} title="Data Management" iconColor={muiTheme.palette.error.main}>
           <SettingItem
             label="Delete All Data"
-            description="Remove all your data from this application"
+            description="Request to remove all your data from this application"
           >
             <Button
               variant="outlined"
               color="error"
-              startIcon={<Trash size={18} />}
+              startIcon={<Trash size={18} color={muiTheme.palette.error.main} />}
               onClick={() => setDeleteDialogOpen(true)}
               sx={{
                 textTransform: 'none',
@@ -669,17 +641,17 @@ const SettingsPage = () => {
         </SettingSection>
       </Paper>
 
-      {/* Delete Confirmation Dialog */}
+      {/* Delete All Data Info Dialog */}
       <ConfirmationDialog
         open={deleteDialogOpen}
         onClose={() => setDeleteDialogOpen(false)}
         onConfirm={handleDeleteAllData}
         title="Delete All Data"
-        message="Are you sure you want to delete all your data? This action cannot be undone. You will be logged out after deletion."
-        confirmText="Delete All Data"
-        cancelText="Cancel"
-        type="danger"
-        isLoading={deleting}
+        message="To delete all your data, please contact support@claribi.ai. Our support team will assist you with your data deletion request."
+        confirmText="Got it"
+        cancelText="Close"
+        type="warning"
+        isLoading={false}
       />
     </Container>
   );

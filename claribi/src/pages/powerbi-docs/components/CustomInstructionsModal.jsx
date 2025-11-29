@@ -43,7 +43,7 @@ const CustomInstructionsModal = ({
         >
             <DialogTitle sx={{ pb: 1 }}>
                 <Box display="flex" alignItems="center" gap={1}>
-                    <ArrowClockwiseIcon size={20} color="currentColor" style={{ color: '#1976d2' }} />
+                    <ArrowClockwiseIcon size={20} color={theme.palette.primary.main} />
                     <Typography variant="h6" component="span">
                         Regenerate {currentSection?.title}
                     </Typography>

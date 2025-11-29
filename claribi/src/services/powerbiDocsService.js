@@ -133,5 +133,38 @@ export const applyImprovementRecommendation = async (collectionName, recommendat
     }
 };
 
+export const rewriteDocumentationSection = async (collectionName, sectionName, selectedText, startPosition, endPosition, rewriteStyle) => {
+    const requestData = {
+        collection_name: collectionName,
+        section_name: sectionName,
+        selected_text: selectedText,
+        start_position: startPosition,
+        end_position: endPosition,
+        rewrite_style: rewriteStyle
+    };
+
+    try {
+        const response = await api.post('/api/powerbi-docs/rewrite-section', requestData, {
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            timeout: 0
+        });
+        
+        return response.data;
+    } catch (error) {
+        const errorData = error.response?.data || error;
+        
+        // Create a user-friendly error
+        if (error.response?.data?.message) {
+            const friendlyError = new Error(error.response.data.message);
+            friendlyError.error = error.response.data.error;
+            throw friendlyError;
+        }
+        
+        throw errorData;
+    }
+};
+
 // Re-export shared file operations
 export { powerbiFileService }; 

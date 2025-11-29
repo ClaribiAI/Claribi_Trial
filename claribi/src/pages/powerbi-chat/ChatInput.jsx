@@ -12,7 +12,8 @@ import {
 import {
     PaperPlaneRight,
     Info,
-    Lightning
+    Lightning,
+    Square
 } from '@phosphor-icons/react';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { getChatMode, setChatMode } from '../../services/settings';
@@ -20,6 +21,7 @@ import { getChatMode, setChatMode } from '../../services/settings';
 const ChatInput = React.memo(({ 
     onSendMessage, 
     isLoading, 
+    onStop,
     placeholder = "Ask me anything about your Power BI dataset...",
     disabled = false 
 }) => {
@@ -239,41 +241,64 @@ const ChatInput = React.memo(({
                     </Box>
                 </Box>
 
-                {/* Send Button */}
-                <Button
-                    onClick={handleSendMessage}
-                    disabled={isLoading || disabled || !inputMessage.trim() || inputMessage.trim().length > MAX_CHARACTERS}
-                    variant="contained"
-                    sx={{
-                        minWidth: 30,
-                        height: 30,
-                        borderRadius: 2,
-                        bgcolor: inputMessage.trim() ? theme.palette.primary.main : alpha(theme.palette.text.secondary, 0.3),
-                        color: inputMessage.trim() ? theme.palette.primary.contrastText : theme.palette.text.disabled,
-                        '&:hover': inputMessage.trim() ? { 
-                            bgcolor: theme.palette.primary.dark,
-                            transform: 'scale(1.05)',
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-                        } : {
-                            bgcolor: alpha(theme.palette.text.secondary, 0.4),
-                            transform: 'none',
-                            boxShadow: 'none'
-                        },
-                        '&:disabled': { 
+                {/* Stop Button - shown when loading */}
+                {isLoading && onStop ? (
+                    <Button
+                        onClick={onStop}
+                        variant="contained"
+                        sx={{
+                            minWidth: 30,
+                            height: 30,
+                            borderRadius: 2,
                             bgcolor: alpha(theme.palette.text.secondary, 0.3),
-                            color: theme.palette.text.disabled,
-                            transform: 'none',
-                            boxShadow: 'none'
-                        },
-                        transition: 'all 0.2s ease'
-                    }}
-                >
-                    {isLoading ? (
-                        <LoadingSpinner size={14} compact />
-                    ) : (
-                        <PaperPlaneRight size={14} />
-                    )}
-                </Button>
+                            color: theme.palette.text.primary,
+                            '&:hover': { 
+                                bgcolor: alpha(theme.palette.text.secondary, 0.5),
+                                transform: 'scale(1.05)',
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                            },
+                            transition: 'all 0.2s ease'
+                        }}
+                    >
+                        <Square size={14} weight="fill" />
+                    </Button>
+                ) : (
+                    /* Send Button */
+                    <Button
+                        onClick={handleSendMessage}
+                        disabled={isLoading || disabled || !inputMessage.trim() || inputMessage.trim().length > MAX_CHARACTERS}
+                        variant="contained"
+                        sx={{
+                            minWidth: 30,
+                            height: 30,
+                            borderRadius: 2,
+                            bgcolor: inputMessage.trim() ? theme.palette.primary.main : alpha(theme.palette.text.secondary, 0.3),
+                            color: inputMessage.trim() ? theme.palette.primary.contrastText : theme.palette.text.disabled,
+                            '&:hover': inputMessage.trim() ? { 
+                                bgcolor: theme.palette.primary.dark,
+                                transform: 'scale(1.05)',
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                            } : {
+                                bgcolor: alpha(theme.palette.text.secondary, 0.4),
+                                transform: 'none',
+                                boxShadow: 'none'
+                            },
+                            '&:disabled': { 
+                                bgcolor: alpha(theme.palette.text.secondary, 0.3),
+                                color: theme.palette.text.disabled,
+                                transform: 'none',
+                                boxShadow: 'none'
+                            },
+                            transition: 'all 0.2s ease'
+                        }}
+                    >
+                        {isLoading ? (
+                            <LoadingSpinner size={14} compact />
+                        ) : (
+                            <PaperPlaneRight size={14} />
+                        )}
+                    </Button>
+                )}
             </Box>
         </Box>
     );

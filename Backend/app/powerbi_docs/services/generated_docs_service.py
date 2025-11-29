@@ -220,6 +220,73 @@ class GeneratedDocsService:
         except Exception as e:
             logger.error(f"Error deleting all sections for {collection_name}: {e}", exc_info=True)
             return False
+    
+    @staticmethod
+    def update_section_by_positions(collection_name: str, section_name: str, start_pos: int, end_pos: int, new_text: str) -> Optional[str]:
+        """
+        Update a section by replacing text between start_pos and end_pos with new_text.
+        Uses position-based replacement, not text matching.
+        
+        Args:
+            collection_name: The collection name
+            section_name: The section type to update
+            start_pos: Start position (character index) in raw text
+            end_pos: End position (character index) in raw text
+            new_text: The new text to replace the selected portion
+            
+        Returns:
+            The full updated content as a string, or None if section not found
+        """
+        try:
+            # Get current section content
+            section_data = GeneratedDocsService.get_generated_section(collection_name, section_name)
+            if not section_data:
+                logger.error(f"Section {section_name} not found for collection {collection_name}")
+                return None
+            
+            content = section_data['content']
+            
+            # Extract raw text from JSONB format
+            raw_text = None
+            if isinstance(content, dict):
+                if 'content' in content and isinstance(content['content'], str):
+                    raw_text = content['content']
+                elif isinstance(content, str):
+                    # Fallback: if content is already a string
+                    raw_text = content
+            elif isinstance(content, str):
+                raw_text = content
+            
+            if raw_text is None:
+                logger.error(f"Could not extract raw text from section {section_name} for collection {collection_name}")
+                return None
+            
+            # Validate positions
+            if start_pos < 0 or end_pos < 0 or start_pos > len(raw_text) or end_pos > len(raw_text) or start_pos > end_pos:
+                logger.error(f"Invalid positions: start_pos={start_pos}, end_pos={end_pos}, text_length={len(raw_text)}")
+                raise ValueError(f"Invalid text positions: start_pos={start_pos}, end_pos={end_pos}, text_length={len(raw_text)}")
+            
+            # Replace text at specified positions
+            updated_text = raw_text[:start_pos] + new_text + raw_text[end_pos:]
+            
+            logger.info(f"Updating section {section_name} for {collection_name} - Replaced chars {start_pos}-{end_pos} ({end_pos - start_pos} chars) with {len(new_text)} chars")
+            
+            # Save updated content
+            success = GeneratedDocsService.save_generated_section(
+                collection_name,
+                section_name,
+                updated_text
+            )
+            
+            if success:
+                return updated_text
+            else:
+                logger.error(f"Failed to save updated section {section_name} for collection {collection_name}")
+                return None
+                    
+        except Exception as e:
+            logger.error(f"Error updating section {section_name} by positions for {collection_name}: {e}", exc_info=True)
+            raise
 
 # Create a singleton instance
 generated_docs_service = GeneratedDocsService()

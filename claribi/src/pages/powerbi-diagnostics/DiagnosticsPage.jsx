@@ -19,7 +19,8 @@ import {
     Menu,
     MenuItem,
     ListItemIcon,
-    ListItemText
+    ListItemText,
+    IconButton
 } from '@mui/material';
 import {
     LightbulbIcon,
@@ -375,13 +376,13 @@ const DiagnosticsPage = ({
             
             // Define all KPI types
             const kpiTypes = [
-                'unused_measures',
                 'unused_columns',
-                'inactive_relationships',
-                'large_tables',
+                'unused_measures',
                 'complex_measures',
-                'crowded_pages',
-                'many_to_many_relationships'
+                'inactive_relationships',
+                'many_to_many_relationships',
+                'large_tables',
+                'crowded_pages'
             ];
 
             try {
@@ -544,8 +545,7 @@ const DiagnosticsPage = ({
                         sx={{ 
                             bgcolor: theme.palette.sidebar.background,
                             py: 1.5,
-                            px: 3,
-                            borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`
+                            px: 3
                         }}
                     >
                         <Box display="flex" alignItems="center" gap={2}>
@@ -683,6 +683,21 @@ const DiagnosticsPage = ({
                             <Grid container spacing={2} justifyContent="center">
                                 <Grid item xs={12} sm={6} md={4} lg={3}>
                                     <DiagnosticsKPICard
+                                        title="Unused Columns"
+                                        value={(() => {
+                                            const unused = kpis.unused_columns?.count || 0;
+                                            const total = kpis.total_columns || 0;
+                                            const percentage = total > 0 ? ((unused / total) * 100).toFixed(1) : 0;
+                                            return `${unused}/${total} (${percentage}%)`;
+                                        })()}
+                                        description={`${kpis.unused_columns?.count || 0} out of ${kpis.total_columns || 0} columns are not used in any visuals or measure expressions`}
+                                        severity={kpis.unused_columns?.count > 0 ? 'error' : 'success'}
+                                        icon={Columns}
+                                        onClick={kpis.unused_columns?.count > 0 ? () => handleKPIClick('unused_columns', 'Unused Columns') : undefined}
+                                    />
+                                </Grid>
+                                <Grid item xs={12} sm={6} md={4} lg={3}>
+                                    <DiagnosticsKPICard
                                         title="Unused Measures"
                                         value={(() => {
                                             const unused = kpis.unused_measures?.count || 0;
@@ -698,17 +713,12 @@ const DiagnosticsPage = ({
                                 </Grid>
                                 <Grid item xs={12} sm={6} md={4} lg={3}>
                                     <DiagnosticsKPICard
-                                        title="Unused Columns"
-                                        value={(() => {
-                                            const unused = kpis.unused_columns?.count || 0;
-                                            const total = kpis.total_columns || 0;
-                                            const percentage = total > 0 ? ((unused / total) * 100).toFixed(1) : 0;
-                                            return `${unused}/${total} (${percentage}%)`;
-                                        })()}
-                                        description={`${kpis.unused_columns?.count || 0} out of ${kpis.total_columns || 0} columns are not used in any visuals or measure expressions`}
-                                        severity={kpis.unused_columns?.count > 0 ? 'error' : 'success'}
-                                        icon={Columns}
-                                        onClick={kpis.unused_columns?.count > 0 ? () => handleKPIClick('unused_columns', 'Unused Columns') : undefined}
+                                        title="Complex Measures"
+                                        value={kpis.complex_measures?.count || 0}
+                                        description={`${kpis.complex_measures?.count || 0} measures have expressions longer than 1000 characters, which may impact performance`}
+                                        severity={kpis.complex_measures?.count > 0 ? 'warning' : 'success'}
+                                        icon={Calculator}
+                                        onClick={kpis.complex_measures?.count > 0 ? () => handleKPIClick('complex_measures', 'Complex Measures') : undefined}
                                     />
                                 </Grid>
                                 <Grid item xs={12} sm={6} md={4} lg={3}>
@@ -728,6 +738,16 @@ const DiagnosticsPage = ({
                                 </Grid>
                                 <Grid item xs={12} sm={6} md={4} lg={3}>
                                     <DiagnosticsKPICard
+                                        title="Many-to-Many Relationships"
+                                        value={kpis.many_to_many_relationships?.count || 0}
+                                        description={`${kpis.many_to_many_relationships?.count || 0} relationships use many-to-many cardinality, which may cause data modeling issues`}
+                                        severity={kpis.many_to_many_relationships?.count > 0 ? 'warning' : 'success'}
+                                        icon={LinkSimple}
+                                        onClick={kpis.many_to_many_relationships?.count > 0 ? () => handleKPIClick('many_to_many_relationships', 'Many-to-Many Relationships') : undefined}
+                                    />
+                                </Grid>
+                                <Grid item xs={12} sm={6} md={4} lg={3}>
+                                    <DiagnosticsKPICard
                                         title="Large Tables"
                                         value={kpis.large_tables?.count || 0}
                                         description={`${kpis.large_tables?.count || 0} tables have more than 50 columns, which may impact performance`}
@@ -738,32 +758,12 @@ const DiagnosticsPage = ({
                                 </Grid>
                                 <Grid item xs={12} sm={6} md={4} lg={3}>
                                     <DiagnosticsKPICard
-                                        title="Complex Measures"
-                                        value={kpis.complex_measures?.count || 0}
-                                        description={`${kpis.complex_measures?.count || 0} measures have expressions longer than 1000 characters, which may impact performance`}
-                                        severity={kpis.complex_measures?.count > 0 ? 'warning' : 'success'}
-                                        icon={Calculator}
-                                        onClick={kpis.complex_measures?.count > 0 ? () => handleKPIClick('complex_measures', 'Complex Measures') : undefined}
-                                    />
-                                </Grid>
-                                <Grid item xs={12} sm={6} md={4} lg={3}>
-                                    <DiagnosticsKPICard
                                         title="Crowded Pages"
                                         value={kpis.crowded_pages?.count || 0}
                                         description={`${kpis.crowded_pages?.count || 0} pages have more than 10 visuals, which may impact performance`}
                                         severity={kpis.crowded_pages?.count > 0 ? 'warning' : 'success'}
                                         icon={ChartBar}
                                         onClick={kpis.crowded_pages?.count > 0 ? () => handleKPIClick('crowded_pages', 'Crowded Pages') : undefined}
-                                    />
-                                </Grid>
-                                <Grid item xs={12} sm={6} md={4} lg={3}>
-                                    <DiagnosticsKPICard
-                                        title="Many-to-Many Relationships"
-                                        value={kpis.many_to_many_relationships?.count || 0}
-                                        description={`${kpis.many_to_many_relationships?.count || 0} relationships use many-to-many cardinality, which may cause data modeling issues`}
-                                        severity={kpis.many_to_many_relationships?.count > 0 ? 'warning' : 'success'}
-                                        icon={LinkSimple}
-                                        onClick={kpis.many_to_many_relationships?.count > 0 ? () => handleKPIClick('many_to_many_relationships', 'Many-to-Many Relationships') : undefined}
                                     />
                                 </Grid>
                             </Grid>
@@ -790,7 +790,10 @@ const DiagnosticsPage = ({
                                             p: 1, 
                                             borderRadius: 2, 
                                             bgcolor: alpha(theme.palette.primary.main, 0.1),
-                                            color: theme.palette.primary.main
+                                            color: theme.palette.primary.main,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
                                         }}
                                     >
                                         <LightbulbIcon size={20} />
@@ -808,29 +811,30 @@ const DiagnosticsPage = ({
                                 }
                                 action={
                                     recommendations.length > 0 ? (
-                                        <Tooltip title="Regenerate recommendations">
-                                            <Button
-                                                onClick={handleRegenerate}
-                                                disabled={isLoading}
-                                                variant="outlined"
-                                                size="small"
-                                                startIcon={isLoading ? <CircularProgress size={16} /> : <ArrowClockwiseIcon size={16} />}
-                                                sx={{ 
-                                                    fontFamily: "'Nunito Sans', sans-serif",
-                                                    fontWeight: 500,
-                                                    textTransform: 'none',
-                                                    borderRadius: 2,
-                                                    '&:hover': {
-                                                        bgcolor: alpha(theme.palette.primary.main, 0.1)
-                                                    },
-                                                    '&:disabled': {
-                                                        opacity: 0.6
-                                                    }
-                                                }}
-                                            >
-                                                {isLoading ? 'Regenerating...' : 'Regenerate'}
-                                            </Button>
-                                        </Tooltip>
+                                        <Box
+                                            sx={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                pr: 1,
+                                                height: '100%'
+                                            }}
+                                        >
+                                            <Tooltip title="Regenerate recommendations">
+                                                <IconButton 
+                                                    onClick={handleRegenerate}
+                                                    disabled={isLoading}
+                                                    size="small"
+                                                    sx={{
+                                                        '&:hover': {
+                                                            backgroundColor: theme.palette.background.hover
+                                                        }
+                                                    }}
+                                                >
+                                                    {isLoading ? <CircularProgress size={16} /> : <ArrowClockwiseIcon size={16} />}
+                                                </IconButton>
+                                            </Tooltip>
+                                        </Box>
                                     ) : (
                                         <Button
                                             onClick={handleGenerateRecommendations}
@@ -858,7 +862,14 @@ const DiagnosticsPage = ({
                                         </Button>
                                     )
                                 }
-                                sx={{ pb: 1 }}
+                                sx={{ 
+                                    pb: 1,
+                                    '& .MuiCardHeader-action': {
+                                        alignSelf: 'center',
+                                        marginTop: 0,
+                                        marginRight: 0
+                                    }
+                                }}
                             />
                             
                             <CardContent sx={{ pt: 0, position: 'relative', bgcolor: 'transparent' }}>
@@ -959,6 +970,7 @@ const DiagnosticsPage = ({
                                 initialMessage={chatInitialMessage}
                                 onCloseChat={handleCloseChat}
                                 isInline={true}
+                                isEphemeral={true}
                             />
                         </Box>
                     </>

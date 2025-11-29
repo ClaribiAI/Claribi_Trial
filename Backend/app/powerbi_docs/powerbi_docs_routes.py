@@ -11,6 +11,7 @@ from app.powerbi_docs.ai_client import ai_client
 from app.powerbi_docs.services.token_tracking_service import powerbi_docs_token_tracking_service
 from app.powerbi_docs.services.generated_docs_service import generated_docs_service
 from app.powerbi_docs.services.diagnostics_kpi_service import diagnostics_kpi_service
+from app.powerbi_docs.services.rewrite_service import rewrite_service
 from app.core.responses import error_response
 from app.core.database import get_db_cursor
 from app.powerbi_chat.services.vector_store_service import vector_store_service
@@ -448,3 +449,108 @@ def get_diagnostics_kpi_details(collection_name, kpi_type):
     except Exception as e:
         logger.error(f"Error getting KPI details for {collection_name}/{kpi_type}: {e}", exc_info=True)
         return error_response(500, 'Failed to get KPI details')
+
+@powerbi_docs_bp.route('/api/powerbi-docs/rewrite-section', methods=['POST'])
+@cross_origin(supports_credentials=True)
+@auth_required
+def rewrite_section():
+    """
+    Endpoint to rewrite a specific portion of a documentation section.
+    Expects JSON data with 'collection_name', 'section_name', 'selected_text', 
+    'start_position', 'end_position', and 'rewrite_style'.
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return error_response(400, 'JSON data is required')
+        
+        collection_name = data.get('collection_name')
+        if not collection_name:
+            return error_response(400, 'collection_name is required')
+        
+        # Validate collection_name
+        if not _validate_collection_name(collection_name):
+            return error_response(400, 'Invalid collection name format')
+        
+        section_name = data.get('section_name')
+        if not section_name:
+            return error_response(400, 'section_name is required')
+        
+        # Validate section_name
+        if section_name not in ALLOWED_SECTIONS:
+            return error_response(400, f'Invalid section. Allowed sections: {", ".join(sorted(ALLOWED_SECTIONS))}')
+        
+        selected_text = data.get('selected_text')
+        if not selected_text or not isinstance(selected_text, str):
+            return error_response(400, 'selected_text is required and must be a string')
+        
+        start_position = data.get('start_position')
+        end_position = data.get('end_position')
+        
+        if start_position is None or end_position is None:
+            return error_response(400, 'start_position and end_position are required')
+        
+        try:
+            start_position = int(start_position)
+            end_position = int(end_position)
+        except (ValueError, TypeError):
+            return error_response(400, 'start_position and end_position must be integers')
+        
+        rewrite_style = data.get('rewrite_style')
+        if not rewrite_style or rewrite_style not in ['concise', 'professional', 'casual']:
+            return error_response(400, 'rewrite_style is required and must be one of: concise, professional, casual')
+        
+        # Get current section to verify it exists
+        section_data = generated_docs_service.get_generated_section(collection_name, section_name)
+        if not section_data:
+            return error_response(404, 'Section not found')
+        
+        # Rewrite the selected text using AI
+        try:
+            rewritten_text, token_usage = rewrite_service.rewrite_text_selection(selected_text, rewrite_style)
+        except Exception as rewrite_error:
+            logger.error(f"Error rewriting text: {rewrite_error}", exc_info=True)
+            return error_response(500, f'Failed to rewrite text: {str(rewrite_error)}')
+        
+        # Update the section with the rewritten text at the specified positions
+        try:
+            updated_content = generated_docs_service.update_section_by_positions(
+                collection_name,
+                section_name,
+                start_position,
+                end_position,
+                rewritten_text
+            )
+            
+            if not updated_content:
+                return error_response(500, 'Failed to update section')
+        except Exception as update_error:
+            logger.error(f"Error updating section: {update_error}", exc_info=True)
+            return error_response(500, f'Failed to update section: {str(update_error)}')
+        
+        # Record token usage with graceful error handling
+        try:
+            user = get_current_user_from_token()
+            if user and isinstance(user, dict) and user.get('ms_object_id'):
+                powerbi_docs_token_tracking_service.record_token_usage(
+                    user['ms_object_id'],
+                    collection_name,
+                    f'{section_name}_rewrite',
+                    token_usage.get('input_tokens', 0),
+                    token_usage.get('output_tokens', 0)
+                )
+        except Exception as tracking_error:
+            # Log error but don't fail the rewrite operation
+            logger.error(f"Failed to record token usage for rewrite: {tracking_error}", exc_info=True)
+        
+        return jsonify({
+            'section': section_name,
+            'updated_content': updated_content,
+            'rewrite_style': rewrite_style,
+            'token_usage': token_usage,
+            'status': 'success'
+        })
+    
+    except Exception as e:
+        logger.error(f"Error rewriting section: {e}", exc_info=True)
+        return error_response(500, 'Failed to rewrite section')

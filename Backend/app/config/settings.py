@@ -228,7 +228,7 @@ class Config:
             'chat': 100      # 100 chat queries
         },
         'Premium': {
-            'docs': 250,     # 500 document generations
+            'docs': 500,     # 500 document generations
             'chat': 1000     # 1000 chat queries
         },
         'none': {

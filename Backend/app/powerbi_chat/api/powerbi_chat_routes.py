@@ -4,7 +4,7 @@ import logging
 import tempfile
 import json
 from flask import Blueprint, request, jsonify, Response, current_app, g
-from threading import Thread
+from threading import Thread, Event
 from queue import Queue, Empty
 import time
 from flask_cors import cross_origin
@@ -84,6 +84,9 @@ def process_powerbi_query_stream():
         logger.warning("No user_ms_object_id found, skipping usage limit check")
 
     def generate_updates():
+        # Create cancellation event to signal when client disconnects
+        cancellation_event = Event()
+        
         try:
             # Send warning message if approaching limit (before other updates)
             if warning_message:
@@ -103,6 +106,9 @@ def process_powerbi_query_stream():
             result_container = {'result': None}
 
             def update_callback(update_data: dict):
+                # Check if cancelled before sending update
+                if cancellation_event.is_set():
+                    return
                 # Push each update into the queue to be streamed to client
                 updates_queue.put(update_data)
 
@@ -114,12 +120,24 @@ def process_powerbi_query_stream():
                         update_callback=update_callback,
                         conversation_history=conversation_history,
                         response_mode=response_mode,
-                        user_ms_object_id=user_ms_object_id
+                        user_ms_object_id=user_ms_object_id,
+                        cancellation_event=cancellation_event
                     )
-                    result_container['result'] = result
+                    # Only set result if not cancelled
+                    if not cancellation_event.is_set():
+                        result_container['result'] = result
+                except InterruptedError:
+                    # Request was cancelled - this is expected, just log and exit
+                    logger.info("RAG orchestration cancelled by client")
+                    cancellation_event.set()
+                except Exception as e:
+                    logger.error(f"Error in orchestrator thread: {e}", exc_info=True)
+                    if not cancellation_event.is_set():
+                        result_container['result'] = None
                 finally:
                     # Signal completion to the streaming loop
-                    updates_queue.put({'__final__': True})
+                    if not cancellation_event.is_set():
+                        updates_queue.put({'__final__': True})
 
             # Start orchestrator on a background thread
             worker = Thread(target=run_orchestrator, daemon=True)
@@ -128,8 +146,13 @@ def process_powerbi_query_stream():
             # Stream updates as they arrive
             while True:
                 try:
+                    # Check if client disconnected (GeneratorExit will be raised)
                     update = updates_queue.get(timeout=0.1)
                 except Empty:
+                    # Check for cancellation periodically
+                    if cancellation_event.is_set():
+                        logger.info("Client disconnected, stopping response generation")
+                        break
                     time.sleep(0.05)
                     continue
 
@@ -138,7 +161,11 @@ def process_powerbi_query_stream():
 
                 yield f"data: {json.dumps(update)}\n\n"
 
-            # Send final payload depending on result status
+            # Send final payload depending on result status (only if not cancelled)
+            if cancellation_event.is_set():
+                logger.info("Request cancelled by client, not sending final result")
+                return
+                
             result = result_container['result']
             if not result:
                 yield f"data: {json.dumps({'type': 'error', 'message': 'No result generated.'})}\n\n"
@@ -154,9 +181,18 @@ def process_powerbi_query_stream():
                 yield f"data: {json.dumps(final_data)}\n\n"
             elif result.status == "COMPLETE":
                 yield f"data: {json.dumps({'type': 'final', 'answer': result.data['answer']})}\n\n"
+        except GeneratorExit:
+            # Client disconnected - signal cancellation
+            logger.info("Client disconnected (GeneratorExit), stopping response generation")
+            cancellation_event.set()
         except Exception as e:
             logger.error(f"Error in streaming query: {e}", exc_info=True)
-            yield f"data: {json.dumps({'type': 'error', 'message': 'An internal error occurred.'})}\n\n"
+            cancellation_event.set()
+            try:
+                yield f"data: {json.dumps({'type': 'error', 'message': 'An internal error occurred.'})}\n\n"
+            except GeneratorExit:
+                # Client already disconnected, ignore
+                pass
 
     return Response(generate_updates(), mimetype='text/event-stream')
 
