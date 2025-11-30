@@ -86,14 +86,12 @@ const KPIDetailsDialog = ({ open, onClose, kpiType, details, loading, error, tit
     const groupItemsByTable = (items) => {
         if (!items || items.length === 0) return {};
 
-        // For inactive_relationships and many_to_many_relationships, don't group - return as flat list
-        if (kpiType === 'inactive_relationships' || kpiType === 'many_to_many_relationships') {
-            return { 'All Relationships': items };
-        }
-
-        // For crowded_pages, don't group - return as flat list
-        if (kpiType === 'crowded_pages') {
-            return { 'Pages': items };
+        // For inactive_relationships, many_to_many_relationships, and crowded_pages, 
+        // return empty object to indicate flat list (no grouping)
+        if (kpiType === 'inactive_relationships' || 
+            kpiType === 'many_to_many_relationships' || 
+            kpiType === 'crowded_pages') {
+            return {};
         }
 
         // For large_tables, don't group - return as flat list
@@ -322,7 +320,9 @@ const KPIDetailsDialog = ({ open, onClose, kpiType, details, loading, error, tit
                                     fontSize: '0.75rem'
                                 }}
                             />
-                            {kpiType !== 'inactive_relationships' && (
+                            {(kpiType !== 'inactive_relationships' && 
+                              kpiType !== 'many_to_many_relationships' && 
+                              kpiType !== 'crowded_pages') && (
                                 <Typography
                                     variant="body2"
                                     sx={{
@@ -357,11 +357,13 @@ const KPIDetailsDialog = ({ open, onClose, kpiType, details, loading, error, tit
                                 }
                             }}
                         >
-                            {kpiType === 'inactive_relationships' ? (
-                                // For inactive relationships, display as flat list without grouping
+                            {(kpiType === 'inactive_relationships' || 
+                              kpiType === 'many_to_many_relationships' || 
+                              kpiType === 'crowded_pages') ? (
+                                // For relationship issues and crowded pages, display as flat list without grouping
                                 displayDetails.map((item, index) => (
                                     <ListItem
-                                        key={`relationship-${index}`}
+                                        key={`${kpiType}-${index}`}
                                         sx={{
                                             py: 1.75,
                                             px: 3,

@@ -48,7 +48,8 @@ class DiagnosticsKPIService:
             unused_columns = DiagnosticsKPIService._find_unused_columns(
                 all_columns,
                 fields_used_in_visuals,
-                all_measures
+                all_measures,
+                relationships
             )
             
             # Find inactive relationships
@@ -255,9 +256,10 @@ class DiagnosticsKPIService:
     def _find_unused_columns(
         all_columns: List[Dict[str, Any]],
         fields_used_in_visuals: Set[str],
-        all_measures: List[Dict[str, Any]]
+        all_measures: List[Dict[str, Any]],
+        relationships: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        """Find columns that are not used in visuals and not referenced in measure expressions."""
+        """Find columns that are not used in visuals, not referenced in measure expressions, and not part of relationships."""
         unused = []
         
         for column in all_columns:
@@ -285,7 +287,17 @@ class DiagnosticsKPIService:
                     used_in_measure = True
                     break
             
-            if not used_in_measure:
+            if used_in_measure:
+                continue
+            
+            # Check if part of a relationship
+            used_in_relationship = DiagnosticsKPIService._is_column_in_relationship(
+                column_name,
+                column['table'],
+                relationships
+            )
+            
+            if not used_in_relationship:
                 unused.append({
                     'name': column_name,
                     'table': column['table'],
@@ -317,6 +329,25 @@ class DiagnosticsKPIService:
         # Pattern 3: Full name format 'Table'[ColumnName]
         if column_full_name and column_full_name in expression:
             return True
+        
+        return False
+    
+    @staticmethod
+    def _is_column_in_relationship(column_name: str, table_name: str, relationships: List[Dict[str, Any]]) -> bool:
+        """Check if a column is part of any relationship."""
+        for rel in relationships:
+            from_table = rel.get('from_table', '')
+            from_column = rel.get('from_column', '')
+            to_table = rel.get('to_table', '')
+            to_column = rel.get('to_column', '')
+            
+            # Check if column matches from_column in the relationship
+            if from_table == table_name and from_column == column_name:
+                return True
+            
+            # Check if column matches to_column in the relationship
+            if to_table == table_name and to_column == column_name:
+                return True
         
         return False
     

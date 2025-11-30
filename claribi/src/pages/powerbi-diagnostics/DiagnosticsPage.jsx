@@ -690,7 +690,7 @@ const DiagnosticsPage = ({
                                             const percentage = total > 0 ? ((unused / total) * 100).toFixed(1) : 0;
                                             return `${unused}/${total} (${percentage}%)`;
                                         })()}
-                                        description={`${kpis.unused_columns?.count || 0} out of ${kpis.total_columns || 0} columns are not used in any visuals or measure expressions`}
+                                        description={`${kpis.unused_columns?.count || 0} out of ${kpis.total_columns || 0} columns are not used in any visuals, measures, or relationships`}
                                         severity={kpis.unused_columns?.count > 0 ? 'error' : 'success'}
                                         icon={Columns}
                                         onClick={kpis.unused_columns?.count > 0 ? () => handleKPIClick('unused_columns', 'Unused Columns') : undefined}

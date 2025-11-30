@@ -45,8 +45,9 @@ class PbixUnpacker:
         return "unknown"
 
     def __extract_report_layout(self, zip_ref):
-        """Extract and parse the Report/Layout file from the PBIX ZIP archive."""
+        """Extract and parse report layout from either legacy or new format."""
         try:
+            # Try legacy format first
             if 'Report/Layout' in zip_ref.namelist():
                 with zip_ref.open('Report/Layout') as layout_file:
                     # Read the UTF-16LE encoded content
@@ -56,8 +57,13 @@ class PbixUnpacker:
                     layout_data = json.loads(layout_json)
                     # Store in data model
                     self._data_model.report_layout = layout_data
+            # Try new format
+            elif any('Report/definition/pages/' in f for f in zip_ref.namelist()):
+                # Extract from new format structure
+                layout_data = self.__extract_new_format_layout(zip_ref)
+                self._data_model.report_layout = layout_data
             else:
-                # No Report/Layout file found, set empty structure
+                # No layout found, set empty structure
                 self._data_model.report_layout = {
                     "sections": [],
                     "resourcePackages": [],
@@ -72,6 +78,150 @@ class PbixUnpacker:
                 "id": None,
                 "reportId": None
             }
+
+    def __extract_new_format_layout(self, zip_ref):
+        """Extract layout from new Power BI format structure."""
+        sections = []
+        page_order = []
+        
+        # Get pages order
+        pages_json_path = 'Report/definition/pages/pages.json'
+        if pages_json_path in zip_ref.namelist():
+            try:
+                with zip_ref.open(pages_json_path) as f:
+                    pages_data = json.loads(f.read().decode('utf-8'))
+                    page_order = pages_data.get('pageOrder', [])
+            except Exception:
+                # If pages.json doesn't exist or can't be parsed, try to discover pages
+                pass
+        
+        # If no page order found, discover pages from directory structure
+        if not page_order:
+            page_dirs = set()
+            for file_name in zip_ref.namelist():
+                if file_name.startswith('Report/definition/pages/') and '/page.json' in file_name:
+                    # Extract page ID from path like "Report/definition/pages/{page_id}/page.json"
+                    parts = file_name.split('/')
+                    if len(parts) >= 5:
+                        page_dirs.add(parts[3])  # parts[3] is the page_id
+            page_order = sorted(list(page_dirs))
+        
+        # Process each page
+        for page_id in page_order:
+            page_path = f'Report/definition/pages/{page_id}/page.json'
+            if page_path not in zip_ref.namelist():
+                continue
+                
+            try:
+                with zip_ref.open(page_path) as f:
+                    page_data = json.loads(f.read().decode('utf-8'))
+            except Exception:
+                # Skip this page if we can't read it
+                continue
+            
+            # Get visual containers for this page
+            visual_containers = []
+            visuals_dir = f'Report/definition/pages/{page_id}/visuals/'
+            visual_files = [f for f in zip_ref.namelist() 
+                          if f.startswith(visuals_dir) and f.endswith('visual.json')]
+            
+            for visual_file in visual_files:
+                try:
+                    with zip_ref.open(visual_file) as f:
+                        visual_data = json.loads(f.read().decode('utf-8'))
+                    
+                    # Extract visual object
+                    visual_obj = visual_data.get('visual', {})
+                    if not visual_obj:
+                        continue
+                    
+                    # Convert new format to legacy-like structure
+                    single_visual = self.__convert_visual_to_single_visual(visual_obj)
+                    
+                    # Extract position and size from visual data
+                    position = visual_data.get('position', {})
+                    
+                    # Extract visual ID from file path
+                    visual_id = None
+                    # Path format: Report/definition/pages/{page_id}/visuals/{visual_id}/visual.json
+                    path_parts = visual_file.split('/')
+                    if len(path_parts) >= 6:
+                        visual_id = path_parts[5]  # parts[5] is the visual_id
+                    
+                    # Create container matching legacy format
+                    container = {
+                        'id': visual_id or visual_data.get('name'),
+                        'x': position.get('x'),
+                        'y': position.get('y'),
+                        'z': position.get('z'),
+                        'width': position.get('width'),
+                        'height': position.get('height'),
+                        'config': json.dumps({
+                            'singleVisual': single_visual
+                        }),
+                        'filters': json.dumps(visual_data.get('filterConfig', {}).get('filters', []))
+                    }
+                    visual_containers.append(container)
+                except Exception:
+                    # Skip this visual if we can't process it
+                    continue
+            
+            # Create section for this page
+            sections.append({
+                'id': page_id,
+                'displayName': page_data.get('displayName', page_data.get('name', 'Unknown')),
+                'visualContainers': visual_containers
+            })
+        
+        return {
+            'sections': sections,
+            'resourcePackages': [],
+            'id': None,
+            'reportId': None
+        }
+
+    def __convert_visual_to_single_visual(self, visual_obj):
+        """Convert new format visual to legacy singleVisual structure."""
+        single_visual = {
+            'visualType': visual_obj.get('visualType', 'unknown'),
+            'projections': {},
+            'prototypeQuery': {'Select': []}
+        }
+        
+        # Extract projections from query.queryState
+        query = visual_obj.get('query', {})
+        query_state = query.get('queryState', {})
+        
+        for role, role_data in query_state.items():
+            if not isinstance(role_data, dict):
+                continue
+                
+            projections = role_data.get('projections', [])
+            if not isinstance(projections, list):
+                continue
+            
+            field_list = []
+            select_items = []
+            
+            for proj in projections:
+                if not isinstance(proj, dict):
+                    continue
+                    
+                # Extract queryRef from projection
+                query_ref = proj.get('queryRef')
+                if query_ref:
+                    field_list.append({'queryRef': query_ref})
+                    select_items.append({'Name': query_ref})
+            
+            if field_list:
+                single_visual['projections'][role] = field_list
+                single_visual['prototypeQuery']['Select'].extend(select_items)
+        
+        # Copy objects (formatting) if present
+        if 'objects' in visual_obj:
+            single_visual['objects'] = visual_obj['objects']
+        
+        return single_visual
 
     def __unpack(self):
         with zipfile.ZipFile(self.file_path, 'r') as zip_ref:

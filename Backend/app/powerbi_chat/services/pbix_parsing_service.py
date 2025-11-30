@@ -145,7 +145,50 @@ class PBIXParsingService:
             }
 
             # Extract single visual information
+            # Handle both legacy (singleVisual) and new format (visual)
             single_visual = config.get("singleVisual", {})
+            
+            # Fallback: if singleVisual not found, check for new format visual
+            if not single_visual and "visual" in config:
+                # Convert new format to singleVisual structure inline
+                visual = config["visual"]
+                single_visual = {
+                    "visualType": visual.get("visualType", "unknown"),
+                    "projections": {},
+                    "prototypeQuery": {"Select": []}
+                }
+                
+                # Extract projections from query.queryState
+                query = visual.get("query", {})
+                query_state = query.get("queryState", {})
+                
+                for role, role_data in query_state.items():
+                    if not isinstance(role_data, dict):
+                        continue
+                    
+                    projections = role_data.get("projections", [])
+                    if not isinstance(projections, list):
+                        continue
+                    
+                    field_list = []
+                    select_items = []
+                    
+                    for proj in projections:
+                        if not isinstance(proj, dict):
+                            continue
+                        
+                        query_ref = proj.get("queryRef")
+                        if query_ref:
+                            field_list.append({"queryRef": query_ref})
+                            select_items.append({"Name": query_ref})
+                    
+                    if field_list:
+                        single_visual["projections"][role] = field_list
+                        single_visual["prototypeQuery"]["Select"].extend(select_items)
+                
+                # Copy objects if present
+                if "objects" in visual:
+                    single_visual["objects"] = visual["objects"]
 
             if single_visual:
                 visual_info["visual_type"] = single_visual.get("visualType", "unknown")

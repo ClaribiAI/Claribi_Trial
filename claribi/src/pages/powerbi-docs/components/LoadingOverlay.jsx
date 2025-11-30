@@ -1,67 +1,20 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React from 'react';
 import {
     Box,
     Typography,
-    alpha,
-    useMediaQuery
+    alpha
 } from '@mui/material';
 import LoadingSpinner from '../../../components/ui/LoadingSpinner';
 
 // Professional loading overlay positioned relative to section container
 const LoadingOverlay = ({ open, theme }) => {
-    const containerRef = useRef(null);
-    const [indicatorTop, setIndicatorTop] = useState('50%');
-    const isMobile = useMediaQuery('(max-width:600px)');
-
-    useEffect(() => {
-        if (!open || !containerRef.current) return;
-
-        const updatePosition = () => {
-            if (!containerRef.current) return;
-            
-            const container = containerRef.current;
-            const containerRect = container.getBoundingClientRect();
-            const viewportHeight = window.innerHeight;
-            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-            
-            // Calculate visible portion of the section
-            const containerTop = containerRect.top + scrollTop;
-            const containerBottom = containerTop + containerRect.height;
-            const visibleTop = Math.max(scrollTop, containerTop);
-            const visibleBottom = Math.min(scrollTop + viewportHeight, containerBottom);
-            const visibleHeight = visibleBottom - visibleTop;
-            
-            // Center the indicator in the visible area
-            // Calculate the position relative to the container's top
-            const centerOfVisible = visibleTop + (visibleHeight / 2);
-            const relativeTop = centerOfVisible - containerTop;
-            
-            // Set as percentage or pixel value relative to container
-            setIndicatorTop(`${relativeTop}px`);
-        };
-
-        updatePosition();
-        const handleScroll = () => {
-            requestAnimationFrame(updatePosition);
-        };
-        const handleResize = () => {
-            requestAnimationFrame(updatePosition);
-        };
-
-        window.addEventListener('scroll', handleScroll, { passive: true });
-        window.addEventListener('resize', handleResize);
-
-        return () => {
-            window.removeEventListener('scroll', handleScroll);
-            window.removeEventListener('resize', handleResize);
-        };
-    }, [open]);
+    // Simplified positioning - always center the overlay
+    // This works reliably regardless of section visibility state
 
     if (!open) return null;
 
     return (
         <Box
-            ref={containerRef}
             sx={{
                 position: 'absolute',
                 top: 0,
@@ -87,7 +40,7 @@ const LoadingOverlay = ({ open, theme }) => {
             <Box 
                 sx={{
                     position: 'absolute',
-                    top: isMobile ? '50%' : indicatorTop,
+                    top: '50%',
                     left: '50%',
                     transform: 'translate(-50%, -50%)',
                     display: 'flex',
@@ -96,8 +49,7 @@ const LoadingOverlay = ({ open, theme }) => {
                     gap: 2.5,
                     maxWidth: '90%',
                     width: 'auto',
-                    pointerEvents: 'none',
-                    transition: 'top 0.15s ease-out'
+                    pointerEvents: 'none'
                 }}
             >
                 <Box

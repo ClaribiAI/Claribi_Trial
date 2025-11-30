@@ -776,52 +776,63 @@ const DocumentationPage = ({
         setError(null);
         setAnchorEl(null);
 
-        try {
-            // Generate selected sections in parallel - send PDF file if available
-            const pdfFile = formattingPDF?.file || null;
-            const promises = sectionsToGenerate.map(section => 
-                analyzePowerBISection(selectedFile.collection_name, section.id, '', pdfFile)
-            );
-            
-            const results = await Promise.all(promises);
-            
-            // Check for warnings in results
-            results.forEach((result) => {
-                if (result && result.warning && result.warning.type === 'approaching_limit') {
-                    setWarning(result.warning.message || 'You are approaching your usage limit.');
-                }
-            });
-            
-            // Update documentation with all results
-            const newDocumentation = {};
-            results.forEach((result, index) => {
-                newDocumentation[sectionsToGenerate[index].id] = result.analysis;
-            });
-            
-            setDocumentation(prev => ({
-                ...prev,
-                documentation: {
-                    ...prev?.documentation,
-                    ...newDocumentation
-                }
-            }));
-            
-            
-        } catch (err) {
-            // Handle usage limit exceeded errors with user-friendly messages
-            if (err.error === 'usage_limit_exceeded') {
-                // Always use the message property, which contains the friendly message
-                const friendlyMessage = err.message || 'You have reached your usage limit. Please upgrade your plan to continue generating documentation.';
-                setError(friendlyMessage);
-            } else {
-                // For other errors, prefer message over error property
-                setError(err.message || (typeof err === 'string' ? err : err.error) || 'An error occurred while generating documentation');
-            }
-            console.error('Error:', err);
-        } finally {
-            // Clear loading states for all sections
-            setSectionLoading({});
-        }
+        // Generate selected sections in parallel - send PDF file if available
+        const pdfFile = formattingPDF?.file || null;
+        
+        // Create promises for all sections and handle each one individually
+        // This allows progressive updates as each section completes
+        const promises = sectionsToGenerate.map(section => 
+            analyzePowerBISection(selectedFile.collection_name, section.id, '', pdfFile)
+                .then(result => {
+                    // Update documentation immediately when this section completes
+                    setDocumentation(prev => ({
+                        ...prev,
+                        documentation: {
+                            ...prev?.documentation,
+                            [section.id]: result.analysis
+                        }
+                    }));
+                    
+                    // Check for warnings
+                    if (result && result.warning && result.warning.type === 'approaching_limit') {
+                        setWarning(result.warning.message || 'You are approaching your usage limit.');
+                    }
+                    
+                    // Clear loading state for this specific section
+                    setSectionLoading(prev => ({
+                        ...prev,
+                        [section.id]: false
+                    }));
+                    
+                    return { section, result };
+                })
+                .catch(err => {
+                    // Handle errors per section so one failure doesn't block others
+                    console.error(`Error generating ${section.id}:`, err);
+                    
+                    // Handle usage limit exceeded errors with user-friendly messages
+                    if (err.error === 'usage_limit_exceeded') {
+                        const friendlyMessage = err.message || 'You have reached your usage limit. Please upgrade your plan to continue generating documentation.';
+                        setError(friendlyMessage);
+                    } else {
+                        // For other errors, show a section-specific error
+                        const errorMessage = err.message || (typeof err === 'string' ? err : err.error) || `An error occurred while generating ${section.title}`;
+                        setError(errorMessage);
+                    }
+                    
+                    // Clear loading state for this specific section even on error
+                    setSectionLoading(prev => ({
+                        ...prev,
+                        [section.id]: false
+                    }));
+                    
+                    return { section, error: err };
+                })
+        );
+        
+        // Wait for all promises to settle (both success and failure)
+        // This ensures we don't exit early if some sections fail
+        await Promise.allSettled(promises);
     };
 
     // Show loading spinner for the entire page until initial load is complete
