@@ -675,6 +675,7 @@ const DocumentationOnboardingTour = ({
                                         textTransform: 'none',
                                         borderColor: alpha(theme.palette.divider, 0.3),
                                         color: theme.palette.text.primary,
+                                        transition: 'none',
                                         '&:hover': {
                                             borderColor: alpha(theme.palette.divider, 0.5),
                                             bgcolor: alpha(theme.palette.background.chat, 0.5)
@@ -696,8 +697,10 @@ const DocumentationOnboardingTour = ({
                                     fontSize: '0.875rem',
                                     textTransform: 'none',
                                     color: theme.palette.text.secondary,
+                                    transition: 'none',
+                                    bgcolor: 'transparent',
                                     '&:hover': {
-                                        bgcolor: alpha(theme.palette.background.hover, 0.5),
+                                        bgcolor: 'transparent',
                                         color: theme.palette.text.primary
                                     }
                                 }}
@@ -717,9 +720,9 @@ const DocumentationOnboardingTour = ({
                                     textTransform: 'none',
                                     bgcolor: theme.palette.primary.main,
                                     color: theme.palette.primary.contrastText,
+                                    transition: 'none',
                                     '&:hover': {
                                         bgcolor: theme.palette.primary.dark,
-                                        transform: 'translateY(-1px)',
                                         boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
                                     }
                                 }}

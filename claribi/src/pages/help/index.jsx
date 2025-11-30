@@ -28,6 +28,260 @@ import {
   Headset 
 } from '@phosphor-icons/react';
 
+// Help content data - easy to maintain and update
+const HELP_CONTENT = {
+  gettingStarted: {
+    title: 'Getting Started with Claribi Console',
+    icon: Question,
+    iconColor: 'primary',
+    defaultExpanded: true,
+    description: 'Welcome to Claribi Console, your intelligent Power BI assistant! Claribi Console helps you understand and work with your Power BI data files through interactive chat and comprehensive documentation generation.',
+    sections: [
+      {
+        title: 'Quick Start Guide',
+        type: 'ordered',
+        items: [
+          'Upload a Power BI file: Click "Upload New" to upload your .pbix file (max 100MB)',
+          'Choose your experience: Select between Interactive Chat, Documentation Generation, or Diagnostics',
+          'Start exploring: Ask questions about your dataset, generate comprehensive documentation, or run diagnostics'
+        ]
+      }
+    ]
+  },
+  chatFeatures: {
+    title: 'Power BI Chat Features',
+    icon: ChatCircle,
+    iconColor: 'secondary',
+    description: 'The interactive chat interface allows you to have real-time conversations with your Power BI data:',
+    items: [
+      'Natural Language Queries: Ask questions about your dataset in plain English',
+      'Real-time Analysis: See the AI\'s thinking process as it analyzes your questions',
+      'Clarification Questions: The assistant asks follow-up questions to better understand your needs',
+      'Data Insights: Get specific insights about your data model, measures, relationships, and visuals'
+    ]
+  },
+  documentationFeatures: {
+    title: 'Documentation Generation Features',
+    icon: FileText,
+    iconColor: 'info',
+    description: 'Generate comprehensive documentation for your Power BI files across five key areas:',
+    items: [
+      'Executive Summary: High-level overview and key insights',
+      'Data Model Analysis: Detailed analysis of data structure and relationships',
+      'Visualization Analysis: Review of charts, graphs, and visual elements',
+      'Security Analysis: Security assessment and compliance review'
+    ],
+    footer: 'You can generate individual sections or complete documentation, rewrite specific sections using AI, and export it for sharing.'
+  },
+  faq: {
+    title: 'Frequently Asked Questions',
+    icon: Question,
+    iconColor: 'warning',
+    description: 'Find answers to common questions about Claribi Console and its features.',
+    questions: [
+      {
+        question: 'What file types does Claribi Console support?',
+        answer: 'Claribi Console supports Power BI files (.pbix) up to 100MB in size.'
+      },
+      {
+        question: 'How does the chat interface work?',
+        answer: 'Simply ask questions about your data in natural language. The AI analyzes your Power BI file and provides contextual answers about your specific dataset.'
+      },
+      {
+        question: 'Can I edit the generated documentation?',
+        answer: 'Yes! You can highlight a specific part of the generated documentation and click the "Rewrite" button to edit it using AI. You can also export the entire documentation in multiple formats for easier manual editing and sharing.'
+      },
+      {
+        question: 'What happens to my uploaded PBIX files?',
+        answer: 'Your PBIX file is processed to extract the metadata which is then stored in our secure database. The PBIX file is then deleted from our servers. Claribi Console never processes the raw data in the PBIX file. You can find more information about the data processing in the Privacy Policy and Terms of Service.'
+      },
+      {
+        question: 'Can I apply improvement recommendations?',
+        answer: 'Yes! Click on any improvement recommendation to get step-by-step guidance on how to implement it in your Power BI file.'
+      },
+      {
+        question: 'How accurate are the AI responses?',
+        answer: 'The AI provides highly accurate responses based on your specific Power BI file structure and data. It analyzes your actual data model, measures, and relationships to give contextual insights.'
+      }
+    ]
+  },
+  tips: {
+    title: 'Tips for Better Results',
+    icon: Lightbulb,
+    iconColor: 'success',
+    description: 'Get the most out of Claribi Console with these helpful tips:',
+    items: [
+      'Be specific in your questions: Instead of "How to create a measure?", ask "How to create a measure that calculates the total sales amount for each product?"',
+      'Use the clarification feature: When the AI asks follow-up questions, provide detailed answers for better results',
+      'Try different question formats: Ask about measures, relationships, data quality, or visualization recommendations',
+      'Use custom instructions: When generating documentation, add specific instructions to focus on particular aspects of the data model',
+      'Upload a pdf file to use as a formatting template: When generating documentation, upload a pdf file to use as a formatting template. The generated documentation will match the style, tone, language, and structure of your pdf example.'
+    ]
+  },
+  feedback: {
+    title: 'Send Feedback',
+    icon: ChatText,
+    iconColor: 'grey500',
+    description: 'Have suggestions or found a bug? We\'d love to hear from you! Your feedback helps us improve Claribi Console.',
+    buttonText: 'Leave Feedback',
+    buttonIcon: ChatText,
+    buttonVariant: 'outlined'
+  },
+  support: {
+    title: 'Contact Support',
+    icon: Headset,
+    iconColor: 'grey500',
+    description: 'Need more help? Our support team is available to assist you with any questions or issues.',
+    buttonText: 'Contact Support',
+    buttonIcon: Headset,
+    buttonVariant: 'outlined'
+  }
+};
+
+// Reusable FAQ Item Component
+const FAQItem = ({ question, answer, theme }) => (
+  <Box sx={{ 
+    mb: 3, 
+    p: 3, 
+    bgcolor: theme.palette.background.chat,
+    borderRadius: 2, 
+    border: `1px solid ${theme.palette.divider}`,
+    transition: 'all 0.2s ease',
+    '&:hover': {
+      boxShadow: theme.palette.mode === 'dark' 
+        ? '0 4px 16px rgba(0,0,0,0.4)' 
+        : '0 4px 16px rgba(0,0,0,0.05)',
+      transform: 'translateY(-1px)',
+      bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.background.paper
+    }
+  }}>
+    <Typography variant="subtitle1" fontWeight="bold" sx={{ 
+      mb: 1.5, 
+      color: theme.palette.primary.main,
+      fontFamily: "'Nunito Sans', sans-serif",
+      fontSize: '1.1rem'
+    }}>
+      {question}
+    </Typography>
+    <Typography variant="body1" color="text.secondary" sx={{ lineHeight: 1.6 }}>
+      {answer}
+    </Typography>
+  </Box>
+);
+
+// Reusable Help Accordion Component
+const HelpAccordion = ({ 
+  title, 
+  Icon, 
+  iconColor, 
+  defaultExpanded = false, 
+  children,
+  theme 
+}) => {
+  const getIconColor = () => {
+    switch (iconColor) {
+      case 'primary': return theme.palette.primary.main;
+      case 'secondary': return theme.palette.secondary.main;
+      case 'info': return theme.palette.info.main;
+      case 'warning': return theme.palette.warning.main;
+      case 'success': return theme.palette.success.main;
+      case 'grey600': return theme.palette.grey[600];
+      case 'grey500': return theme.palette.grey[500];
+      case 'grey': return theme.palette.grey[600];
+      default: return theme.palette.primary.main;
+    }
+  };
+
+  return (
+    <Accordion 
+      defaultExpanded={defaultExpanded}
+      sx={{ 
+        mb: 3, 
+        borderRadius: 3, 
+        boxShadow: theme.palette.mode === 'dark' 
+          ? '0 8px 32px rgba(0,0,0,0.3)' 
+          : '0 8px 32px rgba(0,0,0,0.08)',
+        border: `1px solid ${theme.palette.divider}`,
+        '&:before': { display: 'none' },
+        overflow: 'hidden'
+      }}
+    >
+      <AccordionSummary
+        expandIcon={<CaretDown size={20} color={theme.palette.primary.main} />}
+        sx={{ 
+          bgcolor: theme.palette.background.paper,
+          color: theme.palette.text.primary,
+          borderRadius: '12px 12px 0 0',
+          px: 3,
+          py: 1.5,
+          minHeight: 48,
+          '&:hover': { 
+            bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[700] : theme.palette.action.hover,
+          },
+          '&.Mui-expanded': {
+            minHeight: 48,
+            bgcolor: theme.palette.background.paper,
+          }
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Icon size={24} color={getIconColor()} />
+          <Typography 
+            variant="h6" 
+            sx={{ 
+              fontWeight: 600,
+              fontFamily: "'Nunito Sans', sans-serif",
+              color: theme.palette.text.primary
+            }}
+          >
+            {title}
+          </Typography>
+        </Box>
+      </AccordionSummary>
+      <AccordionDetails sx={{ 
+        p: 4, 
+        bgcolor: theme.palette.background.paper,
+        borderRadius: '0 0 12px 12px'
+      }}>
+        {children}
+      </AccordionDetails>
+    </Accordion>
+  );
+};
+
+// Content Renderer Components
+const ListContent = ({ items, type = 'unordered', theme }) => {
+  const ListComponent = type === 'ordered' ? 'ol' : 'ul';
+  
+  const renderItem = (item) => {
+    if (typeof item === 'string') {
+      // Check if item has format "Label: description"
+      const match = item.match(/^(.+?):\s*(.+)$/);
+      if (match) {
+        return (
+          <>
+            <strong>{match[1]}:</strong> {match[2]}
+          </>
+        );
+      }
+      return item;
+    }
+    return item;
+  };
+  
+  return (
+    <Box component={ListComponent} sx={{ pl: 2, mb: 2 }}>
+      {items.map((item, index) => (
+        <Box key={index} component="li" sx={{ mb: 2 }}>
+          <Typography variant="body1" color="text.secondary">
+            {renderItem(item)}
+          </Typography>
+        </Box>
+      ))}
+    </Box>
+  );
+};
+
 const FeedbackModal = ({ open, onClose }) => {
   const theme = useTheme();
   const [rating, setRating] = useState(5);
@@ -222,693 +476,167 @@ const HelpPage = () => {
         </Box>
         
         <Box sx={{ width: '100%' }}>
-        <Accordion 
-          defaultExpanded 
-          sx={{ 
-            mb: 2, 
-            borderRadius: 3, 
-            boxShadow: theme.palette.mode === 'dark' 
-              ? '0 8px 32px rgba(0,0,0,0.3)' 
-              : '0 8px 32px rgba(0,0,0,0.08)',
-            border: `1px solid ${theme.palette.divider}`,
-            '&:before': { display: 'none' },
-            overflow: 'hidden'
-          }}
+        {/* Getting Started Section */}
+        <HelpAccordion
+          title={HELP_CONTENT.gettingStarted.title}
+          Icon={HELP_CONTENT.gettingStarted.icon}
+          iconColor={HELP_CONTENT.gettingStarted.iconColor}
+          defaultExpanded={HELP_CONTENT.gettingStarted.defaultExpanded}
+          theme={theme}
         >
-          <AccordionSummary
-            expandIcon={<CaretDown size={20} color={theme.palette.primary.main} />}
-            sx={{ 
-              bgcolor: theme.palette.background.paper,
-              color: theme.palette.text.primary,
-              borderRadius: '12px 12px 0 0',
-              px: 3,
-              py: 1.5,
-              minHeight: 48,
-              '&:hover': { 
-                bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[700] : theme.palette.action.hover,
-              },
-              '&.Mui-expanded': {
-                minHeight: 48,
-                bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.action.selected,
-              }
-            }}
-          >
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Question size={24} color={theme.palette.primary.main} />
-              <Typography 
-                variant="h6" 
-                sx={{ 
-                  fontWeight: 600,
-                  fontFamily: "'Nunito Sans', sans-serif",
-                  color: theme.palette.text.primary
-                }}
-              >
-                Getting Started with Claribi Console
+          <Typography variant="body1" color="text.secondary" paragraph>
+            {HELP_CONTENT.gettingStarted.description}
+          </Typography>
+          {HELP_CONTENT.gettingStarted.sections.map((section, index) => (
+            <Box key={index}>
+              <Typography variant="h6" gutterBottom sx={{ mt: index > 0 ? 3 : 3, mb: 2, color: theme.palette.primary.main }}>
+                {section.title}
               </Typography>
+              <ListContent items={section.items} type={section.type} theme={theme} />
             </Box>
-          </AccordionSummary>
-          <AccordionDetails sx={{ 
-            p: 4, 
-            bgcolor: theme.palette.background.paper,
-            borderRadius: '0 0 12px 12px'
-          }}>
-            <Typography variant="body1" color="text.secondary" paragraph>
-              Welcome to Claribi Console, your intelligent Power BI assistant! Claribi Console helps you understand and work with your Power BI data files through interactive chat and comprehensive documentation generation.
-            </Typography>
-            <Typography variant="h6" gutterBottom sx={{ mt: 3, mb: 2, color: theme.palette.primary.main }}>
-              Quick Start Guide
-            </Typography>
-            <Box component="ol" sx={{ pl: 2, mb: 2 }}>
-              <Box component="li" sx={{ mb: 2 }}>
-                <Typography variant="body1" color="text.secondary">
-                  <strong>Upload a Power BI file:</strong> Click "Upload New" to upload your .pbix file (max 100MB)
-          </Typography>
-              </Box>
-              <Box component="li" sx={{ mb: 2 }}>
-                <Typography variant="body1" color="text.secondary">
-                  <strong>Choose your experience:</strong> Select between Interactive Chat or Documentation Generation
-          </Typography>
-              </Box>
-              <Box component="li" sx={{ mb: 2 }}>
-                <Typography variant="body1" color="text.secondary">
-                  <strong>Start exploring:</strong> Ask questions about your data or generate comprehensive documentation
-          </Typography>
-        </Box>
-            </Box>
-          </AccordionDetails>
-        </Accordion>
+          ))}
+        </HelpAccordion>
 
-        <Accordion sx={{ 
-          mb: 3, 
-          borderRadius: 3, 
-          boxShadow: theme.palette.mode === 'dark' 
-            ? '0 8px 32px rgba(0,0,0,0.3)' 
-            : '0 8px 32px rgba(0,0,0,0.08)',
-          border: `1px solid ${theme.palette.divider}`,
-          '&:before': { display: 'none' },
-          overflow: 'hidden'
-        }}>
-          <AccordionSummary
-            expandIcon={<CaretDown size={20} color={theme.palette.primary.main} />}
-            sx={{ 
-              bgcolor: theme.palette.background.paper,
-              color: theme.palette.text.primary,
-              borderRadius: '12px 12px 0 0',
-              px: 3,
-              py: 1.5,
-              minHeight: 48,
-              '&:hover': { 
-                bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[700] : theme.palette.action.hover,
-              },
-              '&.Mui-expanded': {
-                minHeight: 48,
-                bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.action.selected,
-              }
-            }}
-          >
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <ChatCircle size={24} color={theme.palette.secondary.main} />
-              <Typography 
-                variant="h6" 
-                sx={{ 
-                  fontWeight: 600,
-                  fontFamily: "'Nunito Sans', sans-serif",
-                  color: theme.palette.text.primary
-                }}
-              >
-                Power BI Chat Features
-              </Typography>
-            </Box>
-          </AccordionSummary>
-          <AccordionDetails sx={{ 
-            p: 4, 
-            bgcolor: theme.palette.background.paper,
-            borderRadius: '0 0 12px 12px'
-          }}>
-            <Typography variant="body1" color="text.secondary" paragraph>
-              The interactive chat interface allows you to have real-time conversations with your Power BI data:
-            </Typography>
-            <Box component="ul" sx={{ pl: 2, mb: 2 }}>
-              <Box component="li" sx={{ mb: 2 }}>
-                <Typography variant="body1" color="text.secondary">
-                  <strong>Natural Language Queries:</strong> Ask questions about your data in plain English
-                </Typography>
-              </Box>
-              <Box component="li" sx={{ mb: 2 }}>
-                <Typography variant="body1" color="text.secondary">
-                  <strong>Real-time Analysis:</strong> See the AI's thinking process as it analyzes your questions
-                </Typography>
-              </Box>
-              <Box component="li" sx={{ mb: 2 }}>
-                <Typography variant="body1" color="text.secondary">
-                  <strong>Clarification Questions:</strong> The assistant asks follow-up questions to better understand your needs
+        {/* Chat Features Section */}
+        <HelpAccordion
+          title={HELP_CONTENT.chatFeatures.title}
+          Icon={HELP_CONTENT.chatFeatures.icon}
+          iconColor={HELP_CONTENT.chatFeatures.iconColor}
+          theme={theme}
+        >
+          <Typography variant="body1" color="text.secondary" paragraph>
+            {HELP_CONTENT.chatFeatures.description}
           </Typography>
-              </Box>
-              <Box component="li" sx={{ mb: 2 }}>
-                <Typography variant="body1" color="text.secondary">
-                  <strong>Data Insights:</strong> Get specific insights about your data model, measures, and relationships
-          </Typography>
-              </Box>
-            </Box>
-          </AccordionDetails>
-        </Accordion>
+          <ListContent items={HELP_CONTENT.chatFeatures.items} theme={theme} />
+        </HelpAccordion>
 
-        <Accordion sx={{ 
-          mb: 3, 
-          borderRadius: 3, 
-          boxShadow: theme.palette.mode === 'dark' 
-            ? '0 8px 32px rgba(0,0,0,0.3)' 
-            : '0 8px 32px rgba(0,0,0,0.08)',
-          border: `1px solid ${theme.palette.divider}`,
-          '&:before': { display: 'none' },
-          overflow: 'hidden'
-        }}>
-          <AccordionSummary
-            expandIcon={<CaretDown size={20} color={theme.palette.primary.main} />}
-            sx={{ 
-              bgcolor: theme.palette.background.paper,
-              color: theme.palette.text.primary,
-              borderRadius: '12px 12px 0 0',
-              px: 3,
-              py: 1.5,
-              minHeight: 48,
-              '&:hover': { 
-                bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[700] : theme.palette.action.hover,
-              },
-              '&.Mui-expanded': {
-                minHeight: 48,
-                bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.action.selected,
-              }
-            }}
-          >
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <FileText size={24} color={theme.palette.info.main} />
-              <Typography 
-                variant="h6" 
-                sx={{ 
-                  fontWeight: 600,
-                  fontFamily: "'Nunito Sans', sans-serif",
-                  color: theme.palette.text.primary
-                }}
-              >
-                Documentation Generation Features
-              </Typography>
-            </Box>
-          </AccordionSummary>
-          <AccordionDetails sx={{ 
-            p: 4, 
-            bgcolor: theme.palette.background.paper,
-            borderRadius: '0 0 12px 12px'
-          }}>
+        {/* Documentation Features Section */}
+        <HelpAccordion
+          title={HELP_CONTENT.documentationFeatures.title}
+          Icon={HELP_CONTENT.documentationFeatures.icon}
+          iconColor={HELP_CONTENT.documentationFeatures.iconColor}
+          theme={theme}
+        >
+          <Typography variant="body1" color="text.secondary" paragraph>
+            {HELP_CONTENT.documentationFeatures.description}
+          </Typography>
+          <ListContent items={HELP_CONTENT.documentationFeatures.items} theme={theme} />
+          {HELP_CONTENT.documentationFeatures.footer && (
             <Typography variant="body1" color="text.secondary" paragraph>
-              Generate comprehensive documentation for your Power BI files across five key areas:
+              {HELP_CONTENT.documentationFeatures.footer}
             </Typography>
-            <Box component="ul" sx={{ pl: 2, mb: 2 }}>
-              <Box component="li" sx={{ mb: 2 }}>
-                <Typography variant="body1" color="text.secondary">
-                  <strong>Executive Summary:</strong> High-level overview and key insights
-                </Typography>
-              </Box>
-              <Box component="li" sx={{ mb: 2 }}>
-                <Typography variant="body1" color="text.secondary">
-                  <strong>Data Model Analysis:</strong> Detailed analysis of data structure and relationships
-                </Typography>
-              </Box>
-              <Box component="li" sx={{ mb: 2 }}>
-                <Typography variant="body1" color="text.secondary">
-                  <strong>Visualization Analysis:</strong> Review of charts, graphs, and visual elements
-                </Typography>
-              </Box>
-              <Box component="li" sx={{ mb: 2 }}>
-                <Typography variant="body1" color="text.secondary">
-                  <strong>Security Analysis:</strong> Security assessment and compliance review
-                </Typography>
-              </Box>
-              <Box component="li" sx={{ mb: 2 }}>
-                <Typography variant="body1" color="text.secondary">
-                  <strong>Improvement Recommendations:</strong> Performance and optimization suggestions
-                </Typography>
-              </Box>
-            </Box>
-            <Typography variant="body1" color="text.secondary" paragraph>
-              You can generate individual sections or complete documentation, edit the content, and export it for sharing.
-            </Typography>
-          </AccordionDetails>
-        </Accordion>
+          )}
+        </HelpAccordion>
         
-        <Accordion sx={{ 
-          mb: 3, 
-          borderRadius: 3, 
-          boxShadow: theme.palette.mode === 'dark' 
-            ? '0 8px 32px rgba(0,0,0,0.3)' 
-            : '0 8px 32px rgba(0,0,0,0.08)',
-          border: `1px solid ${theme.palette.divider}`,
-          '&:before': { display: 'none' },
-          overflow: 'hidden'
-        }}>
-          <AccordionSummary
-            expandIcon={<CaretDown size={20} color={theme.palette.primary.main} />}
-            sx={{ 
-              bgcolor: theme.palette.background.paper,
-              color: theme.palette.text.primary,
-              borderRadius: '12px 12px 0 0',
-              px: 3,
-              py: 1.5,
-              minHeight: 48,
-              '&:hover': { 
-                bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[700] : theme.palette.action.hover,
-              },
-              '&.Mui-expanded': {
-                minHeight: 48,
-                bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.action.selected,
-              }
-            }}
-          >
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Question size={24} color={theme.palette.warning.main} />
-              <Typography 
-                variant="h6" 
-                sx={{ 
-                  fontWeight: 600,
-                  fontFamily: "'Nunito Sans', sans-serif",
-                  color: theme.palette.text.primary
-                }}
-              >
-                Frequently Asked Questions
-              </Typography>
-            </Box>
-          </AccordionSummary>
-          <AccordionDetails sx={{ 
-            p: 4, 
-            bgcolor: theme.palette.background.paper,
-            borderRadius: '0 0 12px 12px'
-          }}>
-            <Typography variant="body1" color="text.secondary" paragraph>
-              Find answers to common questions about Claribi Console and its features.
-            </Typography>
-            <Box sx={{ mt: 2 }}>
-              <Box sx={{ 
-                mb: 3, 
-                p: 3, 
-                bgcolor: theme.palette.background.chat,
-                borderRadius: 2, 
-                border: `1px solid ${theme.palette.divider}`,
-                transition: 'all 0.2s ease',
-                '&:hover': {
-                  boxShadow: theme.palette.mode === 'dark' 
-                    ? '0 4px 16px rgba(0,0,0,0.4)' 
-                    : '0 4px 16px rgba(0,0,0,0.05)',
-                  transform: 'translateY(-1px)',
-                  bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.background.paper
-                }
-              }}>
-                <Typography variant="subtitle1" fontWeight="bold" sx={{ 
-                  mb: 1.5, 
-                  color: theme.palette.primary.main,
-                  fontFamily: "'Nunito Sans', sans-serif",
-                  fontSize: '1.1rem'
-                }}>
-                  What file types does Claribi Console support?
-                </Typography>
-                <Typography variant="body1" color="text.secondary" sx={{ lineHeight: 1.6 }}>
-                  Claribi Console supports Power BI files (.pbix) up to 100MB in size.
-                </Typography>
-              </Box>
-              <Box sx={{ 
-                mb: 3, 
-                p: 3, 
-                bgcolor: theme.palette.background.chat,
-                borderRadius: 2, 
-                border: `1px solid ${theme.palette.divider}`,
-                transition: 'all 0.2s ease',
-                '&:hover': {
-                  boxShadow: theme.palette.mode === 'dark' 
-                    ? '0 4px 16px rgba(0,0,0,0.4)' 
-                    : '0 4px 16px rgba(0,0,0,0.05)',
-                  transform: 'translateY(-1px)',
-                  bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.background.paper
-                }
-              }}>
-                <Typography variant="subtitle1" fontWeight="bold" sx={{ 
-                  mb: 1.5, 
-                  color: theme.palette.primary.main,
-                  fontFamily: "'Nunito Sans', sans-serif",
-                  fontSize: '1.1rem'
-                }}>
-                  How does the chat interface work?
-                </Typography>
-                <Typography variant="body1" color="text.secondary" sx={{ lineHeight: 1.6 }}>
-                  Simply ask questions about your data in natural language. The AI analyzes your Power BI file and provides contextual answers about your specific dataset.
-                </Typography>
-              </Box>
-              <Box sx={{ 
-                mb: 3, 
-                p: 3, 
-                bgcolor: theme.palette.background.chat,
-                borderRadius: 2, 
-                border: `1px solid ${theme.palette.divider}`,
-                transition: 'all 0.2s ease',
-                '&:hover': {
-                  boxShadow: theme.palette.mode === 'dark' 
-                    ? '0 4px 16px rgba(0,0,0,0.4)' 
-                    : '0 4px 16px rgba(0,0,0,0.05)',
-                  transform: 'translateY(-1px)',
-                  bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.background.paper
-                }
-              }}>
-                <Typography variant="subtitle1" fontWeight="bold" sx={{ 
-                  mb: 1.5, 
-                  color: theme.palette.primary.main,
-                  fontFamily: "'Nunito Sans', sans-serif",
-                  fontSize: '1.1rem'
-                }}>
-                  Can I edit the generated documentation?
-                </Typography>
-                <Typography variant="body1" color="text.secondary" sx={{ lineHeight: 1.6 }}>
-                  Yes! You can edit any section of the generated documentation directly within the application before exporting.
-                </Typography>
-              </Box>
-              <Box sx={{ 
-                mb: 3, 
-                p: 3, 
-                bgcolor: theme.palette.background.chat,
-                borderRadius: 2, 
-                border: `1px solid ${theme.palette.divider}`,
-                transition: 'all 0.2s ease',
-                '&:hover': {
-                  boxShadow: theme.palette.mode === 'dark' 
-                    ? '0 4px 16px rgba(0,0,0,0.4)' 
-                    : '0 4px 16px rgba(0,0,0,0.05)',
-                  transform: 'translateY(-1px)',
-                  bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.background.paper
-                }
-              }}>
-                <Typography variant="subtitle1" fontWeight="bold" sx={{ 
-                  mb: 1.5, 
-                  color: theme.palette.primary.main,
-                  fontFamily: "'Nunito Sans', sans-serif",
-                  fontSize: '1.1rem'
-                }}>
-                  What happens to my uploaded files?
-                </Typography>
-                <Typography variant="body1" color="text.secondary" sx={{ lineHeight: 1.6 }}>
-                  Your files are securely stored and analyzed. You can access them anytime from the home page and choose to chat with them or generate documentation.
-                </Typography>
-              </Box>
-              <Box sx={{ 
-                mb: 3, 
-                p: 3, 
-                bgcolor: theme.palette.background.chat,
-                borderRadius: 2, 
-                border: `1px solid ${theme.palette.divider}`,
-                transition: 'all 0.2s ease',
-                '&:hover': {
-                  boxShadow: theme.palette.mode === 'dark' 
-                    ? '0 4px 16px rgba(0,0,0,0.4)' 
-                    : '0 4px 16px rgba(0,0,0,0.05)',
-                  transform: 'translateY(-1px)',
-                  bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.background.paper
-                }
-              }}>
-                <Typography variant="subtitle1" fontWeight="bold" sx={{ 
-                  mb: 1.5, 
-                  color: theme.palette.primary.main,
-                  fontFamily: "'Nunito Sans', sans-serif",
-                  fontSize: '1.1rem'
-                }}>
-                  Can I apply improvement recommendations?
-                </Typography>
-                <Typography variant="body1" color="text.secondary" sx={{ lineHeight: 1.6 }}>
-                  Yes! Click on any improvement recommendation to get step-by-step guidance on how to implement it in your Power BI file.
-                </Typography>
-              </Box>
-              <Box sx={{ 
-                mb: 3, 
-                p: 3, 
-                bgcolor: theme.palette.background.chat,
-                borderRadius: 2, 
-                border: `1px solid ${theme.palette.divider}`,
-                transition: 'all 0.2s ease',
-                '&:hover': {
-                  boxShadow: theme.palette.mode === 'dark' 
-                    ? '0 4px 16px rgba(0,0,0,0.4)' 
-                    : '0 4px 16px rgba(0,0,0,0.05)',
-                  transform: 'translateY(-1px)',
-                  bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.background.paper
-                }
-              }}>
-                <Typography variant="subtitle1" fontWeight="bold" sx={{ 
-                  mb: 1.5, 
-                  color: theme.palette.primary.main,
-                  fontFamily: "'Nunito Sans', sans-serif",
-                  fontSize: '1.1rem'
-                }}>
-                  How accurate are the AI responses?
-                </Typography>
-                <Typography variant="body1" color="text.secondary" sx={{ lineHeight: 1.6 }}>
-                  The AI provides highly accurate responses based on your specific Power BI file structure and data. It analyzes your actual data model, measures, and relationships to give contextual insights.
-                </Typography>
-              </Box>
-            </Box>
-          </AccordionDetails>
-        </Accordion>
-
-        <Accordion sx={{ 
-          mb: 3, 
-          borderRadius: 3, 
-          boxShadow: theme.palette.mode === 'dark' 
-            ? '0 8px 32px rgba(0,0,0,0.3)' 
-            : '0 8px 32px rgba(0,0,0,0.08)',
-          border: `1px solid ${theme.palette.divider}`,
-          '&:before': { display: 'none' },
-          overflow: 'hidden'
-        }}>
-          <AccordionSummary
-            expandIcon={<CaretDown size={20} color={theme.palette.primary.main} />}
-            sx={{ 
-              bgcolor: theme.palette.background.paper,
-              color: theme.palette.text.primary,
-              borderRadius: '12px 12px 0 0',
-              px: 3,
-              py: 1.5,
-              minHeight: 48,
-              '&:hover': { 
-                bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[700] : theme.palette.action.hover,
-              },
-              '&.Mui-expanded': {
-                minHeight: 48,
-                bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.action.selected,
-              }
-            }}
-          >
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Lightbulb size={24} color={theme.palette.success.main} />
-              <Typography 
-                variant="h6" 
-                sx={{ 
-                  fontWeight: 600,
-                  fontFamily: "'Nunito Sans', sans-serif",
-                  color: theme.palette.text.primary
-                }}
-              >
-                Tips for Better Results
-              </Typography>
-            </Box>
-          </AccordionSummary>
-          <AccordionDetails sx={{ 
-            p: 4, 
-            bgcolor: theme.palette.background.paper,
-            borderRadius: '0 0 12px 12px'
-          }}>
-            <Typography variant="body1" color="text.secondary" paragraph>
-              Get the most out of Claribi Console with these helpful tips:
-            </Typography>
-            <Box component="ul" sx={{ pl: 2 }}>
-              <Box component="li" sx={{ mb: 2 }}>
-                <Typography variant="body1" color="text.secondary">
-                  <strong>Be specific in your questions:</strong> Instead of "What's in this file?", ask "What are the main data tables and their relationships?"
-                </Typography>
-              </Box>
-              <Box component="li" sx={{ mb: 2 }}>
-                <Typography variant="body1" color="text.secondary">
-                  <strong>Use the clarification feature:</strong> When the AI asks follow-up questions, provide detailed answers for better results
-                </Typography>
-              </Box>
-              <Box component="li" sx={{ mb: 2 }}>
-                <Typography variant="body1" color="text.secondary">
-                  <strong>Try different question formats:</strong> Ask about measures, relationships, data quality, or visualization recommendations
-                </Typography>
-              </Box>
-              <Box component="li" sx={{ mb: 2 }}>
-                <Typography variant="body1" color="text.secondary">
-                  <strong>Use custom instructions:</strong> When generating documentation, add specific instructions to focus on particular aspects
-                </Typography>
+        {/* FAQ Section */}
+        <HelpAccordion
+          title={HELP_CONTENT.faq.title}
+          Icon={HELP_CONTENT.faq.icon}
+          iconColor={HELP_CONTENT.faq.iconColor}
+          theme={theme}
+        >
+          <Typography variant="body1" color="text.secondary" paragraph>
+            {HELP_CONTENT.faq.description}
+          </Typography>
+          <Box sx={{ mt: 2 }}>
+            {HELP_CONTENT.faq.questions.map((faq, index) => (
+              <FAQItem
+                key={index}
+                question={faq.question}
+                answer={faq.answer}
+                theme={theme}
+              />
+            ))}
           </Box>
-        </Box>
-          </AccordionDetails>
-        </Accordion>
-        
-        <Accordion sx={{ 
-          mb: 3, 
-          borderRadius: 3, 
-          boxShadow: theme.palette.mode === 'dark' 
-            ? '0 8px 32px rgba(0,0,0,0.3)' 
-            : '0 8px 32px rgba(0,0,0,0.08)',
-          border: `1px solid ${theme.palette.divider}`,
-          '&:before': { display: 'none' },
-          overflow: 'hidden'
-        }}>
-          <AccordionSummary
-            expandIcon={<CaretDown size={20} color={theme.palette.primary.main} />}
-            sx={{ 
-              bgcolor: theme.palette.background.paper,
-              color: theme.palette.text.primary,
-              borderRadius: '12px 12px 0 0',
-              px: 3,
-              py: 1.5,
-              minHeight: 48,
-              '&:hover': { 
-                bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[700] : theme.palette.action.hover,
-              },
-              '&.Mui-expanded': {
-                minHeight: 48,
-                bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.action.selected,
-              }
-            }}
-          >
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <ChatText size={24} color={theme.palette.grey[600]} />
-              <Typography 
-                variant="h6" 
-                sx={{ 
-                  fontWeight: 600,
-                  fontFamily: "'Nunito Sans', sans-serif",
-                  color: theme.palette.text.primary
-                }}
-              >
-                Send Feedback
-              </Typography>
-            </Box>
-          </AccordionSummary>
-          <AccordionDetails sx={{ 
-            p: 4, 
-            bgcolor: theme.palette.background.paper,
-            borderRadius: '0 0 12px 12px'
-          }}>
-            <Typography variant="body1" color="text.secondary" paragraph>
-              Have suggestions or found a bug? We'd love to hear from you! Your feedback helps us improve Claribi Console.
+        </HelpAccordion>
+
+        {/* Tips Section */}
+        <HelpAccordion
+          title={HELP_CONTENT.tips.title}
+          Icon={HELP_CONTENT.tips.icon}
+          iconColor={HELP_CONTENT.tips.iconColor}
+          theme={theme}
+        >
+          <Typography variant="body1" color="text.secondary" paragraph>
+            {HELP_CONTENT.tips.description}
           </Typography>
-            <Button 
-              variant="contained"
-              onClick={handleOpenFeedback}
-              startIcon={<ChatText size={20} />}
-              sx={{ 
-                borderRadius: 3,
-                px: 4,
-                py: 1.5,
+          <ListContent items={HELP_CONTENT.tips.items} theme={theme} />
+        </HelpAccordion>
+        
+        {/* Feedback Section */}
+        <HelpAccordion
+          title={HELP_CONTENT.feedback.title}
+          Icon={HELP_CONTENT.feedback.icon}
+          iconColor={HELP_CONTENT.feedback.iconColor}
+          theme={theme}
+        >
+          <Typography variant="body1" color="text.secondary" paragraph>
+            {HELP_CONTENT.feedback.description}
+          </Typography>
+          <Button 
+            variant="outlined"
+            onClick={handleOpenFeedback}
+            startIcon={<HELP_CONTENT.feedback.buttonIcon size={20} />}
+            sx={{ 
+              borderRadius: 3,
+              px: 4,
+              py: 1.5,
+              borderColor: theme.palette.primary.main,
+              color: theme.palette.primary.main,
+              fontFamily: "'Nunito Sans', sans-serif",
+              fontWeight: 600,
+              fontSize: '1rem',
+              textTransform: 'none',
+              borderWidth: 2,
+              '&:hover': {
+                borderColor: theme.palette.primary.dark,
                 bgcolor: theme.palette.primary.main,
-                color: theme.palette.primary.contrastText,
-                fontFamily: "'Nunito Sans', sans-serif",
-                fontWeight: 600,
-                fontSize: '1rem',
-                textTransform: 'none',
+                color: theme.palette.mode === 'dark' ? '#ffffff !important' : theme.palette.primary.contrastText,
+                transform: 'translateY(-2px)',
                 boxShadow: theme.palette.mode === 'dark' 
-                  ? '0 4px 16px rgba(0, 0, 0, 0.3)' 
-                  : '0 4px 16px rgba(85, 85, 85, 0.3)',
-                '&:hover': {
-                  bgcolor: theme.palette.primary.dark,
-                  boxShadow: theme.palette.mode === 'dark' 
-                    ? '0 6px 20px rgba(0, 0, 0, 0.4)' 
-                    : '0 6px 20px rgba(85, 85, 85, 0.4)',
-                  transform: 'translateY(-2px)'
+                  ? '0 6px 20px rgba(0, 0, 0, 0.4)' 
+                  : '0 6px 20px rgba(85, 85, 85, 0.3)',
+                '& .MuiSvgIcon-root': {
+                  color: theme.palette.mode === 'dark' ? '#ffffff !important' : 'inherit'
                 },
-                transition: 'all 0.2s ease'
-              }}
-            >
-              Leave Feedback
-            </Button>
-          </AccordionDetails>
-        </Accordion>
-        
-        <Accordion sx={{ 
-          borderRadius: 3, 
-          boxShadow: theme.palette.mode === 'dark' 
-            ? '0 8px 32px rgba(0,0,0,0.3)' 
-            : '0 8px 32px rgba(0,0,0,0.08)',
-          border: `1px solid ${theme.palette.divider}`,
-          '&:before': { display: 'none' },
-          overflow: 'hidden'
-        }}>
-          <AccordionSummary
-            expandIcon={<CaretDown size={20} color={theme.palette.primary.main} />}
-            sx={{ 
-              bgcolor: theme.palette.background.paper,
-              color: theme.palette.text.primary,
-              borderRadius: '12px 12px 0 0',
-              px: 3,
-              py: 1.5,
-              minHeight: 48,
-              '&:hover': { 
-                bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[700] : theme.palette.action.hover,
+                '& svg': {
+                  color: theme.palette.mode === 'dark' ? '#ffffff !important' : 'inherit'
+                }
               },
-              '&.Mui-expanded': {
-                minHeight: 48,
-                bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.action.selected,
-              }
+              transition: 'all 0.2s ease'
             }}
           >
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Headset size={24} color={theme.palette.grey[500]} />
-              <Typography 
-                variant="h6" 
-                sx={{ 
-                  fontWeight: 600,
-                  fontFamily: "'Nunito Sans', sans-serif",
-                  color: theme.palette.text.primary
-                }}
-              >
-                Contact Support
-              </Typography>
-            </Box>
-          </AccordionSummary>
-          <AccordionDetails sx={{ 
-            p: 4, 
-            bgcolor: theme.palette.background.paper,
-            borderRadius: '0 0 12px 12px'
-          }}>
-            <Typography variant="body1" color="text.secondary" paragraph>
-              Need more help? Our support team is available to assist you with any questions or issues.
+            {HELP_CONTENT.feedback.buttonText}
+          </Button>
+        </HelpAccordion>
+        
+        {/* Support Section */}
+        <HelpAccordion
+          title={HELP_CONTENT.support.title}
+          Icon={HELP_CONTENT.support.icon}
+          iconColor={HELP_CONTENT.support.iconColor}
+          theme={theme}
+        >
+          <Typography variant="body1" color="text.secondary" paragraph>
+            {HELP_CONTENT.support.description}
           </Typography>
-            <Button 
-              variant="outlined"
-              startIcon={<Headset size={20} />}
+          <Typography variant="body1" color="text.secondary">
+            Contact{' '}
+            <Link 
+              href="mailto:support@claribi.ai"
               sx={{ 
-                borderRadius: 3,
-                px: 4,
-                py: 1.5,
-                borderColor: theme.palette.primary.main,
                 color: theme.palette.primary.main,
-                fontFamily: "'Nunito Sans', sans-serif",
+                textDecoration: 'none',
                 fontWeight: 600,
-                fontSize: '1rem',
-                textTransform: 'none',
-                borderWidth: 2,
                 '&:hover': {
-                  borderColor: theme.palette.primary.dark,
-                  bgcolor: theme.palette.primary.main,
-                  color: theme.palette.primary.contrastText,
-                  transform: 'translateY(-2px)',
-                  boxShadow: theme.palette.mode === 'dark' 
-                    ? '0 6px 20px rgba(0, 0, 0, 0.4)' 
-                    : '0 6px 20px rgba(85, 85, 85, 0.3)'
-                },
-                transition: 'all 0.2s ease'
+                  textDecoration: 'underline'
+                }
               }}
             >
-              Contact Support
-            </Button>
-          </AccordionDetails>
-        </Accordion>
+              support@claribi.ai
+            </Link>
+          </Typography>
+        </HelpAccordion>
         </Box>
       </Container>
       

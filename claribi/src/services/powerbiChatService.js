@@ -265,7 +265,7 @@ export const uploadPowerBIFile = async (file, onProgress = null) => {
             } else if (status === 400) {
                 throw new Error('Invalid file format. Please ensure you are uploading a valid .pbix file.');
             } else if (status === 500) {
-                throw new Error('Server error during processing. The server may have restarted. Please try again.');
+                throw new Error('Server error during processing. Please try again.');
             } else if (status === 503) {
                 throw new Error('Server temporarily unavailable. Please try again in a few moments.');
             }
@@ -331,7 +331,7 @@ export const reuploadPowerBIFile = async (collectionName, file, onProgress = nul
             } else if (status === 400) {
                 throw new Error('Invalid file format or missing collection name. Please ensure you are uploading a valid .pbix file.');
             } else if (status === 500) {
-                throw new Error('Server error during processing. The server may have restarted. Please try again.');
+                throw new Error('Server error during processing. Please try again.');
             } else if (status === 503) {
                 throw new Error('Server temporarily unavailable. Please try again in a few moments.');
             }

@@ -40,7 +40,7 @@ import {
 import { analyzePowerBISection, parseImprovementRecommendations, getGeneratedDocs, getDiagnosticsKPIs, getDiagnosticsKPIDetails } from '../../services/powerbiDocsService';
 import { reuploadPowerBIFile } from '../../services/powerbiChatService';
 import { useNotification } from '../../contexts/NotificationContext';
-import RecommendationCard from '../powerbi-docs/components/RecommendationCard';
+import RecommendationCard from './components/RecommendationCard';
 import DiagnosticsKPICard from './components/DiagnosticsKPICard';
 import KPIDetailsDialog from './components/KPIDetailsDialog';
 import ChatPage from '../powerbi-chat/ChatPage';
@@ -57,7 +57,6 @@ const DiagnosticsPage = ({
     const [recommendations, setRecommendations] = useState([]);
     const [rawContent, setRawContent] = useState(null);
     const [applyingRecommendation, setApplyingRecommendation] = useState(null);
-    const [error, setError] = useState(null);
     const [warning, setWarning] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
     const [initialLoadComplete, setInitialLoadComplete] = useState(false);
@@ -104,7 +103,7 @@ const DiagnosticsPage = ({
 
     const handleApplyRecommendation = useCallback((recommendation) => {
         if (!selectedFile) {
-            setError('Please select a file first');
+            showNotification('Please select a file first', 'error');
             return;
         }
 
@@ -114,8 +113,7 @@ const DiagnosticsPage = ({
         // Set the chat state
         setChatInitialMessage(initialMessage);
         setShowChat(true);
-        setError(null);
-    }, [selectedFile]);
+    }, [selectedFile, showNotification]);
 
     const handleCloseChat = () => {
         setShowChat(false);
@@ -289,12 +287,11 @@ const DiagnosticsPage = ({
 
     const handleGenerateRecommendations = useCallback(async () => {
         if (!selectedFile) {
-            setError('Please select a file first');
+            showNotification('Please select a file first', 'error');
             return;
         }
 
         setIsLoading(true);
-        setError(null);
         setWarning(null);
 
         try {
@@ -326,9 +323,9 @@ const DiagnosticsPage = ({
         } catch (err) {
             // Handle usage limit exceeded errors with user-friendly messages
             if (err.error === 'usage_limit_exceeded') {
-                setError(err.message || 'You have reached your usage limit. Please upgrade your plan to continue generating improvement recommendations.');
+                showNotification(err.message || 'You have reached your usage limit. Please upgrade your plan to continue generating improvement recommendations.', 'error');
             } else {
-                setError(err.message || err.error || 'An error occurred while generating improvement recommendations');
+                showNotification(err.message || err.error || 'An error occurred while generating improvement recommendations', 'error');
             }
             console.error('Error:', err);
         } finally {
@@ -439,7 +436,6 @@ const DiagnosticsPage = ({
             }
 
             setInitialLoadComplete(false);
-            setError(null);
 
             try {
                 const response = await getGeneratedDocs(selectedFile.collection_name);
@@ -651,27 +647,16 @@ const DiagnosticsPage = ({
                         </Box>
                     </Box>
 
-                    {/* Warning and Error Alerts */}
-                    {(warning || error) && (
+                    {/* Warning Alert */}
+                    {warning && (
                         <Box sx={{ px: 4, pt: 2 }}>
-                            {warning && (
-                                <Alert 
-                                    severity="warning" 
-                                    onClose={() => setWarning(null)}
-                                    sx={{ mb: error ? 2 : 0, borderRadius: 2 }}
-                                >
-                                    {renderMessageWithLinks(warning)}
-                                </Alert>
-                            )}
-                            {error && (
-                                <Alert 
-                                    severity="error" 
-                                    onClose={() => setError(null)}
-                                    sx={{ borderRadius: 2 }}
-                                >
-                                    {renderMessageWithLinks(error)}
-                                </Alert>
-                            )}
+                            <Alert 
+                                severity="warning" 
+                                onClose={() => setWarning(null)}
+                                sx={{ borderRadius: 2 }}
+                            >
+                                {renderMessageWithLinks(warning)}
+                            </Alert>
                         </Box>
                     )}
 

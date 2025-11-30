@@ -1,25 +1,10 @@
-import React, { useState, useMemo, useCallback, memo, useRef } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
     Box,
     Typography,
-    Button,
-    Paper,
-    Tabs,
-    Tab,
     Fade,
-    CircularProgress,
     useTheme,
-    alpha,
-    Tooltip,
-    Menu,
-    MenuItem,
-    Checkbox,
-    FormControlLabel,
-    Divider,
-    ListItemIcon,
-    ListItemText,
-    Alert,
-    Link
+    alpha
 } from '@mui/material';
 import {
     FileTextIcon,
@@ -27,24 +12,20 @@ import {
     ChartBarIcon,
     PresentationChartIcon,
     SparkleIcon,
-    ArrowLeft,
-    CaretDownIcon,
-    DotsThreeVertical,
-    CloudArrowUp,
-    FilePdf,
-    X,
-    Question,
     ArrowClockwiseIcon,
     DownloadIcon,
     PencilSimpleIcon
 } from '@phosphor-icons/react';
-import { analyzePowerBISection, getGeneratedDocs, rewriteDocumentationSection /*, updateDocumentationSection */ } from '../../services/powerbiDocsService';
+import { analyzePowerBISection, getGeneratedDocs, rewriteDocumentationSection } from '../../services/powerbiDocsService';
 import { reuploadPowerBIFile } from '../../services/powerbiChatService';
 import { useNotification } from '../../contexts/NotificationContext';
 import DocumentationSection from './components/DocumentationSection';
 import CustomInstructionsModal from './components/CustomInstructionsModal';
+import DocumentationHeader from './components/DocumentationHeader';
+import SectionTabs from './components/SectionTabs';
+import WarningAlert from './components/WarningAlert';
+import SectionSelectionMenu from './components/SectionSelectionMenu';
 import documentExportService from '../../services/documentExportService';
-import ChatPage from '../powerbi-chat/ChatPage';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import DocumentationOnboardingTour from '../../components/onboarding/DocumentationOnboardingTour';
 import { shouldShowDocumentationOnboarding, resetDocumentationOnboarding, dismissDocumentationOnboarding } from '../../services/onboardingService';
@@ -58,7 +39,6 @@ const DocumentationPage = ({
     const theme = useTheme();
     const { showNotification } = useNotification();
     const [documentation, setDocumentation] = useState(null);
-    const [error, setError] = useState(null);
     const [warning, setWarning] = useState(null);
     const [activeTab, setActiveTab] = useState(0);
     const [showInstructionsModal, setShowInstructionsModal] = useState(false);
@@ -89,12 +69,6 @@ const DocumentationPage = ({
     // PDF formatting template state - stored in frontend only
     const [formattingPDF, setFormattingPDF] = useState(null); // Stores { file: File, filename: string }
     const pdfInputRef = useRef(null);
-    
-    // Chat interface state
-    const [showChat, setShowChat] = useState(false);
-    const [chatInitialMessage, setChatInitialMessage] = useState('');
-    const [chatWidth, setChatWidth] = useState(50); // Percentage of viewport width
-    const [isDragging, setIsDragging] = useState(false);
 
     // Onboarding tour state
     const [showOnboardingTour, setShowOnboardingTour] = useState(false);
@@ -282,93 +256,6 @@ const DocumentationPage = ({
         setShowOnboardingTour(true);
     };
 
-
-    const handleCloseChat = () => {
-        setShowChat(false);
-        setChatInitialMessage('');
-    };
-
-    // Helper function to render message with clickable links
-    const renderMessageWithLinks = (message) => {
-        if (!message) return message;
-        
-        // Convert to string if it's not already a string
-        const messageStr = typeof message === 'string' ? message : String(message);
-        
-        // Regular expression to match URLs
-        const urlRegex = /(https?:\/\/[^\s]+)/g;
-        const parts = messageStr.split(urlRegex);
-        
-        return parts.map((part, index) => {
-            if (part.match(urlRegex)) {
-                // Extract display text (remove https://)
-                const displayText = part.replace(/^https?:\/\//, '');
-                return (
-                    <Link
-                        key={index}
-                        href={part}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        sx={{
-                            color: 'inherit',
-                            textDecoration: 'underline',
-                            fontWeight: 500,
-                            '&:hover': {
-                                textDecoration: 'underline',
-                            }
-                        }}
-                    >
-                        {displayText}
-                    </Link>
-                );
-            }
-            return <span key={index}>{part}</span>;
-        });
-    };
-
-    // Drag functionality for resizing chat window
-    const handleMouseDown = (e) => {
-        e.preventDefault();
-        setIsDragging(true);
-    };
-
-    const handleMouseMove = (e) => {
-        if (!isDragging) return;
-        
-        const containerWidth = window.innerWidth;
-        const newChatWidth = ((containerWidth - e.clientX) / containerWidth) * 100;
-        
-        // Constrain chat width between 20% and 60%
-        const constrainedWidth = Math.min(Math.max(newChatWidth, 20), 60);
-        setChatWidth(constrainedWidth);
-    };
-
-    const handleMouseUp = () => {
-        setIsDragging(false);
-    };
-
-    // Add event listeners for drag functionality
-    React.useEffect(() => {
-        if (isDragging) {
-            document.addEventListener('mousemove', handleMouseMove);
-            document.addEventListener('mouseup', handleMouseUp);
-            document.body.style.cursor = 'col-resize';
-            document.body.style.userSelect = 'none';
-        } else {
-            document.removeEventListener('mousemove', handleMouseMove);
-            document.removeEventListener('mouseup', handleMouseUp);
-            document.body.style.cursor = '';
-            document.body.style.userSelect = '';
-        }
-
-        return () => {
-            document.removeEventListener('mousemove', handleMouseMove);
-            document.removeEventListener('mouseup', handleMouseUp);
-            document.body.style.cursor = '';
-            document.body.style.userSelect = '';
-        };
-    }, [isDragging]);
-
     const handleRegenerateClick = useCallback((sectionName) => {
         setCurrentSectionForRegeneration(sectionName);
         setCustomInstructions('');
@@ -377,12 +264,11 @@ const DocumentationPage = ({
 
     const handleGenerateSection = useCallback(async (sectionId, customInstructions = '') => {
         if (!selectedFile) {
-            setError('Please select a file first');
+            showNotification('Please select a file first', 'error');
             return;
         }
 
         setSectionLoading(prev => ({ ...prev, [sectionId]: true }));
-        setError(null);
         setWarning(null);
 
         try {
@@ -409,10 +295,10 @@ const DocumentationPage = ({
             if (err.error === 'usage_limit_exceeded') {
                 // Always use the message property, which contains the friendly message
                 const friendlyMessage = err.message || 'You have reached your usage limit. Please upgrade your plan to continue generating documentation.';
-                setError(friendlyMessage);
+                showNotification(friendlyMessage, 'error');
             } else {
                 // For other errors, prefer message over error property
-                setError(err.message || (typeof err === 'string' ? err : err.error) || `An error occurred while generating ${sectionId.replace('_', ' ')}`);
+                showNotification(err.message || (typeof err === 'string' ? err : err.error) || `An error occurred while generating ${sectionId.replace('_', ' ')}`, 'error');
             }
             console.error('Error:', err);
         } finally {
@@ -438,7 +324,7 @@ const DocumentationPage = ({
             await documentExportService.exportSection(sectionName, content, format, sectionTitle, pbixFileName);
         } catch (error) {
             console.error('Export error:', error);
-            setError(error.message);
+            showNotification(error.message, 'error');
         }
     };
 
@@ -450,7 +336,6 @@ const DocumentationPage = ({
         }
 
         setRewriteLoading(true);
-        setError(null);
 
         try {
             const result = await rewriteDocumentationSection(
@@ -572,7 +457,6 @@ const DocumentationPage = ({
 
             setInitialLoadComplete(false);
             setAllSectionsPreloaded(false);
-            setError(null);
 
             try {
                 const response = await getGeneratedDocs(selectedFile.collection_name);
@@ -676,7 +560,7 @@ const DocumentationPage = ({
 
     const handleGenerateAllClick = (event) => {
         if (!selectedFile) {
-            setError('Please select a file first');
+            showNotification('Please select a file first', 'error');
             return;
         }
         setAnchorEl(event.currentTarget);
@@ -755,12 +639,12 @@ const DocumentationPage = ({
 
     const handleGenerateSelected = async () => {
         if (!selectedFile) {
-            setError('Please select a file first');
+            showNotification('Please select a file first', 'error');
             return;
         }
 
         if (selectedSections.length === 0) {
-            setError('Please select at least one section to generate');
+            showNotification('Please select at least one section to generate', 'error');
             return;
         }
 
@@ -773,7 +657,6 @@ const DocumentationPage = ({
             loadingStates[section.id] = true;
         });
         setSectionLoading(loadingStates);
-        setError(null);
         setAnchorEl(null);
 
         // Generate selected sections in parallel - send PDF file if available
@@ -813,11 +696,11 @@ const DocumentationPage = ({
                     // Handle usage limit exceeded errors with user-friendly messages
                     if (err.error === 'usage_limit_exceeded') {
                         const friendlyMessage = err.message || 'You have reached your usage limit. Please upgrade your plan to continue generating documentation.';
-                        setError(friendlyMessage);
+                        showNotification(friendlyMessage, 'error');
                     } else {
                         // For other errors, show a section-specific error
                         const errorMessage = err.message || (typeof err === 'string' ? err : err.error) || `An error occurred while generating ${section.title}`;
-                        setError(errorMessage);
+                        showNotification(errorMessage, 'error');
                     }
                     
                     // Clear loading state for this specific section even on error
@@ -903,8 +786,8 @@ const DocumentationPage = ({
 
                 {/* Main Documentation Area */}
                 <Box sx={{ 
-                    flex: showChat ? 1 : 1,
-                    width: showChat ? `${100 - chatWidth}%` : '100%',
+                    flex: 1,
+                    width: '100%',
                     bgcolor: theme.palette.background.chat,
                     minHeight: '100vh',
                     overflow: 'auto',
@@ -912,278 +795,37 @@ const DocumentationPage = ({
                     flexDirection: 'column'
                 }}>
                 {/* Header */}
-                <Box 
-                    sx={{ 
-                        bgcolor: theme.palette.sidebar.background,
-                        py: 1.5,
-                        px: 3
-                    }}
-                >
-                    <Box display="flex" alignItems="center" gap={2}>
-                        {/* Back Button */}
-                        <Tooltip title="Back to file management">
-                            <Button
-                                onClick={onBack}
-                                sx={{
-                                    minWidth: 'auto',
-                                    width: 40,
-                                    height: 40,
-                                    borderRadius: 2,
-                                    bgcolor: 'transparent',
-                                    color: theme.palette.text.secondary,
-                                    p: 0,
-                                    '&:hover': {
-                                        bgcolor: alpha(theme.palette.primary.main, 0.1),
-                                        color: theme.palette.primary.main,
-                                        transform: 'scale(1.05)'
-                                    },
-                                    transition: 'all 0.2s ease'
-                                }}
-                            >
-                                <ArrowLeft size={20} />
-                            </Button>
-                        </Tooltip>
-                        
-                        {/* File Name */}
-                        <Typography variant="h6" component="h1" sx={{ 
-                            fontWeight: 600, 
-                            color: theme.palette.text.primary,
-                            fontFamily: "'Cal Sans', 'Nunito Sans', sans-serif",
-                            flex: 1,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap'
-                        }}>
-                            {selectedFile?.filename}
-                        </Typography>
+                    <DocumentationHeader
+                        selectedFile={selectedFile}
+                        onBack={onBack}
+                        onGenerateAllClick={handleGenerateAllClick}
+                        onRetriggerOnboarding={handleRetriggerOnboarding}
+                        onMenuOpen={handleMenuOpen}
+                        onReuploadFile={handleReuploadFile}
+                        sectionLoading={sectionLoading}
+                        reuploadingFile={reuploadingFile}
+                        generateAllButtonRef={generateAllButtonRef}
+                        menuButtonRef={menuButtonRef}
+                        menuAnchorEl={menuAnchorEl}
+                        menuOpen={menuOpen}
+                        onMenuClose={handleMenuClose}
+                    />
 
-                        {/* Action Button with Dropdown */}
-                        <Button
-                            ref={generateAllButtonRef}
-                            onClick={handleGenerateAllClick}
-                            disabled={Object.values(sectionLoading).some(isLoading => isLoading)}
-                            variant="contained"
-                            size="small"
-                            endIcon={Object.values(sectionLoading).some(isLoading => isLoading) ? <CircularProgress size={16} color={theme.palette.primary.contrastText} /> : <CaretDownIcon size={16} color={theme.palette.primary.contrastText} />}
-                            sx={{ 
-                                bgcolor: theme.palette.primary.main,
-                                color: theme.palette.primary.contrastText,
-                                fontFamily: "'Nunito Sans', sans-serif",
-                                fontWeight: 500,
-                                textTransform: 'none',
-                                borderRadius: 2,
-                                '&:hover': {
-                                    bgcolor: theme.palette.primary.dark,
-                                    color: theme.palette.primary.contrastText
-                                },
-                                '&:disabled': {
-                                    bgcolor: alpha(theme.palette.primary.main, 0.3)
-                                }
-                            }}
-                        >
-                            {Object.values(sectionLoading).some(isLoading => isLoading) ? 'Generating...' : 'Generate All'}
-                        </Button>
-
-                        {/* Help/Onboarding Button */}
-                        <Tooltip title="Need help?">
-                            <Button
-                                onClick={handleRetriggerOnboarding}
-                                sx={{
-                                    minWidth: 'auto',
-                                    width: 40,
-                                    height: 40,
-                                    borderRadius: 2,
-                                    bgcolor: 'transparent',
-                                    color: theme.palette.text.secondary,
-                                    p: 0,
-                                    '&:hover': {
-                                        bgcolor: alpha(theme.palette.primary.main, 0.1),
-                                        color: theme.palette.primary.main,
-                                        transform: 'scale(1.05)'
-                                    },
-                                    transition: 'all 0.2s ease'
-                                }}
-                            >
-                                <Question size={20} />
-                            </Button>
-                        </Tooltip>
-
-                        {/* 3 Dots Menu Button */}
-                        <Tooltip title="More options">
-                            <Button
-                                ref={menuButtonRef}
-                                onClick={handleMenuOpen}
-                                sx={{
-                                    minWidth: 'auto',
-                                    width: 40,
-                                    height: 40,
-                                    borderRadius: 2,
-                                    bgcolor: 'transparent',
-                                    color: theme.palette.text.secondary,
-                                    p: 0,
-                                    '&:hover': {
-                                        bgcolor: alpha(theme.palette.primary.main, 0.1),
-                                        color: theme.palette.primary.main,
-                                        transform: 'scale(1.05)'
-                                    },
-                                    transition: 'all 0.2s ease'
-                                }}
-                            >
-                                <DotsThreeVertical size={20} />
-                            </Button>
-                        </Tooltip>
-
-                        {/* 3 Dots Menu */}
-                        <Menu
-                            anchorEl={menuAnchorEl}
-                            open={menuOpen}
-                            onClose={handleMenuClose}
-                            anchorOrigin={{
-                                vertical: 'bottom',
-                                horizontal: 'right',
-                            }}
-                            transformOrigin={{
-                                vertical: 'top',
-                                horizontal: 'right',
-                            }}
-                            PaperProps={{
-                                sx: {
-                                    mt: 1,
-                                    minWidth: 200,
-                                    borderRadius: 2,
-                                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-                                }
-                            }}
-                        >
-                            <MenuItem 
-                                onClick={handleReuploadFile}
-                                disabled={reuploadingFile || !selectedFile}
-                            >
-                                <ListItemIcon>
-                                    {reuploadingFile ? (
-                                        <CircularProgress size={20} />
-                                    ) : (
-                                        <CloudArrowUp size={20} />
-                                    )}
-                                </ListItemIcon>
-                                <ListItemText>
-                                    {reuploadingFile ? 'Reuploading...' : 'Reupload file'}
-                                </ListItemText>
-                            </MenuItem>
-                        </Menu>
-                    </Box>
-                </Box>
-
-                    {/* Warning and Error Alerts */}
-                    {(warning || error) && (
-                        <Box sx={{ px: 4, pt: 2 }}>
-                            {warning && (
-                                <Alert 
-                                    severity="warning" 
-                                    onClose={() => setWarning(null)}
-                                    sx={{ mb: error ? 2 : 0, borderRadius: 2 }}
-                                >
-                                    {renderMessageWithLinks(warning)}
-                                </Alert>
-                            )}
-                            {error && (
-                                <Alert 
-                                    severity="error" 
-                                    onClose={() => setError(null)}
-                                    sx={{ borderRadius: 2 }}
-                                >
-                                    {renderMessageWithLinks(error)}
-                                </Alert>
-                            )}
-                        </Box>
-                    )}
+                    {/* Warning Alert */}
+                    <WarningAlert 
+                        warning={warning} 
+                                onClose={() => setWarning(null)}
+                    />
 
                 {/* Main Content Area with padding */}
                 <Box sx={{ px: 4, py: 4, flexGrow: 1 }}>
-                {/* Compact Tab Navigation */}
-                <Paper 
-                    ref={sectionTabsRef}
-                    sx={{ 
-                        mb: 4, 
-                        borderRadius: 2,
-                        boxShadow: theme.shadows[1],
-                        overflow: showChat ? 'visible' : 'hidden',
-                        bgcolor: theme.palette.background.paper,
-                        position: 'relative',
-                        zIndex: 1 // Low z-index to ensure it doesn't interfere with onboarding
-                    }}
-                >
-                    <Tabs
-                        value={activeTab}
-                        onChange={handleTabChange}
-                        variant={showChat ? "standard" : "fullWidth"}
-                        sx={{
-                            '& .MuiTabs-indicator': {
-                                height: 2,
-                                borderRadius: '2px 2px 0 0'
-                            },
-                            '& .MuiTab-root': {
-                                textTransform: 'none',
-                                fontWeight: 500,
-                                minHeight: showChat ? 80 : 56,
-                                px: showChat ? 0.5 : 1.5,
-                                fontSize: showChat ? '0.75rem' : '0.875rem',
-                                color: 'inherit',
-                                minWidth: showChat ? 120 : 0,
-                                flex: showChat ? '1 1 auto' : 1,
-                                maxWidth: showChat ? 'none' : 'none',
-                                flexDirection: showChat ? 'column' : 'row',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: showChat ? 0.5 : 0,
-                                '&:hover': {
-                                    backgroundColor: theme.palette.background.hover
-                                },
-                                '&.Mui-selected': {
-                                    fontWeight: 600,
-                                    color: 'inherit'
-                                }
-                            }
-                        }}
-                    >
-                        {sections.map((section, index) => (
-                            <Tab
-                                key={section.id}
-                                label={
-                                    <Box 
-                                        display="flex" 
-                                        alignItems="center" 
-                                        gap={showChat ? 0.5 : 0.5} 
-                                        sx={{ 
-                                            minWidth: 0,
-                                            flexDirection: showChat ? 'column' : 'row',
-                                            justifyContent: 'center',
-                                            textAlign: 'center'
-                                        }}
-                                    >
-                                        <Box sx={{ fontSize: '1rem' }}>
-                                            {section.icon}
-                                        </Box>
-                                        <Typography 
-                                            variant="body2" 
-                                            sx={{ 
-                                                fontWeight: 'inherit',
-                                                fontSize: 'inherit',
-                                                whiteSpace: showChat ? 'normal' : 'nowrap',
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis',
-                                                lineHeight: showChat ? 1.2 : 'inherit',
-                                                textAlign: 'center'
-                                            }}
-                                        >
-                                            {section.title}
-                                        </Typography>
-                                    </Box>
-                                }
-                            />
-                        ))}
-                    </Tabs>
-                </Paper>
+                        {/* Section Tabs */}
+                        <SectionTabs
+                            sections={sections}
+                            activeTab={activeTab}
+                            onTabChange={handleTabChange}
+                            sectionTabsRef={sectionTabsRef}
+                        />
 
                 {/* Pre-rendered Section Content for Fast Switching */}
                 <Box sx={{ maxWidth: '100%', overflow: 'visible' }}>
@@ -1234,53 +876,7 @@ const DocumentationPage = ({
                 </Box>
                 </Box>
 
-                {/* Chat Interface - Slide in from right */}
-                {showChat && (
-                    <>
-                        {/* Resize Handle - Invisible */}
-                        <Box
-                            onMouseDown={handleMouseDown}
-                            sx={{
-                                width: 8,
-                                height: '100vh',
-                                cursor: 'col-resize',
-                                position: 'relative',
-                                '&:hover': {
-                                    '&::after': {
-                                        content: '""',
-                                        position: 'absolute',
-                                        left: '50%',
-                                        top: '50%',
-                                        transform: 'translate(-50%, -50%)',
-                                        width: 2,
-                                        height: 40,
-                                        bgcolor: theme.palette.primary.main,
-                                        borderRadius: 1,
-                                        opacity: 0.7
-                                    }
-                                }
-                            }}
-                        />
-                        
-                        {/* Chat Area */}
-                        <Box sx={{ 
-                            width: `${chatWidth}%`,
-                            height: '100vh',
-                            bgcolor: theme.palette.background.paper
-                        }}>
-                            <ChatPage
-                                pbixFile={selectedFile}
-                                onBack={onBack}
-                                isNewlyUploaded={false}
-                                initialMessage={chatInitialMessage}
-                                onCloseChat={handleCloseChat}
-                                isInline={true}
-                            />
-                        </Box>
-                    </>
-                )}
-
-                <CustomInstructionsModal 
+                <CustomInstructionsModal
                     showModal={showInstructionsModal}
                     onClose={() => setShowInstructionsModal(false)}
                     currentSection={sections.find(s => s.id === currentSectionForRegeneration)}
@@ -1309,236 +905,22 @@ const DocumentationPage = ({
                 )}
 
                 {/* Section Selection Dropdown Menu */}
-                <Menu
+                <SectionSelectionMenu
                     anchorEl={anchorEl}
                     open={Boolean(anchorEl)}
                     onClose={handleDropdownClose}
-                    PaperProps={{
-                        sx: {
-                            minWidth: 300,
-                            maxHeight: formattingPDF ? 600 : 500,
-                            borderRadius: 2,
-                            boxShadow: theme.shadows[8],
-                            mt: 1
-                        }
-                    }}
-                    transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-                    anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-                >
-                    {/* Header */}
-                    <Box sx={{ px: 2, py: 1.5, borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 0.5 }}>
-                            Select Sections to Generate
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                            Choose which documentation sections you'd like to generate
-                        </Typography>
-                    </Box>
-
-
-                    {/* Section List */}
-                    <Box sx={{ maxHeight: 300, overflow: 'auto' }}>
-                        {sections.map((section, index) => (
-                            <MenuItem
-                                key={section.id}
-                                onClick={() => handleSectionToggle(section.id)}
-                                sx={{
-                                    py: 1,
-                                    px: 2,
-                                    '&:hover': {
-                                        backgroundColor: alpha(theme.palette.primary.main, 0.04)
-                                    }
-                                }}
-                            >
-                                <Checkbox
-                                    checked={selectedSections.includes(section.id)}
-                                    sx={{
-                                        p: 0.5,
-                                        '&.Mui-checked': {
-                                            color: theme.palette.primary.main
-                                        }
-                                    }}
-                                />
-                                <ListItemIcon sx={{ minWidth: 32, color: selectedSections.includes(section.id) ? theme.palette.primary.main : theme.palette.text.secondary }}>
-                                    {section.icon}
-                                </ListItemIcon>
-                                <ListItemText
-                                    primary={section.title}
-                                    secondary={section.description}
-                                    primaryTypographyProps={{
-                                        variant: 'body2',
-                                        fontWeight: selectedSections.includes(section.id) ? 500 : 400
-                                    }}
-                                    secondaryTypographyProps={{
-                                        variant: 'caption',
-                                        color: 'text.secondary'
-                                    }}
-                                />
-                            </MenuItem>
-                        ))}
-                    </Box>
-
-                    <Divider />
-
-                    {/* Generate Button */}
-                    <Box sx={{ p: 2 }}>
-                        <Button
-                            fullWidth
-                            variant="contained"
-                            onClick={handleGenerateSelected}
-                            disabled={selectedSections.length === 0 || Object.values(sectionLoading).some(isLoading => isLoading)}
-                            startIcon={Object.values(sectionLoading).some(isLoading => isLoading) ? <CircularProgress size={16} color={theme.palette.primary.contrastText} /> : <SparkleIcon size={16} color={theme.palette.primary.contrastText} />}
-                            sx={{
-                                bgcolor: theme.palette.primary.main,
-                                color: theme.palette.primary.contrastText,
-                                borderRadius: 2,
-                                mb: 1.5,
-                                '&:hover': {
-                                    bgcolor: theme.palette.primary.dark,
-                                    color: theme.palette.primary.contrastText
-                                },
-                                '&:disabled': {
-                                    bgcolor: theme.palette.action.disabledBackground
-                                }
-                            }}
-                        >
-                            {Object.values(sectionLoading).some(isLoading => isLoading) ? 'Generating...' : `Generate ${selectedSections.length} Section${selectedSections.length !== 1 ? 's' : ''}`}
-                        </Button>
-
-                        {/* PDF Upload Option */}
-                        <Divider sx={{ my: 1.5 }} />
-                        
-                        {/* PDF Status Display */}
-                        {formattingPDF && (
-                            <Box
-                                sx={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'space-between',
-                                    px: 1.5,
-                                    py: 1,
-                                    mb: 1,
-                                    borderRadius: 1.5,
-                                    bgcolor: alpha(theme.palette.primary.main, 0.08),
-                                    border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`
-                                }}
-                            >
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1, minWidth: 0 }}>
-                                    <FilePdf size={18} color={theme.palette.primary.main} />
-                                    <Typography
-                                        variant="body2"
-                                        sx={{
-                                            color: theme.palette.primary.main,
-                                            fontWeight: 500,
-                                            overflow: 'hidden',
-                                            textOverflow: 'ellipsis',
-                                            whiteSpace: 'nowrap'
-                                        }}
-                                    >
-                                        {formattingPDF.filename}
-                                    </Typography>
-                                </Box>
-                                <Tooltip title="Remove PDF template">
-                                    <Button
-                                        onClick={handlePDFRemove}
-                                        size="small"
-                                        sx={{
-                                            minWidth: 'auto',
-                                            width: 24,
-                                            height: 24,
-                                            p: 0,
-                                            color: theme.palette.text.secondary,
-                                            '&:hover': {
-                                                bgcolor: alpha(theme.palette.error.main, 0.1),
-                                                color: theme.palette.error.main
-                                            }
-                                        }}
-                                    >
-                                        <X size={14} />
-                                    </Button>
-                                </Tooltip>
-                            </Box>
-                        )}
-
-                        {/* PDF Upload Button */}
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: formattingPDF ? 0.5 : 0 }}>
-                            <Button
-                                fullWidth
-                                variant={formattingPDF ? "outlined" : "outlined"}
-                                onClick={() => pdfInputRef.current?.click()}
-                                disabled={!selectedFile}
-                                startIcon={<FilePdf size={16} />}
-                                sx={{
-                                    borderColor: formattingPDF ? alpha(theme.palette.primary.main, 0.5) : alpha(theme.palette.text.secondary, 0.3),
-                                    color: formattingPDF ? theme.palette.primary.main : theme.palette.text.secondary,
-                                    borderRadius: 2,
-                                    textTransform: 'none',
-                                    flex: 1,
-                                    '&:hover': {
-                                        borderColor: theme.palette.primary.main,
-                                        bgcolor: alpha(theme.palette.primary.main, 0.04),
-                                        color: theme.palette.primary.main
-                                    },
-                                    '&:disabled': {
-                                        borderColor: theme.palette.action.disabledBackground,
-                                        color: theme.palette.action.disabled
-                                    }
-                                }}
-                            >
-                                {formattingPDF 
-                                    ? 'Replace Style Reference' 
-                                    : 'Use PDF as Style Reference'}
-                            </Button>
-                            <Tooltip 
-                                title={
-                                    <Box sx={{ p: 0.5 }}>
-                                        <Typography variant="body2" sx={{ mb: 1 }}>
-                                            Upload a PDF document to use as a formatting template. The generated documentation will match the style, tone, language, and structure of your PDF example.
-                                        </Typography>
-                                        <Typography variant="caption" sx={{ fontStyle: 'italic' }}>
-                                            The PDF is only used during generation and is not stored permanently.
-                                        </Typography>
-                                    </Box>
-                                }
-                                arrow
-                                placement="top"
-                            >
-                                <Box
-                                    sx={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        width: 24,
-                                        height: 24,
-                                        borderRadius: '50%',
-                                        bgcolor: alpha(theme.palette.text.secondary, 0.1),
-                                        color: theme.palette.text.secondary,
-                                        cursor: 'help',
-                                        flexShrink: 0,
-                                        '&:hover': {
-                                            bgcolor: alpha(theme.palette.primary.main, 0.1),
-                                            color: theme.palette.primary.main
-                                        }
-                                    }}
-                                >
-                                    <Question size={14} weight="fill" />
-                                </Box>
-                            </Tooltip>
-                        </Box>
-                        <input
-                            ref={pdfInputRef}
-                            type="file"
-                            accept=".pdf"
-                            onChange={handlePDFInputChange}
-                            style={{ display: 'none' }}
-                        />
-                        {formattingPDF && (
-                            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block', textAlign: 'center' }}>
-                                Documentation will match the style of: {formattingPDF.filename}
-                            </Typography>
-                        )}
-                    </Box>
-                </Menu>
+                    sections={sections}
+                    selectedSections={selectedSections}
+                    onSectionToggle={handleSectionToggle}
+                    onGenerateSelected={handleGenerateSelected}
+                    sectionLoading={sectionLoading}
+                    formattingPDF={formattingPDF}
+                    onPDFInputChange={handlePDFInputChange}
+                    onPDFRemove={handlePDFRemove}
+                    pdfInputRef={pdfInputRef}
+                    selectedFile={selectedFile}
+                    theme={theme}
+                />
             </Box>
         </Fade>
     );

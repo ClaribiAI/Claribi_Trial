@@ -257,3 +257,4 @@ const RecommendationCard = ({ recommendation, onApply, isApplying }) => {
 };
 
 export default React.memo(RecommendationCard);
+

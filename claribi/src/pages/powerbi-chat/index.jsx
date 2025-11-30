@@ -32,7 +32,6 @@ const PowerBIChat = () => {
     const [showUploadConfirmation, setShowUploadConfirmation] = useState(false);
     const [pendingFile, setPendingFile] = useState(null);
     const [isNewlyUploaded, setIsNewlyUploaded] = useState(false);
-    const [error, setError] = useState(null);
 
     const fileInputRef = useRef(null);
 
@@ -67,27 +66,25 @@ const PowerBIChat = () => {
 
         // Validate file type
         if (!file.name.toLowerCase().endsWith('.pbix')) {
-            setError('Please select a valid .pbix file');
+            showNotification('Please select a valid .pbix file', 'error');
             return;
         }
 
         // Validate file size (max 100MB)
         const maxSize = 100 * 1024 * 1024;
         if (file.size > maxSize) {
-            setError('File size must be less than 100MB');
+            showNotification('File size must be less than 100MB', 'error');
             return;
         }
 
         // Store file and show confirmation dialog
         setPendingFile(file);
         setShowUploadConfirmation(true);
-        setError(null);
     };
 
     const handleConfirmUpload = async (renamedFile) => {
         setUploadLoading(true);
         setUploadProgress(0);
-        setError(null);
 
         try {
             const response = await uploadPowerBIFile(renamedFile, (progress) => {
@@ -122,7 +119,7 @@ const PowerBIChat = () => {
 
         } catch (err) {
             console.error('Error uploading file:', err);
-            setError(err.message || 'Failed to upload file. Please try again.');
+            showNotification(err.message || 'Failed to upload file. Please try again.', 'error');
         } finally {
             setUploadLoading(false);
             setUploadProgress(0);
@@ -178,19 +175,6 @@ const PowerBIChat = () => {
                 onChange={handleFileUpload}
                 style={{ display: 'none' }}
             />
-
-            {/* Error Alert */}
-            {error && (
-                <Box sx={{ px: 2, pb: 1 }}>
-                    <Alert 
-                        severity="error" 
-                        onClose={() => setError(null)}
-                        sx={{ borderRadius: 2 }}
-                    >
-                        {error}
-                    </Alert>
-                </Box>
-            )}
 
             {/* Render appropriate view */}
             {currentView === 'file-management' ? (

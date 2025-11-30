@@ -14,8 +14,10 @@ import UploadConfirmationDialog from '../../components/ui/UploadConfirmationDial
 import FileManagementPage from './FileManagementPage';
 import DocumentationPage from './DocumentationPage';
 import { useFiles } from '../../contexts/FileContext';
+import { useNotification } from '../../contexts/NotificationContext';
 
 const PowerBIDocumentation = () => {
+    const { showNotification } = useNotification();
     const { refreshFiles, files } = useFiles();
     const location = useLocation();
     const navigate = useNavigate();
@@ -29,7 +31,6 @@ const PowerBIDocumentation = () => {
     const [uploadProgress, setUploadProgress] = useState(0);
     const [showUploadSuccess, setShowUploadSuccess] = useState(false);
     const [successMessage, setSuccessMessage] = useState('');
-    const [error, setError] = useState(null);
 
     const fileInputRef = useRef(null);
 
@@ -67,27 +68,25 @@ const PowerBIDocumentation = () => {
 
         // Validate file type
         if (!file.name.toLowerCase().endsWith('.pbix')) {
-            setError('Please select a valid .pbix file');
+            showNotification('Please select a valid .pbix file', 'error');
             return;
         }
 
         // Validate file size (max 100MB)
         const maxSize = 100 * 1024 * 1024;
         if (file.size > maxSize) {
-            setError('File size must be less than 100MB');
+            showNotification('File size must be less than 100MB', 'error');
             return;
         }
 
         // Store file and show confirmation dialog
         setPendingFile(file);
         setShowUploadConfirmation(true);
-        setError(null);
     };
 
     const handleConfirmUpload = async (renamedFile) => {
         setUploadLoading(true);
         setUploadProgress(0);
-        setError(null);
 
         try {
             const response = await uploadPowerBIFile(renamedFile, (progress) => {
@@ -121,7 +120,7 @@ const PowerBIDocumentation = () => {
 
         } catch (err) {
             console.error('Error uploading file:', err);
-            setError(err.message || 'Failed to upload file. Please try again.');
+            showNotification(err.message || 'Failed to upload file. Please try again.', 'error');
         } finally {
             setUploadLoading(false);
             setUploadProgress(0);
@@ -192,19 +191,6 @@ const PowerBIDocumentation = () => {
                 onChange={handleFileUpload}
                 style={{ display: 'none' }}
             />
-
-            {/* Error Alert */}
-            {error && (
-                <Box sx={{ px: 2, pb: 1 }}>
-                    <Alert 
-                        severity="error" 
-                        onClose={() => setError(null)}
-                        sx={{ borderRadius: 2 }}
-                    >
-                        {error}
-                    </Alert>
-                </Box>
-            )}
 
             {/* Render appropriate view */}
             {currentView === 'file-management' ? (

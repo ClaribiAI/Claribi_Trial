@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Typography, Paper, Button, Alert, Snackbar, useTheme } from '@mui/material';
+import { Box, Typography, Paper, Button, Snackbar, useTheme } from '@mui/material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { useAuth } from '../../contexts/AuthContext';
+import { useNotification } from '../../contexts/NotificationContext';
 import MicrosoftIcon from './MicrosoftIcon';
 import authService from '../../services/auth';
 
@@ -12,8 +13,8 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { login, currentUser, loading } = useAuth();
+  const { showNotification } = useNotification();
   const theme = useTheme();
-  const [errorMessage, setErrorMessage] = useState(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
@@ -32,7 +33,7 @@ const LoginPage = () => {
         handleSuccessfulVerification(data);
       } else {
         console.error("Authentication verification failed:", data.error);
-        setErrorMessage(`Authentication failed: ${data.error}`);
+        showNotification(`Authentication failed: ${data.error}`, 'error');
         setVerifying(false);
       }
     } catch (err) {
@@ -42,7 +43,7 @@ const LoginPage = () => {
         setTimeout(() => verifyAuthentication(), 1000);
       } else {
         console.error("All verification attempts failed:", err);
-        setErrorMessage("Authentication verification failed after multiple attempts. Please try logging in again.");
+        showNotification("Authentication verification failed after multiple attempts. Please try logging in again.", 'error');
         setVerifying(false);
       }
     }
@@ -64,7 +65,7 @@ const LoginPage = () => {
     
     if (errorMsg) {
       // Handle error types
-      setErrorMessage(errorMsg.replace(/\+/g, ' '));
+      showNotification(errorMsg.replace(/\+/g, ' '), 'error');
     }
 
     if (authStatus === 'success') {
@@ -74,11 +75,9 @@ const LoginPage = () => {
       
       verifyAuthentication();
     }
-  }, [location]);
+  }, [location, showNotification]);
 
   const handleMicrosoftLogin = () => {
-    setErrorMessage(null);
-    
     login();
   };
 
@@ -125,26 +124,6 @@ const LoginPage = () => {
           boxShadow: '0 8px 24px rgba(255, 193, 7, 0.2)',
         }}
       >
-        {errorMessage && (
-          <Alert 
-            severity="error" 
-            sx={{ 
-              mb: 3,
-              '& .MuiAlert-message': {
-                fontSize: '0.9rem',
-                lineHeight: 1.4,
-              }
-            }}
-          >
-            {errorMessage}
-          </Alert>
-        )}
-        
-        {backendError && (
-          <Alert severity="warning" sx={{ mb: 3 }}>
-            Backend server connection error. Please make sure the backend server is running at https://127.0.0.1:5000.
-          </Alert>
-        )}
         
         <Box sx={{ mb: 4 }}>
           <Box

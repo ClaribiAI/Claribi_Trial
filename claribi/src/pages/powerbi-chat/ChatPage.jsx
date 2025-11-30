@@ -44,7 +44,6 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
     const { showNotification } = useNotification();
     const [messages, setMessages] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState(null);
     const [warning, setWarning] = useState(null);
     const [thinkingProcess, setThinkingProcess] = useState({
         isVisible: false,
@@ -248,7 +247,6 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
             currentIndex: 0,
             clarificationSessionKey: null
         });
-        setError(null);
         setHistoryLoaded(true);
         
         // Show system welcome message
@@ -466,7 +464,6 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
             currentIndex: 0,
             clarificationSessionKey: null
         });
-        setError(null);
     };
 
     // Handle double-click to start editing tab name
@@ -600,7 +597,7 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
         
         // Check if PBIX file is uploaded
         if (!pbixFile) {
-            setError('Please upload a Power BI file first before asking questions.');
+            showNotification('Please upload a Power BI file first before asking questions.', 'error');
             return;
         }
     
@@ -639,7 +636,6 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
         
         const originalQuery = message.trim();
         setIsLoading(true);
-        setError(null);
         setActionHistory([]); // Clear previous history
         setLastRegularActionId(null); // Reset regular action tracking
         setThinkingProcess({
@@ -848,13 +844,13 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
             
             if (isUsageLimitError) {
                 console.log('Usage limit error detected - skipping chat message');
-                setError(err.message || 'You have reached your usage limit. Please upgrade your plan to continue.');
-                // Don't add error message to chat for usage limit errors - the red banner is enough
+                showNotification(err.message || 'You have reached your usage limit. Please upgrade your plan to continue.', 'error');
+                // Don't add error message to chat for usage limit errors - the snackbar is enough
                 return; // Exit early to prevent any further processing
             } else {
                 // For other errors, show error message in chat
                 console.log('Non-token error - showing error message in chat');
-                setError(err.message || 'Failed to send message.');
+                showNotification(err.message || 'Failed to send message.', 'error');
                 const errorMessage = {
                     id: Date.now() + 1,
                     type: 'assistant',
@@ -939,7 +935,7 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
 
         // Last answer → send batch to backend
         if (!pbixFile) {
-            setError('No Power BI file available for clarifications');
+            showNotification('No Power BI file available for clarifications', 'error');
             return;
         }
         setIsProcessingClarifications(true);
@@ -1018,7 +1014,7 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
             setClarificationFlow({ active: false, questions: [], answers: {}, originalQuery: '', currentIndex: 0, clarificationSessionKey: null });
         } catch (err) {
             console.error('Error processing clarifications:', err);
-            setError(err.message || 'Failed to process clarifications. Please try again.');
+            showNotification(err.message || 'Failed to process clarifications. Please try again.', 'error');
         } finally {
             setIsProcessingClarifications(false);
         }
@@ -1667,19 +1663,6 @@ const ChatPage = ({ pbixFile, onBack, isNewlyUploaded, initialMessage, onCloseCh
                         sx={{ borderRadius: 2 }}
                     >
                         {renderMessageWithLinks(warning)}
-                    </Alert>
-                </Box>
-            )}
-
-            {/* Error Alert */}
-            {error && (
-                <Box sx={{ px: 2, pb: 1 }}>
-                    <Alert 
-                        severity="error" 
-                        onClose={() => setError(null)}
-                        sx={{ borderRadius: 2 }}
-                    >
-                        {renderMessageWithLinks(error)}
                     </Alert>
                 </Box>
             )}

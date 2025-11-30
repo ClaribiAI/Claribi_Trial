@@ -65,7 +65,6 @@ const Home = () => {
         documentsGenerated: 0,
         chatQueries: 0
     });
-    const [uploadError, setUploadError] = useState(null);
     const [showOnboardingGuide, setShowOnboardingGuide] = useState(false);
     const [currentOnboardingStep, setCurrentOnboardingStep] = useState(0);
     const onboardingDismissedRef = useRef(false);
@@ -218,27 +217,25 @@ const Home = () => {
 
         // Validate file type
         if (!file.name.toLowerCase().endsWith('.pbix')) {
-            setUploadError('Please select a valid .pbix file');
+            showNotification('Please select a valid .pbix file', 'error');
             return;
         }
 
         // Validate file size (max 100MB)
         const maxSize = 100 * 1024 * 1024;
         if (file.size > maxSize) {
-            setUploadError('File size must be less than 100MB');
+            showNotification('File size must be less than 100MB', 'error');
             return;
         }
 
         // Store file and show confirmation dialog
         setPendingFile(file);
         setShowUploadConfirmation(true);
-        setUploadError(null);
     };
 
     const handleConfirmUpload = async (renamedFile) => {
         setUploadLoading(true);
         setUploadProgress(0);
-        setUploadError(null);
 
         try {
             const response = await uploadPowerBIFile(renamedFile, (progress) => {
@@ -262,13 +259,13 @@ const Home = () => {
             
             // Show specific error messages based on error type
             if (err.message.includes('File too large')) {
-                setUploadError('File is too large. Please try with a file smaller than 100MB.');
+                showNotification('File is too large. Please try with a file smaller than 100MB.', 'error');
             } else if (err.message.includes('Invalid file format')) {
-                setUploadError('Invalid file format. Please ensure you are uploading a valid .pbix file.');
+                showNotification('Invalid file format. Please ensure you are uploading a valid .pbix file.', 'error');
             } else if (err.message.includes('Server error during processing')) {
-                setUploadError('Server error occurred. The server may have restarted. Please try again.');
+                showNotification('Server error occurred. Please try again.', 'error');
             } else {
-                setUploadError(err.message || 'Failed to upload file. Please try again.');
+                showNotification(err.message || 'Failed to upload file. Please try again.', 'error');
             }
         } finally {
             setUploadLoading(false);
@@ -413,19 +410,6 @@ const Home = () => {
                 onChange={handleFileUpload}
                 style={{ display: 'none' }}
             />
-
-            {/* Error Alert */}
-            {uploadError && (
-                <Box sx={{ px: 2, pb: 1 }}>
-                    <Alert 
-                        severity="error" 
-                        onClose={() => setUploadError(null)}
-                        sx={{ borderRadius: 2 }}
-                    >
-                        {uploadError}
-                    </Alert>
-                </Box>
-            )}
 
             {/* Header */}
             <Box 
