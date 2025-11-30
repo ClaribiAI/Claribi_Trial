@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     Box,
     Typography,
@@ -13,15 +13,15 @@ import {
     X,
     ArrowLeft,
     ArrowRight,
-    CloudArrowUp,
-    FileText,
-    ChatCircle,
-    Stethoscope,
-    House
+    SparkleIcon,
+    FileTextIcon,
+    ArrowClockwiseIcon,
+    DownloadIcon,
+    PencilSimpleIcon
 } from '@phosphor-icons/react';
-import { dismissOnboarding } from '../../services/onboardingService';
+import { dismissDocumentationOnboarding } from '../../services/onboardingService';
 
-const OnboardingGuide = ({ 
+const DocumentationOnboardingTour = ({ 
     open, 
     onClose, 
     steps, 
@@ -37,24 +37,6 @@ const OnboardingGuide = ({
     const [highlightBox, setHighlightBox] = useState(null);
     const elementCleanupRef = useRef(null);
 
-    // Get element function - memoized to avoid recreating on every render
-    const getElement = useCallback(() => {
-        // Get target element - could be a ref object or a function that returns a ref
-        let element = null;
-        if (targetElement) {
-            if (typeof targetElement === 'function') {
-                const ref = targetElement();
-                element = ref?.current || ref;
-            } else if (targetElement?.current) {
-                element = targetElement.current;
-            } else if (targetElement && targetElement.nodeType) {
-                // It's already a DOM element
-                element = targetElement;
-            }
-        }
-        return element;
-    }, [targetElement]);
-
     // Calculate tooltip position and highlight box based on target element
     useEffect(() => {
         if (!open || !steps || currentStepIndex < 0 || currentStepIndex >= steps.length) {
@@ -64,6 +46,23 @@ const OnboardingGuide = ({
         let retryCount = 0;
         const maxRetries = 10;
         const retryDelay = 100;
+
+        const getElement = () => {
+            // Get target element - could be a ref object or a function that returns a ref
+            let element = null;
+            if (targetElement) {
+                if (typeof targetElement === 'function') {
+                    const ref = targetElement();
+                    element = ref?.current || ref;
+                } else if (targetElement?.current) {
+                    element = targetElement.current;
+                } else if (targetElement && targetElement.nodeType) {
+                    // It's already a DOM element
+                    element = targetElement;
+                }
+            }
+            return element;
+        };
 
         // Clean up previous element styles immediately when step changes
         if (elementCleanupRef.current) {
@@ -125,57 +124,82 @@ const OnboardingGuide = ({
             try {
                 // Re-get element in case it changed
                 let currentElement = getElement();
-                if (!steps || currentStepIndex < 0 || currentStepIndex >= steps.length) return;
                 const step = steps[currentStepIndex];
                 const noHighlight = step.noHighlight || false;
                 
-                const scrollY = window.scrollY || window.pageYOffset;
-                const scrollX = window.scrollX || window.pageXOffset;
-                const tooltipWidth = 380;
-                const tooltipHeight = 280;
-                const preferredPosition = step.position || (noHighlight ? 'center' : 'bottom-right');
-                
                 if (!currentElement || noHighlight) {
                     // If element not found or step doesn't need highlighting, center the tooltip
-                    const newPosition = {
-                        top: scrollY + (window.innerHeight / 2) - (tooltipHeight / 2),
-                        left: scrollX + (window.innerWidth / 2) - (tooltipWidth / 2)
-                    };
+                    const scrollY = window.scrollY || window.pageYOffset;
+                    const scrollX = window.scrollX || window.pageXOffset;
+                    const tooltipWidth = 380;
+                    const tooltipHeight = 280;
+                    const preferredPosition = step.position || 'center';
                     
-                    // Only update if position changed significantly (avoid micro-updates)
-                    setTooltipPosition(prev => {
-                        if (Math.abs(prev.top - newPosition.top) < 1 && Math.abs(prev.left - newPosition.left) < 1) {
-                            return prev;
+                    // For noHighlight steps with 'center' position, always center in viewport
+                    if (noHighlight && preferredPosition === 'center') {
+                        // Center in viewport (visible area)
+                        setTooltipPosition({
+                            top: scrollY + (window.innerHeight / 2) - (tooltipHeight / 2),
+                            left: scrollX + (window.innerWidth / 2) - (tooltipWidth / 2)
+                        });
+                    } else if (noHighlight && currentElement) {
+                        // Position tooltip below the element but don't highlight it
+                        const rect = currentElement.getBoundingClientRect();
+                        // Ensure tooltip is visible in viewport
+                        let tooltipTop = rect.bottom + scrollY + 40;
+                        let tooltipLeft = rect.left + scrollX + (rect.width / 2) - (tooltipWidth / 2);
+                        
+                        // Check if tooltip would be outside viewport and adjust
+                        const viewportTop = scrollY;
+                        const viewportBottom = scrollY + window.innerHeight;
+                        const viewportLeft = scrollX;
+                        const viewportRight = scrollX + window.innerWidth;
+                        
+                        // Center vertically if it would go off screen
+                        if (tooltipTop + tooltipHeight > viewportBottom || tooltipTop < viewportTop) {
+                            tooltipTop = scrollY + (window.innerHeight / 2) - (tooltipHeight / 2);
                         }
-                        return newPosition;
-                    });
+                        
+                        // Ensure horizontal centering within viewport
+                        if (tooltipLeft + tooltipWidth > viewportRight || tooltipLeft < viewportLeft) {
+                            tooltipLeft = scrollX + (window.innerWidth / 2) - (tooltipWidth / 2);
+                        }
+                        
+                        setTooltipPosition({
+                            top: tooltipTop,
+                            left: tooltipLeft
+                        });
+                    } else {
+                        // Center in viewport (visible area)
+                        setTooltipPosition({
+                            top: scrollY + (window.innerHeight / 2) - (tooltipHeight / 2),
+                            left: scrollX + (window.innerWidth / 2) - (tooltipWidth / 2)
+                        });
+                    }
                     setHighlightBox(null);
                     return;
                 }
 
                 const rect = currentElement.getBoundingClientRect();
-                
+                const scrollY = window.scrollY || window.pageYOffset;
+                const scrollX = window.scrollX || window.pageXOffset;
+
                 // Calculate highlight box (document coordinates for absolute positioning)
-                const newHighlightBox = {
+                setHighlightBox({
                     top: rect.top + scrollY,
                     left: rect.left + scrollX,
                     width: rect.width,
                     height: rect.height
-                };
-                
-                // Only update highlight box if it changed significantly
-                setHighlightBox(prev => {
-                    if (prev && 
-                        Math.abs(prev.top - newHighlightBox.top) < 1 &&
-                        Math.abs(prev.left - newHighlightBox.left) < 1 &&
-                        Math.abs(prev.width - newHighlightBox.width) < 1 &&
-                        Math.abs(prev.height - newHighlightBox.height) < 1) {
-                        return prev;
-                    }
-                    return newHighlightBox;
                 });
 
-                const spacing = 20;
+                // Calculate tooltip position (prefer bottom-right, adjust if needed)
+                const preferredPosition = step.position || 'bottom-right';
+                
+                const tooltipWidth = 380;
+                const tooltipHeight = 280;
+                const spacing = 20; // Space between element and tooltip
+                
+                // Start with preferred position
                 let tooltipTop = 0;
                 let tooltipLeft = 0;
                 
@@ -187,7 +211,10 @@ const OnboardingGuide = ({
                     tooltipTop = rect.bottom + scrollY + spacing;
                     tooltipLeft = rect.left + scrollX + (rect.width / 2) - (tooltipWidth / 2);
                 } else if (preferredPosition === 'bottom') {
-                    tooltipTop = rect.bottom + scrollY + 40;
+                    // Position directly below the element, centered horizontally
+                    // Add significant spacing to ensure it's clearly below and not overlapping
+                    const bottomSpacing = 40; // Extra spacing for 'bottom' position
+                    tooltipTop = rect.bottom + scrollY + bottomSpacing;
                     tooltipLeft = rect.left + scrollX + (rect.width / 2) - (tooltipWidth / 2);
                 } else if (preferredPosition === 'top-center') {
                     tooltipTop = rect.top + scrollY - tooltipHeight - spacing;
@@ -199,67 +226,115 @@ const OnboardingGuide = ({
                     tooltipTop = rect.top + scrollY + (rect.height / 2) - (tooltipHeight / 2);
                     tooltipLeft = rect.left + scrollX - tooltipWidth - spacing;
                 } else if (preferredPosition === 'center') {
+                    // Center the tooltip in the visible viewport
                     tooltipTop = scrollY + (window.innerHeight / 2) - (tooltipHeight / 2);
                     tooltipLeft = scrollX + (window.innerWidth / 2) - (tooltipWidth / 2);
                 } else {
+                    // Default: bottom-right
                     tooltipTop = rect.bottom + scrollY + spacing;
                     tooltipLeft = rect.right + scrollX + spacing;
                 }
 
-                // Simplified boundary checks - only adjust if necessary
+                // Ensure tooltip stays within viewport (using viewport coordinates for checking)
                 const viewportRight = window.innerWidth;
                 const viewportBottom = window.innerHeight;
+                const viewportLeft = 0;
+                const viewportTop = 0;
+                
+                // Convert to viewport coordinates for checking
                 const tooltipTopViewport = tooltipTop - scrollY;
                 const tooltipLeftViewport = tooltipLeft - scrollX;
                 
-                if (preferredPosition === 'right' && tooltipLeftViewport + tooltipWidth > viewportRight) {
-                    tooltipLeft = scrollX + Math.max(16, viewportRight - tooltipWidth - 16);
-                } else if (tooltipLeftViewport + tooltipWidth > viewportRight) {
+                // Check right boundary
+                if (tooltipLeftViewport + tooltipWidth > viewportRight) {
+                    // Try left side
                     const leftPosition = rect.left + scrollX - tooltipWidth - spacing;
-                    tooltipLeft = leftPosition >= scrollX ? leftPosition : scrollX + Math.max(16, (viewportRight - tooltipWidth) / 2);
+                    if (leftPosition >= scrollX) {
+                        tooltipLeft = leftPosition;
+                    } else {
+                        // Center horizontally if both sides don't work
+                        tooltipLeft = scrollX + Math.max(16, (viewportRight - tooltipWidth) / 2);
+                    }
                 }
                 
+                // Check left boundary
                 if (tooltipLeft < scrollX + 16) {
                     tooltipLeft = scrollX + 16;
                 }
                 
-                if (preferredPosition === 'bottom' && tooltipTopViewport + tooltipHeight > viewportBottom + 50) {
-                    tooltipTop = rect.bottom + scrollY + 30;
-                } else if (preferredPosition === 'right') {
-                    if (tooltipTopViewport + tooltipHeight > viewportBottom) {
-                        tooltipTop = scrollY + Math.max(16, viewportBottom - tooltipHeight - 16);
+                // Check bottom boundary (but for 'bottom' position, prefer to keep it below)
+                const newTooltipTopViewport = tooltipTop - scrollY;
+                if (preferredPosition === 'bottom') {
+                    // For 'bottom' position, ensure it's below even if it goes slightly off screen
+                    // Just make sure it's not completely off screen
+                    if (newTooltipTopViewport + tooltipHeight > viewportBottom + 50) {
+                        // If it's way off screen, adjust but keep it below
+                        tooltipTop = rect.bottom + scrollY + 30;
                     }
-                    if (tooltipTopViewport < 0) {
-                        tooltipTop = scrollY + 16;
-                    }
-                } else if (tooltipTopViewport + tooltipHeight > viewportBottom) {
+                } else if (newTooltipTopViewport + tooltipHeight > viewportBottom) {
+                    // Try top side for other positions
                     const topPosition = rect.top + scrollY - tooltipHeight - spacing;
-                    tooltipTop = topPosition >= scrollY ? topPosition : scrollY + Math.max(16, (viewportBottom - tooltipHeight) / 2);
+                    if (topPosition >= scrollY) {
+                        tooltipTop = topPosition;
+                    } else {
+                        // Center vertically if both sides don't work
+                        tooltipTop = scrollY + Math.max(16, (viewportBottom - tooltipHeight) / 2);
+                    }
                 }
                 
+                // Check top boundary
                 if (tooltipTop < scrollY + 16) {
                     tooltipTop = scrollY + 16;
                 }
                 
-                // Skip complex overlap detection for better performance - only for non-preferred positions
-                if (preferredPosition !== 'bottom' && preferredPosition !== 'right' && preferredPosition !== 'center') {
+                // Final check: ensure tooltip doesn't overlap with element
+                // Skip overlap detection for 'bottom' position to preserve below positioning
+                if (preferredPosition !== 'bottom') {
                     const finalTooltipTopViewport = tooltipTop - scrollY;
                     const finalTooltipLeftViewport = tooltipLeft - scrollX;
+                    
+                    // Check if tooltip overlaps with element
                     const overlapsHorizontally = finalTooltipLeftViewport < rect.right && finalTooltipLeftViewport + tooltipWidth > rect.left;
                     const overlapsVertically = finalTooltipTopViewport < rect.bottom && finalTooltipTopViewport + tooltipHeight > rect.top;
                     
                     if (overlapsHorizontally && overlapsVertically) {
+                        // Tooltip completely overlaps, try to position it to the right first
                         const rightPosition = rect.right + scrollX + spacing;
                         if (rightPosition + tooltipWidth <= scrollX + viewportRight) {
                             tooltipLeft = rightPosition;
                         } else {
+                            // Try left side
+                            const leftPosition = rect.left + scrollX - tooltipWidth - spacing;
+                            if (leftPosition >= scrollX) {
+                                tooltipLeft = leftPosition;
+                            } else {
+                                // If both sides don't work, position below
+                                tooltipTop = rect.bottom + scrollY + spacing;
+                                tooltipLeft = rect.left + scrollX + (rect.width / 2) - (tooltipWidth / 2);
+                            }
+                        }
+                    } else if (overlapsHorizontally) {
+                        // Only horizontal overlap, move vertically
+                        if (finalTooltipTopViewport < rect.top) {
+                            // Tooltip is above, move it below
                             tooltipTop = rect.bottom + scrollY + spacing;
-                            tooltipLeft = rect.left + scrollX + (rect.width / 2) - (tooltipWidth / 2);
+                        } else {
+                            // Tooltip is below, move it above
+                            tooltipTop = rect.top + scrollY - tooltipHeight - spacing;
+                        }
+                    } else if (overlapsVertically) {
+                        // Only vertical overlap, move horizontally
+                        if (finalTooltipLeftViewport < rect.left) {
+                            // Tooltip is on left, move to right
+                            tooltipLeft = rect.right + scrollX + spacing;
+                        } else {
+                            // Tooltip is on right, move to left
+                            tooltipLeft = rect.left + scrollX - tooltipWidth - spacing;
                         }
                     }
                 }
                 
-                // Final boundary check
+                // Final boundary check after overlap adjustment
                 const finalTooltipTopViewport2 = tooltipTop - scrollY;
                 const finalTooltipLeftViewport2 = tooltipLeft - scrollX;
                 
@@ -276,13 +351,8 @@ const OnboardingGuide = ({
                     tooltipTop = scrollY + 16;
                 }
 
-                // Only update if position changed significantly
-                setTooltipPosition(prev => {
-                    if (Math.abs(prev.top - tooltipTop) < 1 && Math.abs(prev.left - tooltipLeft) < 1) {
-                        return prev;
-                    }
-                    return { top: tooltipTop, left: tooltipLeft };
-                });
+                // Update state directly for immediate response
+                setTooltipPosition({ top: tooltipTop, left: tooltipLeft });
             } catch (error) {
                 console.error('Error calculating tooltip position:', error);
             }
@@ -291,53 +361,33 @@ const OnboardingGuide = ({
         // Initial position update - immediate for step changes
         updatePosition();
         
-        // Throttle scroll and resize handlers for better performance
+        // Debounce scroll and resize handlers for better performance
         let scrollTimeout;
         let resizeTimeout;
-        let lastScrollTime = 0;
-        let lastResizeTime = 0;
-        const SCROLL_THROTTLE = 16; // ~60fps
-        const RESIZE_THROTTLE = 150;
         
         const handleScroll = () => {
-            const now = performance.now();
-            if (now - lastScrollTime < SCROLL_THROTTLE) {
-                if (scrollTimeout) {
-                    cancelAnimationFrame(scrollTimeout);
-                }
-                scrollTimeout = requestAnimationFrame(() => {
-                    lastScrollTime = performance.now();
-                    updatePosition();
-                });
-            } else {
-                lastScrollTime = now;
-                updatePosition();
+            if (scrollTimeout) {
+                cancelAnimationFrame(scrollTimeout);
             }
+            scrollTimeout = requestAnimationFrame(updatePosition);
         };
         
         const handleResize = () => {
-            const now = performance.now();
-            if (now - lastResizeTime < RESIZE_THROTTLE) {
-                if (resizeTimeout) {
-                    clearTimeout(resizeTimeout);
-                }
-                resizeTimeout = setTimeout(() => {
-                    lastResizeTime = performance.now();
-                    updatePosition();
-                }, RESIZE_THROTTLE);
-            } else {
-                lastResizeTime = now;
-                updatePosition();
+            if (resizeTimeout) {
+                clearTimeout(resizeTimeout);
             }
+            resizeTimeout = setTimeout(() => {
+                requestAnimationFrame(updatePosition);
+            }, 100);
         };
         
-        // Update on scroll and resize - use passive listeners for better performance
-        window.addEventListener('scroll', handleScroll, { passive: true, capture: false });
-        window.addEventListener('resize', handleResize, { passive: true });
+        // Update on scroll and resize
+        window.addEventListener('scroll', handleScroll, true);
+        window.addEventListener('resize', handleResize);
 
         return () => {
-            window.removeEventListener('scroll', handleScroll, { passive: true, capture: false });
-            window.removeEventListener('resize', handleResize, { passive: true });
+            window.removeEventListener('scroll', handleScroll, true);
+            window.removeEventListener('resize', handleResize);
             // Cleanup element styles
             if (elementCleanupRef.current) {
                 elementCleanupRef.current();
@@ -351,7 +401,7 @@ const OnboardingGuide = ({
                 clearTimeout(resizeTimeout);
             }
         };
-    }, [open, targetElement, currentStepIndex, steps, getElement]);
+    }, [open, targetElement, currentStepIndex, steps]);
 
     if (!open || !steps || currentStepIndex < 0 || currentStepIndex >= steps.length) {
         return null;
@@ -371,7 +421,7 @@ const OnboardingGuide = ({
     };
 
     const handleDismiss = () => {
-        dismissOnboarding();
+        dismissDocumentationOnboarding();
         onClose();
     };
 
@@ -400,8 +450,8 @@ const OnboardingGuide = ({
                                 right: 0,
                                 height: `${highlightBox.top}px`,
                                 bgcolor: alpha(theme.palette.common.black, 0.5),
-                                backdropFilter: 'blur(1px)',
-                                transition: 'opacity 0.2s ease',
+                                backdropFilter: 'blur(2px)',
+                                transition: 'opacity 0.3s ease',
                                 pointerEvents: 'auto'
                             }}
                             onClick={handleDismiss}
@@ -415,8 +465,8 @@ const OnboardingGuide = ({
                                 right: 0,
                                 bottom: 0,
                                 bgcolor: alpha(theme.palette.common.black, 0.5),
-                                backdropFilter: 'blur(1px)',
-                                transition: 'opacity 0.2s ease',
+                                backdropFilter: 'blur(2px)',
+                                transition: 'opacity 0.3s ease',
                                 pointerEvents: 'auto'
                             }}
                             onClick={handleDismiss}
@@ -430,8 +480,8 @@ const OnboardingGuide = ({
                                 width: `${highlightBox.left}px`,
                                 height: `${highlightBox.height}px`,
                                 bgcolor: alpha(theme.palette.common.black, 0.5),
-                                backdropFilter: 'blur(1px)',
-                                transition: 'opacity 0.2s ease',
+                                backdropFilter: 'blur(2px)',
+                                transition: 'opacity 0.3s ease',
                                 pointerEvents: 'auto'
                             }}
                             onClick={handleDismiss}
@@ -445,8 +495,8 @@ const OnboardingGuide = ({
                                 right: 0,
                                 height: `${highlightBox.height}px`,
                                 bgcolor: alpha(theme.palette.common.black, 0.5),
-                                backdropFilter: 'blur(1px)',
-                                transition: 'opacity 0.2s ease',
+                                backdropFilter: 'blur(2px)',
+                                transition: 'opacity 0.3s ease',
                                 pointerEvents: 'auto'
                             }}
                             onClick={handleDismiss}
@@ -547,20 +597,16 @@ const OnboardingGuide = ({
                                 {currentStep.icon && (
                                     <Box
                                         sx={{
-                                            p: currentStep.icon.type === 'img' || currentStep.icon.props?.component === 'img' ? 0 : 1,
+                                            p: 1,
                                             borderRadius: 2,
-                                            bgcolor: (currentStep.icon.type === 'img' || currentStep.icon.props?.component === 'img') 
-                                                ? 'transparent' 
-                                                : alpha(theme.palette.primary.main, 0.1),
+                                            bgcolor: alpha(theme.palette.primary.main, 0.1),
                                             color: theme.palette.primary.main,
                                             display: 'flex',
                                             alignItems: 'center',
                                             justifyContent: 'center'
                                         }}
                                     >
-                                        {currentStep.icon.type === 'img' || currentStep.icon.props?.component === 'img' 
-                                            ? currentStep.icon 
-                                            : React.cloneElement(currentStep.icon, { size: 20 })}
+                                        {React.cloneElement(currentStep.icon, { size: 20 })}
                                     </Box>
                                 )}
                                 <Typography
@@ -688,4 +734,5 @@ const OnboardingGuide = ({
     );
 };
 
-export default OnboardingGuide;
+export default DocumentationOnboardingTour;
+

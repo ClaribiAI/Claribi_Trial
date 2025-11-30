@@ -2,15 +2,17 @@ import React from 'react';
 import {
     Box,
     Typography,
-    useTheme
+    useTheme,
+    IconButton
 } from '@mui/material';
 import {
     Clock,
     FileText,
-    ChatCircle
+    ChatCircle,
+    ArrowClockwise
 } from '@phosphor-icons/react';
 
-const StatsCards = ({ statsData, statsLoading }) => {
+const StatsCards = ({ statsData, statsLoading, onRefresh }) => {
     const theme = useTheme();
     const isDarkMode = theme.palette.mode === 'dark';
     const yellowColor = '#FCC000';
@@ -141,9 +143,39 @@ const StatsCards = ({ statsData, statsLoading }) => {
                     boxShadow: theme.palette.mode === 'dark' 
                         ? '0 4px 20px rgba(0,0,0,0.3)' 
                         : '0 4px 20px rgba(0,0,0,0.08)',
-                    border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}`
+                    border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}`,
+                    position: 'relative'
                 }}
             >
+                {/* Refresh Icon Button */}
+                {onRefresh && (
+                    <IconButton
+                        onClick={onRefresh}
+                        disabled={statsLoading}
+                        sx={{
+                            position: 'absolute',
+                            top: 8,
+                            right: 8,
+                            color: isDarkMode ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)',
+                            '&:hover': {
+                                color: isDarkMode ? 'rgba(255, 255, 255, 0.8)' : 'rgba(0, 0, 0, 0.8)',
+                                bgcolor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'
+                            },
+                            transition: 'all 0.2s ease',
+                            zIndex: 1,
+                            padding: '4px'
+                        }}
+                    >
+                        <ArrowClockwise 
+                            size={18} 
+                            weight="regular"
+                            style={{
+                                transform: statsLoading ? 'rotate(360deg)' : 'none',
+                                transition: statsLoading ? 'transform 1s linear infinite' : 'transform 0.3s ease'
+                            }}
+                        />
+                    </IconButton>
+                )}
                 {/* Hours Saved KPI */}
                 <StatItem
                     icon={Clock}

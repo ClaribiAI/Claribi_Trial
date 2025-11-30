@@ -253,14 +253,20 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
             component={Link}
                 to={item.path === '/' ? item.path : (fileId ? `${item.path}?fileId=${encodeURIComponent(fileId)}` : item.path)}
                 onClick={() => toggleSidebar && toggleSidebar()}
+                data-onboarding-target={
+                    item.path === '/' ? 'sidebar-home' :
+                    item.path === '/powerbi-docs' ? 'sidebar-docs' :
+                    item.path === '/powerbi-chat' ? 'sidebar-chat' :
+                    item.path === '/powerbi-diagnostics' ? 'sidebar-diagnostics' : null
+                }
             sx={{ 
               textDecoration: 'none', 
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
               width: '100%',
-              color: 'inherit',
-              cursor: 'pointer',
+                  color: 'inherit',
+                  cursor: 'pointer',
                   p: { xs: 0.5, sm: 0.75 },
                   borderRadius: 3,
                   position: 'relative',

@@ -46,17 +46,28 @@ export const getGeneratedDocs = async (collectionName) => {
     }
 };
 
-export const analyzePowerBISection = async (collectionName, section, customInstructions = '') => {
-    const requestData = {
-        collection_name: collectionName,
-        custom_instructions: customInstructions.trim()
-    };
+export const analyzePowerBISection = async (collectionName, section, customInstructions = '', pdfFile = null) => {
+    let requestData;
+    let headers = {};
+    
+    // If PDF file is provided, use multipart/form-data, otherwise use JSON
+    if (pdfFile) {
+        requestData = new FormData();
+        requestData.append('collection_name', collectionName);
+        requestData.append('custom_instructions', customInstructions.trim());
+        requestData.append('pdf_file', pdfFile);
+        // Don't set Content-Type header - browser will set it with boundary
+    } else {
+        requestData = {
+            collection_name: collectionName,
+            custom_instructions: customInstructions.trim()
+        };
+        headers['Content-Type'] = 'application/json';
+    }
 
     try {
         const response = await api.post(`/api/powerbi-docs/analyze-section/${section}`, requestData, {
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: headers,
             timeout: 0
         });
         
@@ -165,6 +176,9 @@ export const rewriteDocumentationSection = async (collectionName, sectionName, s
         throw errorData;
     }
 };
+
+// Note: PDF formatting templates are now stored in frontend and sent with each generation request
+// The old upload/remove/get endpoints are no longer needed - PDF is sent directly with analyze-section requests
 
 // Re-export shared file operations
 export { powerbiFileService }; 

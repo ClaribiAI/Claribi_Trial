@@ -30,7 +30,13 @@ import {
     ArrowLeft,
     CaretDownIcon,
     DotsThreeVertical,
-    CloudArrowUp
+    CloudArrowUp,
+    FilePdf,
+    X,
+    Question,
+    ArrowClockwiseIcon,
+    DownloadIcon,
+    PencilSimpleIcon
 } from '@phosphor-icons/react';
 import { analyzePowerBISection, getGeneratedDocs, rewriteDocumentationSection /*, updateDocumentationSection */ } from '../../services/powerbiDocsService';
 import { reuploadPowerBIFile } from '../../services/powerbiChatService';
@@ -40,6 +46,8 @@ import CustomInstructionsModal from './components/CustomInstructionsModal';
 import documentExportService from '../../services/documentExportService';
 import ChatPage from '../powerbi-chat/ChatPage';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import DocumentationOnboardingTour from '../../components/onboarding/DocumentationOnboardingTour';
+import { shouldShowDocumentationOnboarding, resetDocumentationOnboarding, dismissDocumentationOnboarding } from '../../services/onboardingService';
 
 const DocumentationPage = ({ 
     selectedFile, 
@@ -78,11 +86,29 @@ const DocumentationPage = ({
     const [reuploadProgress, setReuploadProgress] = useState(0);
     const fileInputRef = useRef(null);
     
+    // PDF formatting template state - stored in frontend only
+    const [formattingPDF, setFormattingPDF] = useState(null); // Stores { file: File, filename: string }
+    const pdfInputRef = useRef(null);
+    
     // Chat interface state
     const [showChat, setShowChat] = useState(false);
     const [chatInitialMessage, setChatInitialMessage] = useState('');
     const [chatWidth, setChatWidth] = useState(50); // Percentage of viewport width
     const [isDragging, setIsDragging] = useState(false);
+
+    // Onboarding tour state
+    const [showOnboardingTour, setShowOnboardingTour] = useState(false);
+    const [currentTourStep, setCurrentTourStep] = useState(0);
+    const onboardingDismissedRef = useRef(false); // Track if onboarding was explicitly dismissed
+    
+    // Refs for tour target elements
+    const generateAllButtonRef = useRef(null);
+    const sectionTabsRef = useRef(null);
+    const generateButtonRef = useRef(null);
+    const regenerateButtonRef = useRef(null);
+    const exportButtonRef = useRef(null);
+    const contentAreaRef = useRef(null);
+    const menuButtonRef = useRef(null);
 
     // Define available sections with Phosphor icons matching sidebar style
     const sections = [
@@ -111,6 +137,150 @@ const DocumentationPage = ({
             description: 'Security assessment and compliance review'
         }
     ];
+
+    // Define onboarding tour steps
+    const tourSteps = [
+        {
+            title: 'Welcome to Documentation',
+            description: 'This is your documentation workspace. Here you can generate comprehensive documentation for your Power BI file, including executive summaries, data model analysis, visualizations, and security assessments.',
+            icon: <FileTextIcon size={20} />,
+            position: 'bottom-center',
+            getTargetElement: () => null // Welcome step - no target
+        },
+        {
+            title: 'Generate All Sections',
+            description: 'Click the "Generate All" button to create documentation for all sections at once. This is the fastest way to get started!',
+            icon: <SparkleIcon size={20} />,
+            position: 'bottom-right',
+            getTargetElement: () => generateAllButtonRef
+        },
+        {
+            title: 'Navigate Between Sections',
+            description: 'Use these tabs to switch between different documentation sections, each section providing unique insights into your Power BI file.',
+            icon: <FileTextIcon size={20} />,
+            position: 'bottom',
+            getTargetElement: () => sectionTabsRef
+        },
+        {
+            title: 'Regenerate Sections',
+            description: 'After generating a section, you can regenerate it with custom instructions. Click the regenerate button to create a new version of the documentation with your specific requirements.',
+            icon: <ArrowClockwiseIcon size={20} />,
+            position: 'bottom-right',
+            getTargetElement: () => regenerateButtonRef,
+            skipIfNotFound: false // Show even if content doesn't exist (buttons will be visible during onboarding)
+        },
+        {
+            title: 'Rewrite Text',
+            description: 'Select any text in the generated documentation and a menu will appear. You can rewrite the selected text in different styles: concise, professional, or casual. This helps you customize specific parts of the documentation.',
+            icon: <PencilSimpleIcon size={20} />,
+            position: 'center',
+            getTargetElement: () => contentAreaRef,
+            skipIfNotFound: false, // Always show this step
+            noHighlight: true // Don't highlight anything, just show the tooltip
+        },
+        {
+            title: 'Export Documentation',
+            description: 'Export your documentation in multiple formats: HTML, Word (.docx), or PDF. Perfect for sharing with your team!',
+            icon: <DownloadIcon size={20} />,
+            position: 'bottom-right',
+            getTargetElement: () => exportButtonRef,
+            skipIfNotFound: false // Show even if content doesn't exist (buttons will be visible during onboarding)
+        }
+    ];
+
+    // Tour navigation handlers
+    const handleTourNext = () => {
+        if (currentTourStep < tourSteps.length - 1) {
+            // Check if next step should be skipped
+            let nextStep = currentTourStep + 1;
+            let skippedCount = 0;
+            const maxSteps = tourSteps.length;
+            
+            while (nextStep < maxSteps && skippedCount < maxSteps) {
+                const step = tourSteps[nextStep];
+                // Don't skip steps with noHighlight flag - they don't need an element
+                if (step.skipIfNotFound && !step.noHighlight) {
+                    const targetElement = step.getTargetElement();
+                    const element = targetElement?.current;
+                    if (!element) {
+                        // Skip this step and move to next
+                        nextStep++;
+                        skippedCount++;
+                        continue;
+                    }
+                }
+                break;
+            }
+            
+            if (nextStep < tourSteps.length) {
+                setCurrentTourStep(nextStep);
+            } else {
+                // All remaining steps were skipped, close tour and dismiss
+                onboardingDismissedRef.current = true;
+                dismissDocumentationOnboarding();
+                setShowOnboardingTour(false);
+            }
+        } else {
+            // Last step - close and dismiss
+            handleTourClose();
+        }
+    };
+
+    const handleTourBack = () => {
+        if (currentTourStep > 0) {
+            // Check if previous step should be skipped
+            let prevStep = currentTourStep - 1;
+            let skippedCount = 0;
+            const maxSteps = tourSteps.length;
+            
+            while (prevStep >= 0 && skippedCount < maxSteps) {
+                const step = tourSteps[prevStep];
+                // Don't skip steps with noHighlight flag - they don't need an element
+                if (step.skipIfNotFound && !step.noHighlight) {
+                    const targetElement = step.getTargetElement();
+                    const element = targetElement?.current;
+                    if (!element) {
+                        // Skip this step and move to previous
+                        prevStep--;
+                        skippedCount++;
+                        continue;
+                    }
+                }
+                break;
+            }
+            
+            if (prevStep >= 0) {
+                setCurrentTourStep(prevStep);
+            } else {
+                // All previous steps were skipped, go to first step
+                setCurrentTourStep(0);
+            }
+        }
+    };
+
+    const handleTourClose = () => {
+        // Set ref FIRST to prevent useEffect from reopening
+        onboardingDismissedRef.current = true;
+        // Dismiss onboarding when closed to prevent it from reopening
+        dismissDocumentationOnboarding();
+        // Then close the tour
+        setShowOnboardingTour(false);
+    };
+
+    const handleTourSkip = () => {
+        setShowOnboardingTour(false);
+        // Dismiss onboarding when skipped to prevent it from reopening
+        dismissDocumentationOnboarding();
+        onboardingDismissedRef.current = true;
+    };
+
+    // Handler to retrigger onboarding tour
+    const handleRetriggerOnboarding = () => {
+        resetDocumentationOnboarding();
+        onboardingDismissedRef.current = false; // Reset the dismissed flag
+        setCurrentTourStep(0);
+        setShowOnboardingTour(true);
+    };
 
 
     const handleCloseChat = () => {
@@ -216,7 +386,9 @@ const DocumentationPage = ({
         setWarning(null);
 
         try {
-            const result = await analyzePowerBISection(selectedFile.collection_name, sectionId, customInstructions);
+            // Send PDF file with generation request if available
+            const pdfFile = formattingPDF?.file || null;
+            const result = await analyzePowerBISection(selectedFile.collection_name, sectionId, customInstructions, pdfFile);
             
             // Check for warning in response
             if (result && result.warning && result.warning.type === 'approaching_limit') {
@@ -447,6 +619,61 @@ const DocumentationPage = ({
         loadExistingDocs();
     }, [selectedFile?.collection_name]);
 
+    // Reset PDF state when file changes (frontend-only storage, no cleanup needed)
+    React.useEffect(() => {
+        setFormattingPDF(null);
+    }, [selectedFile?.collection_name]);
+
+    // Check if onboarding tour should be shown when file is selected and initial load is complete
+    React.useEffect(() => {
+        if (selectedFile && initialLoadComplete && shouldShowDocumentationOnboarding() && !showOnboardingTour && !onboardingDismissedRef.current) {
+            // Small delay to ensure DOM is ready and elements are mounted
+            const timer = setTimeout(() => {
+                // Double-check that onboarding should still be shown (user might have dismissed it)
+                if (shouldShowDocumentationOnboarding() && !onboardingDismissedRef.current) {
+                    setShowOnboardingTour(true);
+                    setCurrentTourStep(0);
+                }
+            }, 800);
+            return () => clearTimeout(timer);
+        }
+    }, [selectedFile, initialLoadComplete, showOnboardingTour]);
+
+    const handlePDFInputChange = (event) => {
+        const file = event.target.files[0];
+        if (!file || !selectedFile) return;
+
+        // Validate file type
+        if (!file.name.toLowerCase().endsWith('.pdf')) {
+            showNotification('Please select a valid PDF file', 'error');
+            return;
+        }
+
+        // Validate file size (20MB limit)
+        const maxSize = 20 * 1024 * 1024;
+        if (file.size > maxSize) {
+            showNotification('PDF file must be less than 20MB', 'error');
+            return;
+        }
+
+        // Store PDF file in frontend state (no backend upload needed)
+        setFormattingPDF({
+            file: file,
+            filename: file.name
+        });
+        showNotification('PDF formatting template selected. It will be used when generating documentation.', 'success');
+        
+        // Reset input to allow selecting the same file again
+        if (pdfInputRef.current) {
+            pdfInputRef.current.value = '';
+        }
+    };
+
+    const handlePDFRemove = () => {
+        setFormattingPDF(null);
+        showNotification('PDF formatting template removed', 'success');
+    };
+
     const handleGenerateAllClick = (event) => {
         if (!selectedFile) {
             setError('Please select a file first');
@@ -550,9 +777,10 @@ const DocumentationPage = ({
         setAnchorEl(null);
 
         try {
-            // Generate selected sections in parallel
+            // Generate selected sections in parallel - send PDF file if available
+            const pdfFile = formattingPDF?.file || null;
             const promises = sectionsToGenerate.map(section => 
-                analyzePowerBISection(selectedFile.collection_name, section.id, '')
+                analyzePowerBISection(selectedFile.collection_name, section.id, '', pdfFile)
             );
             
             const results = await Promise.all(promises);
@@ -626,6 +854,15 @@ const DocumentationPage = ({
                     accept=".pbix"
                     style={{ display: 'none' }}
                     onChange={handleFileInputChange}
+                />
+
+                {/* Hidden file input for PDF upload */}
+                <input
+                    ref={pdfInputRef}
+                    type="file"
+                    accept=".pdf"
+                    style={{ display: 'none' }}
+                    onChange={handlePDFInputChange}
                 />
 
                 {/* Loading overlay for reupload */}
@@ -711,6 +948,7 @@ const DocumentationPage = ({
 
                         {/* Action Button with Dropdown */}
                         <Button
+                            ref={generateAllButtonRef}
                             onClick={handleGenerateAllClick}
                             disabled={Object.values(sectionLoading).some(isLoading => isLoading)}
                             variant="contained"
@@ -735,9 +973,34 @@ const DocumentationPage = ({
                             {Object.values(sectionLoading).some(isLoading => isLoading) ? 'Generating...' : 'Generate All'}
                         </Button>
 
+                        {/* Help/Onboarding Button */}
+                        <Tooltip title="Need help?">
+                            <Button
+                                onClick={handleRetriggerOnboarding}
+                                sx={{
+                                    minWidth: 'auto',
+                                    width: 40,
+                                    height: 40,
+                                    borderRadius: 2,
+                                    bgcolor: 'transparent',
+                                    color: theme.palette.text.secondary,
+                                    p: 0,
+                                    '&:hover': {
+                                        bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                        color: theme.palette.primary.main,
+                                        transform: 'scale(1.05)'
+                                    },
+                                    transition: 'all 0.2s ease'
+                                }}
+                            >
+                                <Question size={20} />
+                            </Button>
+                        </Tooltip>
+
                         {/* 3 Dots Menu Button */}
                         <Tooltip title="More options">
                             <Button
+                                ref={menuButtonRef}
                                 onClick={handleMenuOpen}
                                 sx={{
                                     minWidth: 'auto',
@@ -828,12 +1091,15 @@ const DocumentationPage = ({
                 <Box sx={{ px: 4, py: 4, flexGrow: 1 }}>
                 {/* Compact Tab Navigation */}
                 <Paper 
+                    ref={sectionTabsRef}
                     sx={{ 
                         mb: 4, 
                         borderRadius: 2,
                         boxShadow: theme.shadows[1],
                         overflow: showChat ? 'visible' : 'hidden',
-                        bgcolor: theme.palette.background.paper
+                        bgcolor: theme.palette.background.paper,
+                        position: 'relative',
+                        zIndex: 1 // Low z-index to ensure it doesn't interfere with onboarding
                     }}
                 >
                     <Tabs
@@ -939,6 +1205,17 @@ const DocumentationPage = ({
                                 onRewrite={handleRewriteSection}
                                 rewriteLoading={rewriteLoading}
                                 theme={theme}
+                                formattingPDF={formattingPDF}
+                                onPDFInputChange={handlePDFInputChange}
+                                onPDFRemove={handlePDFRemove}
+                                pdfInputRef={pdfInputRef}
+                                tourRefs={activeTab === index ? {
+                                    generateButton: generateButtonRef,
+                                    regenerateButton: regenerateButtonRef,
+                                    exportButton: exportButtonRef,
+                                    contentArea: contentAreaRef
+                                } : undefined}
+                                isOnboardingActive={showOnboardingTour}
                             />
                         </Box>
                     ))}
@@ -1000,7 +1277,25 @@ const DocumentationPage = ({
                     setCustomInstructions={setCustomInstructions}
                     onRegenerate={handleRegenerateWithInstructions}
                     isLoading={sectionLoading[currentSectionForRegeneration]}
+                    formattingPDF={formattingPDF}
+                    onPDFInputChange={handlePDFInputChange}
+                    onPDFRemove={handlePDFRemove}
+                    pdfInputRef={pdfInputRef}
                 />
+
+                {/* Documentation Onboarding Tour */}
+                {showOnboardingTour && (
+                    <DocumentationOnboardingTour
+                        open={showOnboardingTour}
+                        onClose={handleTourClose}
+                        steps={tourSteps}
+                        currentStepIndex={currentTourStep}
+                        onNext={handleTourNext}
+                        onBack={handleTourBack}
+                        onSkip={handleTourSkip}
+                        targetElement={tourSteps[currentTourStep]?.getTargetElement?.()}
+                    />
+                )}
 
                 {/* Section Selection Dropdown Menu */}
                 <Menu
@@ -1010,7 +1305,7 @@ const DocumentationPage = ({
                     PaperProps={{
                         sx: {
                             minWidth: 300,
-                            maxHeight: 500,
+                            maxHeight: formattingPDF ? 600 : 500,
                             borderRadius: 2,
                             boxShadow: theme.shadows[8],
                             mt: 1
@@ -1086,6 +1381,7 @@ const DocumentationPage = ({
                                 bgcolor: theme.palette.primary.main,
                                 color: theme.palette.primary.contrastText,
                                 borderRadius: 2,
+                                mb: 1.5,
                                 '&:hover': {
                                     bgcolor: theme.palette.primary.dark,
                                     color: theme.palette.primary.contrastText
@@ -1097,6 +1393,139 @@ const DocumentationPage = ({
                         >
                             {Object.values(sectionLoading).some(isLoading => isLoading) ? 'Generating...' : `Generate ${selectedSections.length} Section${selectedSections.length !== 1 ? 's' : ''}`}
                         </Button>
+
+                        {/* PDF Upload Option */}
+                        <Divider sx={{ my: 1.5 }} />
+                        
+                        {/* PDF Status Display */}
+                        {formattingPDF && (
+                            <Box
+                                sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    px: 1.5,
+                                    py: 1,
+                                    mb: 1,
+                                    borderRadius: 1.5,
+                                    bgcolor: alpha(theme.palette.primary.main, 0.08),
+                                    border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`
+                                }}
+                            >
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1, minWidth: 0 }}>
+                                    <FilePdf size={18} color={theme.palette.primary.main} />
+                                    <Typography
+                                        variant="body2"
+                                        sx={{
+                                            color: theme.palette.primary.main,
+                                            fontWeight: 500,
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            whiteSpace: 'nowrap'
+                                        }}
+                                    >
+                                        {formattingPDF.filename}
+                                    </Typography>
+                                </Box>
+                                <Tooltip title="Remove PDF template">
+                                    <Button
+                                        onClick={handlePDFRemove}
+                                        size="small"
+                                        sx={{
+                                            minWidth: 'auto',
+                                            width: 24,
+                                            height: 24,
+                                            p: 0,
+                                            color: theme.palette.text.secondary,
+                                            '&:hover': {
+                                                bgcolor: alpha(theme.palette.error.main, 0.1),
+                                                color: theme.palette.error.main
+                                            }
+                                        }}
+                                    >
+                                        <X size={14} />
+                                    </Button>
+                                </Tooltip>
+                            </Box>
+                        )}
+
+                        {/* PDF Upload Button */}
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: formattingPDF ? 0.5 : 0 }}>
+                            <Button
+                                fullWidth
+                                variant={formattingPDF ? "outlined" : "outlined"}
+                                onClick={() => pdfInputRef.current?.click()}
+                                disabled={!selectedFile}
+                                startIcon={<FilePdf size={16} />}
+                                sx={{
+                                    borderColor: formattingPDF ? alpha(theme.palette.primary.main, 0.5) : alpha(theme.palette.text.secondary, 0.3),
+                                    color: formattingPDF ? theme.palette.primary.main : theme.palette.text.secondary,
+                                    borderRadius: 2,
+                                    textTransform: 'none',
+                                    flex: 1,
+                                    '&:hover': {
+                                        borderColor: theme.palette.primary.main,
+                                        bgcolor: alpha(theme.palette.primary.main, 0.04),
+                                        color: theme.palette.primary.main
+                                    },
+                                    '&:disabled': {
+                                        borderColor: theme.palette.action.disabledBackground,
+                                        color: theme.palette.action.disabled
+                                    }
+                                }}
+                            >
+                                {formattingPDF 
+                                    ? 'Replace Style Reference' 
+                                    : 'Use PDF as Style Reference'}
+                            </Button>
+                            <Tooltip 
+                                title={
+                                    <Box sx={{ p: 0.5 }}>
+                                        <Typography variant="body2" sx={{ mb: 1 }}>
+                                            Upload a PDF document to use as a formatting template. The generated documentation will match the style, tone, language, and structure of your PDF example.
+                                        </Typography>
+                                        <Typography variant="caption" sx={{ fontStyle: 'italic' }}>
+                                            The PDF is only used during generation and is not stored permanently.
+                                        </Typography>
+                                    </Box>
+                                }
+                                arrow
+                                placement="top"
+                            >
+                                <Box
+                                    sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        width: 24,
+                                        height: 24,
+                                        borderRadius: '50%',
+                                        bgcolor: alpha(theme.palette.text.secondary, 0.1),
+                                        color: theme.palette.text.secondary,
+                                        cursor: 'help',
+                                        flexShrink: 0,
+                                        '&:hover': {
+                                            bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                            color: theme.palette.primary.main
+                                        }
+                                    }}
+                                >
+                                    <Question size={14} weight="fill" />
+                                </Box>
+                            </Tooltip>
+                        </Box>
+                        <input
+                            ref={pdfInputRef}
+                            type="file"
+                            accept=".pdf"
+                            onChange={handlePDFInputChange}
+                            style={{ display: 'none' }}
+                        />
+                        {formattingPDF && (
+                            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block', textAlign: 'center' }}>
+                                Documentation will match the style of: {formattingPDF.filename}
+                            </Typography>
+                        )}
                     </Box>
                 </Menu>
             </Box>

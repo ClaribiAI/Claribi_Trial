@@ -22,7 +22,7 @@ class PowerBIPbixService:
         """
         self.generator = PowerBIDocumentationGenerator(ai_client_instance)
 
-    def analyze_from_summaries(self, summaries: Dict, section: str, custom_instructions: str = '') -> tuple[Any, dict]:
+    def analyze_from_summaries(self, summaries: Dict, section: str, custom_instructions: str = '', file_uri: str = None) -> tuple[Any, dict]:
         """Analyzes a specific section using file summaries."""
         try:
             logger.info(f"Starting section analysis for: '{section}' using summaries")
@@ -38,7 +38,7 @@ class PowerBIPbixService:
             }
 
             if section in analysis_functions:
-                result, token_usage = analysis_functions[section](context, custom_instructions)
+                result, token_usage = analysis_functions[section](context, custom_instructions, file_uri)
                 
                 # Special handling for improvement_recommendations - automatically parse them
                 if section == 'improvement_recommendations':
@@ -110,7 +110,7 @@ class PowerBIPbixService:
                 })
         return measures
     
-    def parse_improvement_recommendations_from_summaries(self, summaries: Dict) -> tuple[List[Dict], dict]:
+    def parse_improvement_recommendations_from_summaries(self, summaries: Dict, file_uri: str = None) -> tuple[List[Dict], dict]:
         """Parse improvement recommendations from summaries."""
         try:
             logger.info("Parsing improvement recommendations from summaries")
@@ -118,7 +118,7 @@ class PowerBIPbixService:
             context = self._prepare_context_from_summaries(summaries)
             
             # Generate the recommendations text
-            recommendations_text, token_usage = self.generator.generate_improvement_recommendations(context)
+            recommendations_text, token_usage = self.generator.generate_improvement_recommendations(context, '', file_uri)
             
             # Parse the recommendations
             parsed_recommendations = self.generator.parse_improvement_recommendations(recommendations_text)

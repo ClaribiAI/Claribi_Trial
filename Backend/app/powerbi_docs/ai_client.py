@@ -31,7 +31,8 @@ class AIClient:
     def generate_content(cls,
                          prompt: str,
                          system_instruction: Optional[str] = None,
-                         context: Optional[str] = None) -> tuple[str, dict]:
+                         context: Optional[str] = None,
+                         file_uri: Optional[str] = None) -> tuple[str, dict]:
         """
         Generates content using the stateless Gemini API, incorporating system instructions into the prompt.
 
@@ -39,6 +40,7 @@ class AIClient:
             prompt: The main user prompt for the model to process.
             system_instruction: Instructions defining the model's role, rules, and persona.
             context: Optional context for logging purposes (e.g., 'executive_summary').
+            file_uri: Optional URI of a file uploaded to Gemini Files API to include as context.
 
         Returns:
             Tuple of (generated_text, token_usage_dict) where token_usage_dict contains:
@@ -58,7 +60,19 @@ class AIClient:
             if system_instruction and system_instruction.strip():
                 combined_prompt = f"{system_instruction.strip()}\n\n{prompt}"
             
-            response = model.generate_content(combined_prompt)
+            # Prepare content parts - include file if provided
+            content_parts = [combined_prompt]
+            
+            if file_uri:
+                # Get the file from Gemini Files API
+                try:
+                    file = genai.get_file(file_uri.split('files/')[-1] if 'files/' in file_uri else file_uri)
+                    content_parts.append(file)
+                    logger.info(f"Including PDF file in generation{context_str}: {file_uri}")
+                except Exception as file_error:
+                    logger.warning(f"Failed to retrieve file from Gemini{context_str}: {file_error}. Continuing without file.")
+            
+            response = model.generate_content(content_parts)
 
             # Validate response has text attribute and is not empty
             if not hasattr(response, 'text') or not response.text:

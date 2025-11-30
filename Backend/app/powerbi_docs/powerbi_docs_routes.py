@@ -1,4 +1,4 @@
-from flask import request, jsonify
+from flask import request, jsonify, current_app
 from flask_cors import cross_origin
 import logging
 import re
@@ -22,6 +22,9 @@ powerbi_docs_service = PowerBIPbixService(ai_client)
 
 # Configure logger
 logger = logging.getLogger(__name__)
+
+# Note: PDF formatting templates are now stored in frontend and sent with each request
+# No backend storage needed - works with multiple instances
 
 # Allowed section types
 ALLOWED_SECTIONS = {
@@ -168,18 +171,30 @@ def get_generated_docs(collection_name):
 def analyze_pbix_section_route(section):
     """
     Endpoint to analyze a specific section using file summaries.
-    Expects JSON data with 'collection_name' and optional 'custom_instructions'.
+    Accepts multipart/form-data with:
+    - collection_name (required)
+    - custom_instructions (optional)
+    - pdf_file (optional) - PDF formatting template sent from frontend
     """
     try:
         # Validate section parameter
         if section not in ALLOWED_SECTIONS:
             return error_response(400, f'Invalid section. Allowed sections: {", ".join(sorted(ALLOWED_SECTIONS))}')
         
-        data = request.get_json()
-        if not data:
-            return error_response(400, 'JSON data is required')
+        # Handle both JSON and multipart/form-data requests
+        if request.content_type and 'multipart/form-data' in request.content_type:
+            collection_name = request.form.get('collection_name')
+            custom_instructions = request.form.get('custom_instructions', '')
+            pdf_file = request.files.get('pdf_file')
+        else:
+            # Legacy JSON support
+            data = request.get_json()
+            if not data:
+                return error_response(400, 'Request data is required')
+            collection_name = data.get('collection_name')
+            custom_instructions = data.get('custom_instructions', '')
+            pdf_file = None
             
-        collection_name = data.get('collection_name')
         if not collection_name:
             return error_response(400, 'collection_name is required')
         
@@ -187,7 +202,6 @@ def analyze_pbix_section_route(section):
         if not _validate_collection_name(collection_name):
             return error_response(400, 'Invalid collection name format')
             
-        custom_instructions = data.get('custom_instructions', '')
         if not isinstance(custom_instructions, str):
             custom_instructions = ''
 
@@ -234,11 +248,71 @@ def analyze_pbix_section_route(section):
             # Log error but allow request to proceed (fail open)
             logger.error(f"Error checking usage limit: {limit_check_error}", exc_info=True)
 
+        # Handle PDF file if provided (frontend sends it with each request)
+        file_uri = None
+        if pdf_file and pdf_file.filename:
+            try:
+                # Validate PDF file
+                if not pdf_file.filename.lower().endswith('.pdf'):
+                    logger.warning(f"Invalid file type for PDF formatting: {pdf_file.filename}")
+                else:
+                    # Check file size (20MB limit)
+                    pdf_file.seek(0, 2)
+                    file_size = pdf_file.tell()
+                    pdf_file.seek(0)
+                    
+                    max_size = 20 * 1024 * 1024  # 20MB
+                    if file_size <= max_size and file_size > 0:
+                        # Save temporarily and upload to Gemini
+                        import tempfile
+                        import os
+                        import google.generativeai as genai
+                        from app.config.settings import config
+                        import time
+                        
+                        temp_dir = os.path.join(current_app.instance_path, 'temp_uploads')
+                        os.makedirs(temp_dir, exist_ok=True)
+                        
+                        temp_file = tempfile.NamedTemporaryFile(suffix='.pdf', dir=temp_dir, delete=False)
+                        temp_filename = temp_file.name
+                        
+                        try:
+                            pdf_file.save(temp_filename)
+                            temp_file.close()
+                            
+                            # Upload to Gemini Files API
+                            genai.configure(api_key=config.GOOGLE_API_KEY)
+                            uploaded_file = genai.upload_file(
+                                path=temp_filename,
+                                display_name=pdf_file.filename
+                            )
+                            
+                            # Wait for file to be processed
+                            while uploaded_file.state.name == "PROCESSING":
+                                time.sleep(2)
+                                uploaded_file = genai.get_file(uploaded_file.name)
+                            
+                            if uploaded_file.state.name == "FAILED":
+                                logger.warning(f"Failed to process PDF file with Gemini: {pdf_file.filename}")
+                            else:
+                                file_uri = uploaded_file.uri
+                                logger.info(f"Uploaded PDF formatting template for collection {collection_name}: {pdf_file.filename}")
+                        finally:
+                            # Clean up temporary file
+                            try:
+                                if os.path.exists(temp_filename):
+                                    os.remove(temp_filename)
+                            except Exception as cleanup_error:
+                                logger.warning(f"Failed to cleanup temp PDF file: {cleanup_error}")
+            except Exception as pdf_error:
+                logger.warning(f"Error processing PDF file: {pdf_error}. Continuing without PDF formatting.")
+
         # Analyze the specific section using summaries
         section_analysis, token_usage = powerbi_docs_service.analyze_from_summaries(
             summaries, 
             section, 
-            custom_instructions
+            custom_instructions,
+            file_uri
         )
         
         # Log content length before saving
@@ -300,6 +374,7 @@ def parse_improvement_recommendations_route():
     """
     Endpoint to parse improvement recommendations using file summaries.
     Expects JSON data with 'collection_name'.
+    Note: PDF formatting is not used for improvement recommendations.
     """
     try:
         data = request.get_json()
@@ -320,8 +395,8 @@ def parse_improvement_recommendations_route():
         if not summaries:
             return error_response(404, 'File summaries not found')
 
-        # Parse improvement recommendations using summaries
-        recommendations, token_usage = powerbi_docs_service.parse_improvement_recommendations_from_summaries(summaries)
+        # Parse improvement recommendations using summaries (no PDF formatting)
+        recommendations, token_usage = powerbi_docs_service.parse_improvement_recommendations_from_summaries(summaries, None)
         
         # Save generated recommendations to database with graceful error handling
         try:
@@ -554,3 +629,7 @@ def rewrite_section():
     except Exception as e:
         logger.error(f"Error rewriting section: {e}", exc_info=True)
         return error_response(500, 'Failed to rewrite section')
+
+# Note: PDF formatting endpoints (upload/remove/get) have been removed.
+# PDFs are now stored in frontend and sent with each generation request.
+# See FRONTEND_PDF_STORAGE.md for implementation details.

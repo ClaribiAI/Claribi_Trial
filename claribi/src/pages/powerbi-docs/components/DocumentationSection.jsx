@@ -19,6 +19,10 @@ import {
     FormControl,
     Select,
     MenuItem,
+    Menu,
+    ListItemIcon,
+    ListItemText,
+    Divider,
     CircularProgress,
     useTheme,
     alpha
@@ -29,7 +33,11 @@ import {
     DownloadIcon,
     SparkleIcon,
     FloppyDiskIcon,
-    XIcon
+    XIcon,
+    FilePdf,
+    Question,
+    X,
+    CaretDownIcon
 } from '@phosphor-icons/react';
 import MarkdownRenderer from '../../../components/ui/MarkdownRenderer';
 import LoadingOverlay from './LoadingOverlay';
@@ -237,13 +245,29 @@ const DocumentationSection = memo(({
     onGenerate,
     onRewrite,
     rewriteLoading,
-    theme 
+    theme,
+    formattingPDF,
+    onPDFInputChange,
+    onPDFRemove,
+    pdfInputRef,
+    tourRefs,
+    isOnboardingActive
 }) => {
     const [menuAnchor, setMenuAnchor] = useState(null);
     const [selectedTextData, setSelectedTextData] = useState(null);
+    const [pdfMenuAnchor, setPdfMenuAnchor] = useState(null);
     const contentRef = useRef(null);
     // Ref to track latest content to ensure position calculations use fresh data
     const latestContentRef = useRef(content);
+    
+    // Sync tour refs
+    useEffect(() => {
+        if (tourRefs) {
+            if (tourRefs.contentArea && contentRef.current) {
+                tourRefs.contentArea.current = contentRef.current;
+            }
+        }
+    }, [tourRefs, content]);
     
     // Update ref whenever content changes
     useEffect(() => {
@@ -425,8 +449,19 @@ const DocumentationSection = memo(({
         );
     }, [selectedTextData, section.id, onRewrite, rewriteLoading]);
     return (
-        <Fade in={true} timeout={600}>
-            <Card 
+        <>
+            {/* Hidden PDF input - render outside Card to ensure it's always accessible */}
+            {pdfInputRef && (
+                <input
+                    ref={pdfInputRef}
+                    type="file"
+                    accept=".pdf"
+                    onChange={onPDFInputChange}
+                    style={{ display: 'none' }}
+                />
+            )}
+            <Fade in={true} timeout={600}>
+                <Card 
                 elevation={0}
                 sx={{ 
                     borderRadius: 3,
@@ -465,7 +500,7 @@ const DocumentationSection = memo(({
                     }
                     action={
                         <Box display="flex" gap={1}>
-                            {content && (
+                            {(content || isOnboardingActive) && (
                                 <>
                                     {/* Editing functionality commented out */}
                                     {/* Edit button - hidden for improvement recommendations */}
@@ -485,13 +520,15 @@ const DocumentationSection = memo(({
                                         </Tooltip>
                                     )} */}
                                     
-                                    {/* Regenerate button - always visible when content exists */}
+                                    {/* Regenerate button - visible when content exists or during onboarding */}
                                     <Tooltip title="Regenerate section">
                                         <IconButton 
+                                            ref={tourRefs?.regenerateButton}
                                             onClick={() => onRegenerate(section.id)}
-                                            disabled={sectionLoading[section.id]}
+                                            disabled={sectionLoading[section.id] || (!content && !isOnboardingActive)}
                                             size="small"
                                             sx={{
+                                                opacity: (!content && !isOnboardingActive) ? 0.5 : 1,
                                                 '&:hover': {
                                                     backgroundColor: theme.palette.background.hover
                                                 }
@@ -501,13 +538,21 @@ const DocumentationSection = memo(({
                                         </IconButton>
                                     </Tooltip>
                                     
-                                    {/* Export button - always visible when content exists */}
-                                    <FormControl size="small" sx={{ minWidth: 120 }}>
+                                    {/* Export button - visible when content exists or during onboarding */}
+                                    <FormControl 
+                                        size="small" 
+                                        sx={{ 
+                                            minWidth: 120,
+                                            opacity: (!content && !isOnboardingActive) ? 0.5 : 1
+                                        }} 
+                                        ref={tourRefs?.exportButton}
+                                    >
                                         <Select
                                             displayEmpty
                                             value=""
+                                            disabled={!content && !isOnboardingActive}
                                             onChange={(e) => {
-                                                if (e.target.value) {
+                                                if (e.target.value && content) {
                                                     onExport(section.id, content, e.target.value);
                                                 }
                                             }}
@@ -574,37 +619,217 @@ const DocumentationSection = memo(({
                                     </Tooltip>
                                 </>
                             )} */}
-                            {!content && (
-                                <Button
-                                    onClick={() => onGenerate(section.id)}
-                                    disabled={sectionLoading[section.id]}
-                                    variant="contained"
-                                    size="small"
-                                    startIcon={sectionLoading[section.id] ? <CircularProgress size={16} color={theme.palette.primary.contrastText} /> : <SparkleIcon size={16} color={theme.palette.primary.contrastText} />}
-                                    sx={{ 
-                                        bgcolor: theme.palette.primary.main,
-                                        color: theme.palette.primary.contrastText,
-                                        borderRadius: 2,
-                                        textTransform: 'none',
-                                        fontWeight: 500,
-                                        '&:hover': {
-                                            bgcolor: theme.palette.primary.dark,
-                                            color: theme.palette.primary.contrastText
-                                        },
-                                        '&:disabled': {
-                                            bgcolor: alpha(theme.palette.primary.main, 0.3)
-                                        }
-                                    }}
-                                >
-                                    {sectionLoading[section.id] ? 'Generating...' : 'Generate'}
-                                </Button>
-                            )}
+                             {!content && (
+                                 <Button
+                                     ref={tourRefs?.generateButton}
+                                     onClick={(e) => {
+                                         // Check if click was on the arrow icon
+                                         const target = e.target;
+                                         const isArrowClick = target.closest('svg') || 
+                                                              target.tagName === 'svg' ||
+                                                              (target.closest('.MuiButton-endIcon') !== null);
+                                         
+                                         if (isArrowClick) {
+                                             e.stopPropagation();
+                                             setPdfMenuAnchor(e.currentTarget);
+                                         } else {
+                                             // Regular button click - generate
+                                             onGenerate(section.id);
+                                         }
+                                     }}
+                                     disabled={sectionLoading[section.id]}
+                                     variant="contained"
+                                     size="small"
+                                     startIcon={sectionLoading[section.id] ? <CircularProgress size={16} color={theme.palette.primary.contrastText} /> : <SparkleIcon size={16} color={theme.palette.primary.contrastText} />}
+                                     endIcon={<CaretDownIcon size={16} color={theme.palette.primary.contrastText} />}
+                                     sx={{ 
+                                         bgcolor: theme.palette.primary.main,
+                                         color: theme.palette.primary.contrastText,
+                                         fontFamily: "'Nunito Sans', sans-serif",
+                                         fontWeight: 500,
+                                         textTransform: 'none',
+                                         borderRadius: 2,
+                                         '&:hover': {
+                                             bgcolor: theme.palette.primary.dark,
+                                             color: theme.palette.primary.contrastText
+                                         },
+                                         '&:disabled': {
+                                             bgcolor: alpha(theme.palette.primary.main, 0.3)
+                                         },
+                                         '& .MuiButton-endIcon': {
+                                             pointerEvents: 'auto',
+                                             cursor: 'pointer'
+                                         }
+                                     }}
+                                 >
+                                     {sectionLoading[section.id] ? 'Generating...' : 'Generate'}
+                                 </Button>
+                             )}
                         </Box>
                     }
                     sx={{ pb: 1 }}
                 />
-                
-                <CardContent sx={{ pt: 0, position: 'relative', bgcolor: 'transparent' }}>
+                 {/* PDF Dropdown Menu */}
+                 <Menu
+                     anchorEl={pdfMenuAnchor}
+                     open={Boolean(pdfMenuAnchor)}
+                     onClose={() => setPdfMenuAnchor(null)}
+                     PaperProps={{
+                         sx: {
+                             minWidth: 300,
+                             maxHeight: formattingPDF ? 600 : 500,
+                             borderRadius: 2,
+                             boxShadow: theme.shadows[8],
+                             mt: 1
+                         }
+                     }}
+                     transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+                     anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+                 >
+                     {/* PDF Status Display */}
+                     {formattingPDF && (
+                         <Box
+                             sx={{
+                                 display: 'flex',
+                                 alignItems: 'center',
+                                 justifyContent: 'space-between',
+                                 px: 1.5,
+                                 py: 1,
+                                 mb: 1,
+                                 mx: 2,
+                                 mt: 1.5,
+                                 borderRadius: 1.5,
+                                 bgcolor: alpha(theme.palette.primary.main, 0.08),
+                                 border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`
+                             }}
+                         >
+                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1, minWidth: 0 }}>
+                                 <FilePdf size={18} color={theme.palette.primary.main} />
+                                 <Typography
+                                     variant="body2"
+                                     sx={{
+                                         color: theme.palette.primary.main,
+                                         fontWeight: 500,
+                                         overflow: 'hidden',
+                                         textOverflow: 'ellipsis',
+                                         whiteSpace: 'nowrap'
+                                     }}
+                                 >
+                                     {formattingPDF.filename}
+                                 </Typography>
+                             </Box>
+                             <Tooltip title="Remove PDF template">
+                                 <Button
+                                     onClick={() => {
+                                         onPDFRemove();
+                                         setPdfMenuAnchor(null);
+                                     }}
+                                     size="small"
+                                     sx={{
+                                         minWidth: 'auto',
+                                         width: 24,
+                                         height: 24,
+                                         p: 0,
+                                         color: theme.palette.text.secondary,
+                                         '&:hover': {
+                                             bgcolor: alpha(theme.palette.error.main, 0.1),
+                                             color: theme.palette.error.main
+                                         }
+                                     }}
+                                 >
+                                     <X size={14} />
+                                 </Button>
+                             </Tooltip>
+                         </Box>
+                     )}
+
+                     <Divider sx={{ my: 1.5 }} />
+                     
+                     {/* PDF Upload Button */}
+                     <Box sx={{ p: 2 }}>
+                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: formattingPDF ? 0.5 : 0 }}>
+                             <Button
+                                 fullWidth
+                                 variant={formattingPDF ? "outlined" : "outlined"}
+                                 onClick={(e) => {
+                                     e.preventDefault();
+                                     e.stopPropagation();
+                                     setPdfMenuAnchor(null);
+                                     // Use setTimeout to ensure menu closes before file dialog opens
+                                     setTimeout(() => {
+                                         if (pdfInputRef?.current) {
+                                             pdfInputRef.current.click();
+                                         }
+                                     }, 100);
+                                 }}
+                                 disabled={sectionLoading[section.id]}
+                                 startIcon={<FilePdf size={16} />}
+                                 sx={{
+                                     borderColor: formattingPDF ? alpha(theme.palette.primary.main, 0.5) : alpha(theme.palette.text.secondary, 0.3),
+                                     color: formattingPDF ? theme.palette.primary.main : theme.palette.text.secondary,
+                                     borderRadius: 2,
+                                     textTransform: 'none',
+                                     flex: 1,
+                                     '&:hover': {
+                                         borderColor: theme.palette.primary.main,
+                                         bgcolor: alpha(theme.palette.primary.main, 0.04),
+                                         color: theme.palette.primary.main
+                                     },
+                                     '&:disabled': {
+                                         borderColor: theme.palette.action.disabledBackground,
+                                         color: theme.palette.action.disabled
+                                     }
+                                 }}
+                             >
+                                 {formattingPDF 
+                                     ? 'Replace Style Reference' 
+                                     : 'Use PDF as Style Reference'}
+                             </Button>
+                             <Tooltip 
+                                 title={
+                                     <Box sx={{ p: 0.5 }}>
+                                         <Typography variant="body2" sx={{ mb: 1 }}>
+                                             Upload a PDF document to use as a formatting template. The generated documentation will match the style, tone, language, and structure of your PDF example.
+                                         </Typography>
+                                         <Typography variant="caption" sx={{ fontStyle: 'italic' }}>
+                                             The PDF is only used during generation and is not stored permanently.
+                                         </Typography>
+                                     </Box>
+                                 }
+                                 arrow
+                                 placement="top"
+                             >
+                                 <Box
+                                     sx={{
+                                         display: 'flex',
+                                         alignItems: 'center',
+                                         justifyContent: 'center',
+                                         width: 24,
+                                         height: 24,
+                                         borderRadius: '50%',
+                                         bgcolor: alpha(theme.palette.text.secondary, 0.1),
+                                         color: theme.palette.text.secondary,
+                                         cursor: 'help',
+                                         flexShrink: 0,
+                                         '&:hover': {
+                                             bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                             color: theme.palette.primary.main
+                                         }
+                                     }}
+                                 >
+                                     <Question size={14} weight="fill" />
+                                 </Box>
+                             </Tooltip>
+                         </Box>
+                         {formattingPDF && (
+                             <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block', textAlign: 'center' }}>
+                                 PDF will be used to format generated documentation
+                             </Typography>
+                         )}
+                     </Box>
+                 </Menu>
+                 
+                 <CardContent sx={{ pt: 0, position: 'relative', bgcolor: 'transparent' }}>
                     <LoadingOverlay open={sectionLoading[section.id]} theme={theme} />
                     
                     {content ? (
@@ -767,6 +992,7 @@ const DocumentationSection = memo(({
                 />
             </Card>
         </Fade>
+        </>
     );
 });
 

@@ -6,19 +6,27 @@ import {
     useTheme,
     Alert,
     Button,
-    Snackbar
+    Snackbar,
+    IconButton,
+    alpha
 } from '@mui/material';
 import {
     CloudArrowUp,
-    CheckCircle
+    CheckCircle,
+    FileText,
+    ChatCircle,
+    Stethoscope,
+    House,
+    Question
 } from '@phosphor-icons/react';
 import { uploadPowerBIFile } from '../../services/powerbiChatService';
 import UploadConfirmationDialog from '../../components/ui/UploadConfirmationDialog';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useFiles } from '../../contexts/FileContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme as useCustomTheme } from '../../contexts/ThemeContext';
 import statsService from '../../services/statsService';
-import { shouldShowOnboarding, dismissOnboarding } from '../../services/onboardingService';
+import { shouldShowOnboarding, dismissOnboarding, resetOnboarding } from '../../services/onboardingService';
 import StatsCards from './components/StatsCards';
 import FileManagementPage from './FileManagementPage';
 import FileActionSelectionDialog from './components/FileActionSelectionDialog';
@@ -26,6 +34,7 @@ import OnboardingGuide from '../../components/onboarding/OnboardingGuide';
 
 const Home = () => {
     const theme = useTheme();
+    const { isDarkMode } = useCustomTheme();
     const navigate = useNavigate();
     const { showNotification } = useNotification();
     const { files, loading, error, refreshFiles, removeFile } = useFiles();
@@ -58,6 +67,8 @@ const Home = () => {
     });
     const [uploadError, setUploadError] = useState(null);
     const [showOnboardingGuide, setShowOnboardingGuide] = useState(false);
+    const [currentOnboardingStep, setCurrentOnboardingStep] = useState(0);
+    const onboardingDismissedRef = useRef(false);
     
     // Get time-based greeting
     const getTimeBasedGreeting = () => {
@@ -80,6 +91,7 @@ const Home = () => {
     const [pendingFile, setPendingFile] = useState(null);
     
     const fileInputRef = useRef(null);
+    const uploadButtonRef = useRef(null);
 
     // Initialize session start time on first load
     useEffect(() => {
@@ -94,19 +106,20 @@ const Home = () => {
         const fromLoginRedirect = fromLoginRedirectRef.current || sessionStorage.getItem('from_login_redirect') === 'true';
         
         // Only show onboarding if: user is authenticated, guide not dismissed, and came from login
-        if (!authLoading && currentUser && shouldShowOnboarding() && fromLoginRedirect) {
+        if (!authLoading && currentUser && shouldShowOnboarding() && fromLoginRedirect && !onboardingDismissedRef.current) {
             // Clear the flag so it doesn't show again on subsequent navigations
             sessionStorage.removeItem('from_login_redirect');
             fromLoginRedirectRef.current = false;
             setShowOnboardingGuide(true);
+            setCurrentOnboardingStep(0);
         }
     }, [currentUser, authLoading]);
 
-    // Fetch stats on component mount
-    useEffect(() => {
-        const fetchStats = async () => {
-            try {
-                // First, try to get cached stats (synchronous, no loading state needed)
+    // Fetch stats function (can be called on mount or refresh)
+    const fetchStats = async (useCache = true) => {
+        try {
+            // First, try to get cached stats (synchronous, no loading state needed)
+            if (useCache) {
                 const cached = statsService.getCachedStats();
                 if (cached && cached.success && cached.data) {
                     setStatsData({
@@ -117,26 +130,34 @@ const Home = () => {
                     setStatsLoading(false);
                     return; // Use cached data, don't fetch from backend
                 }
-
-                // No cache available, fetch from backend
-                setStatsLoading(true);
-                const response = await statsService.getUserStats(false); // Don't use cache, fetch fresh
-                if (response.success && response.data) {
-                    setStatsData({
-                        timeSaved: response.data.time_saved || 0,
-                        documentsGenerated: response.data.documents_generated || 0,
-                        chatQueries: response.data.chat_queries || 0
-                    });
-                }
-            } catch (error) {
-                console.error('Error fetching stats:', error);
-            } finally {
-                setStatsLoading(false);
             }
-        };
-        
-        fetchStats();
+
+            // No cache available or refresh requested, fetch from backend
+            setStatsLoading(true);
+            const response = await statsService.getUserStats(false); // Don't use cache, fetch fresh
+            if (response.success && response.data) {
+                setStatsData({
+                    timeSaved: response.data.time_saved || 0,
+                    documentsGenerated: response.data.documents_generated || 0,
+                    chatQueries: response.data.chat_queries || 0
+                });
+            }
+        } catch (error) {
+            console.error('Error fetching stats:', error);
+        } finally {
+            setStatsLoading(false);
+        }
+    };
+
+    // Fetch stats on component mount
+    useEffect(() => {
+        fetchStats(true); // Use cache on initial load
     }, []);
+
+    // Handle refresh stats
+    const handleRefreshStats = () => {
+        fetchStats(false); // Don't use cache, fetch fresh
+    };
 
     const handleNavigateToChat = () => {
         navigate('/powerbi-chat');
@@ -268,12 +289,118 @@ const Home = () => {
     };
 
     const handleOnboardingClose = () => {
+        // Set ref FIRST to prevent useEffect from reopening
+        onboardingDismissedRef.current = true;
+        // Dismiss onboarding when closed to prevent it from reopening
+        dismissOnboarding();
+        // Then close the tour
         setShowOnboardingGuide(false);
     };
 
     const handleOnboardingDismiss = () => {
         dismissOnboarding();
         setShowOnboardingGuide(false);
+        onboardingDismissedRef.current = true;
+    };
+
+    // Define onboarding tour steps
+    const onboardingSteps = [
+        {
+            title: 'Welcome to Claribi Console',
+            description: 'Your intelligent companion for Power BI. Discover how to transform your data into insights with AI-powered documentation, chat, and diagnostics.',
+            icon: (
+                <Box
+                    component="img"
+                    src={isDarkMode ? '/claribi_icon_logo_dark.png' : '/claribi_icon_logo_light.png'}
+                    alt="Claribi Logo"
+                    sx={{
+                        width: 40,
+                        height: 40,
+                        objectFit: 'contain'
+                    }}
+                />
+            ),
+            position: 'center',
+            noHighlight: true,
+            getTargetElement: () => null
+        },
+        {
+            title: 'Upload Your Power BI File',
+            description: 'Start by uploading your Power BI (.pbix) file. Click the "Upload New" button to select and upload your file. Once uploaded, your file will be analyzed and ready for use.',
+            icon: <CloudArrowUp size={20} />,
+            position: 'bottom-right',
+            getTargetElement: () => uploadButtonRef
+        },
+        {
+            title: 'Generate Documentation',
+            description: 'Create comprehensive documentation for your Power BI dataset. Get detailed insights on data models, relationships, security settings, and best practice recommendations.',
+            icon: <FileText size={20} />,
+            position: 'right',
+            getTargetElement: () => {
+                const element = document.querySelector('[data-onboarding-target="sidebar-docs"]');
+                return element ? { current: element } : null;
+            }
+        },
+        {
+            title: 'Chat with Your Dataset',
+            description: 'Have real-time conversations with your Power BI dataset. Ask questions, get full DAX and M code generated, get help with creating new visuals and more. Simply select a file and start chatting.',
+            icon: <ChatCircle size={20} />,
+            position: 'right',
+            getTargetElement: () => {
+                const element = document.querySelector('[data-onboarding-target="sidebar-chat"]');
+                return element ? { current: element } : null;
+            }
+        },
+        {
+            title: 'Run Diagnostics',
+            description: 'Get actionable improvement recommendations for your Power BI file. Identify performance issues, optimization opportunities, and areas for enhancement.',
+            icon: <Stethoscope size={20} />,
+            position: 'right',
+            getTargetElement: () => {
+                const element = document.querySelector('[data-onboarding-target="sidebar-diagnostics"]');
+                return element ? { current: element } : null;
+            }
+        },
+        {
+            title: 'Navigate to Home',
+            description: 'Use the Home menu item to return to the main page where you can view all your uploaded files, statistics and quickly access your recent files.',
+            icon: <House size={20} />,
+            position: 'right',
+            getTargetElement: () => {
+                const element = document.querySelector('[data-onboarding-target="sidebar-home"]');
+                return element ? { current: element } : null;
+            }
+        }
+    ];
+
+    // Tour navigation handlers
+    const handleOnboardingNext = () => {
+        if (currentOnboardingStep < onboardingSteps.length - 1) {
+            setCurrentOnboardingStep(prev => prev + 1);
+        } else {
+            // Last step - close and dismiss
+            handleOnboardingClose();
+        }
+    };
+
+    const handleOnboardingBack = () => {
+        if (currentOnboardingStep > 0) {
+            setCurrentOnboardingStep(prev => prev - 1);
+        }
+    };
+
+    const handleOnboardingSkip = () => {
+        setShowOnboardingGuide(false);
+        // Dismiss onboarding when skipped to prevent it from reopening
+        dismissOnboarding();
+        onboardingDismissedRef.current = true;
+    };
+
+    const handleRestartOnboarding = () => {
+        resetOnboarding();
+        onboardingDismissedRef.current = false;
+        setCurrentOnboardingStep(0);
+        setShowOnboardingGuide(true);
     };
 
     return (
@@ -305,9 +432,30 @@ const Home = () => {
                 sx={{ 
                     bgcolor: theme.palette.background.chat,
                     py: 3,
-                    px: 4
+                    px: 4,
+                    position: 'relative'
                 }}
             >
+                {/* Help/Onboarding Restart Button */}
+                <IconButton
+                    onClick={handleRestartOnboarding}
+                    sx={{
+                        position: 'absolute',
+                        top: 8,
+                        right: 16,
+                        color: theme.palette.text.secondary,
+                        '&:hover': {
+                            bgcolor: alpha(theme.palette.background.hover, 0.5),
+                            color: theme.palette.text.primary
+                        },
+                        transition: 'all 0.2s ease',
+                        zIndex: 1
+                    }}
+                    title="Restart Onboarding Tour"
+                >
+                    <Question size={20} />
+                </IconButton>
+
                 <Box 
                     display="flex" 
                     alignItems="center" 
@@ -331,12 +479,13 @@ const Home = () => {
                             color: theme.palette.text.secondary, 
                             fontWeight: 400
                         }}>
-                            Choose your Power BI experience. Chat with your Power BI dataset, generate comprehensive documentation, or run diagnostics.
+                            Choose your experience. Chat with your Power BI dataset, generate comprehensive documentation, or run diagnostics.
                         </Typography>
                     </Box>
                     
                     {/* Upload New Button */}
                     <Button
+                        ref={uploadButtonRef}
                         variant="contained"
                         startIcon={<CloudArrowUp size={20} color={theme.palette.primary.contrastText} />}
                         onClick={handleUploadNew}
@@ -364,7 +513,11 @@ const Home = () => {
             </Box>
 
             {/* KPI Cards Section */}
-            <StatsCards statsData={statsData} statsLoading={statsLoading} />
+            <StatsCards 
+                statsData={statsData} 
+                statsLoading={statsLoading} 
+                onRefresh={handleRefreshStats}
+            />
 
             {/* Main Content */}
             <FileManagementPage
@@ -419,11 +572,18 @@ const Home = () => {
             />
 
             {/* Onboarding Guide */}
-            <OnboardingGuide
-                open={showOnboardingGuide}
-                onClose={handleOnboardingClose}
-                onDismiss={handleOnboardingDismiss}
-            />
+            {showOnboardingGuide && (
+                <OnboardingGuide
+                    open={showOnboardingGuide}
+                    onClose={handleOnboardingClose}
+                    steps={onboardingSteps}
+                    currentStepIndex={currentOnboardingStep}
+                    onNext={handleOnboardingNext}
+                    onBack={handleOnboardingBack}
+                    onSkip={handleOnboardingSkip}
+                    targetElement={onboardingSteps[currentOnboardingStep]?.getTargetElement?.()}
+                />
+            )}
         </Box>
     );
 };

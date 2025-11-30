@@ -19,6 +19,19 @@ IMPORTANT CORE RULES:
 6.  Start the response with the final requested output without any prior text responding to the prompt. 
 """
 
+# Formatting template instruction (added when PDF is provided)
+FORMATTING_TEMPLATE_INSTRUCTION = """
+FORMATTING AND STYLE REFERENCE:
+A PDF example document has been provided as a formatting and style reference. Please carefully analyze this document and match its:
+- Writing style and tone (formal, casual, technical, etc.)
+- Document structure and organization
+- Language and terminology conventions
+- Formatting patterns (headings, lists, paragraphs, emphasis)
+- Overall presentation style
+
+Your generated documentation should follow the same stylistic approach, formatting conventions, and language patterns as demonstrated in the provided PDF example. The content should be adapted to match the Power BI data being documented, but the presentation style should mirror the example document.
+"""
+
 # Executive Summary Generation
 EXECUTIVE_SUMMARY_SYSTEM_INSTRUCTION = BASE_SYSTEM_PROMPT + """
 
@@ -195,33 +208,43 @@ def format_custom_instructions(custom_instructions: str) -> str:
     )
 
 # Prompt generation functions for each analysis type
-def get_executive_summary_prompt(context: dict, custom_instructions: str = '') -> tuple[str, str]:
+def get_executive_summary_prompt(context: dict, custom_instructions: str = '', has_formatting_pdf: bool = False) -> tuple[str, str]:
     """Get the complete prompt for executive summary generation."""
     system_instruction = EXECUTIVE_SUMMARY_SYSTEM_INSTRUCTION
+    if has_formatting_pdf:
+        system_instruction += FORMATTING_TEMPLATE_INSTRUCTION
     user_prompt = get_executive_summary_user_prompt(context) + format_custom_instructions(custom_instructions)
     return system_instruction, user_prompt
 
-def get_data_model_analysis_prompt(context: dict, custom_instructions: str = '') -> tuple[str, str]:
+def get_data_model_analysis_prompt(context: dict, custom_instructions: str = '', has_formatting_pdf: bool = False) -> tuple[str, str]:
     """Get the complete prompt for data model analysis generation."""
     system_instruction = DATA_MODEL_SYSTEM_INSTRUCTION
+    if has_formatting_pdf:
+        system_instruction += FORMATTING_TEMPLATE_INSTRUCTION
     user_prompt = get_data_model_analysis_user_prompt(context) + format_custom_instructions(custom_instructions)
     return system_instruction, user_prompt
 
-def get_visualization_analysis_prompt(context: dict, custom_instructions: str = '') -> tuple[str, str]:
+def get_visualization_analysis_prompt(context: dict, custom_instructions: str = '', has_formatting_pdf: bool = False) -> tuple[str, str]:
     """Get the complete prompt for visualization analysis generation."""
     system_instruction = VISUALIZATION_SYSTEM_INSTRUCTION
+    if has_formatting_pdf:
+        system_instruction += FORMATTING_TEMPLATE_INSTRUCTION
     user_prompt = get_visualization_analysis_user_prompt(context) + format_custom_instructions(custom_instructions)
     return system_instruction, user_prompt
 
-def get_security_analysis_prompt(context: dict, custom_instructions: str = '') -> tuple[str, str]:
+def get_security_analysis_prompt(context: dict, custom_instructions: str = '', has_formatting_pdf: bool = False) -> tuple[str, str]:
     """Get the complete prompt for security analysis generation."""
     system_instruction = SECURITY_SYSTEM_INSTRUCTION
+    if has_formatting_pdf:
+        system_instruction += FORMATTING_TEMPLATE_INSTRUCTION
     user_prompt = get_security_analysis_user_prompt(context) + format_custom_instructions(custom_instructions)
     return system_instruction, user_prompt
 
-def get_improvement_recommendations_prompt(context: dict, custom_instructions: str = '') -> tuple[str, str]:
+def get_improvement_recommendations_prompt(context: dict, custom_instructions: str = '', has_formatting_pdf: bool = False) -> tuple[str, str]:
     """Get the complete prompt for improvement recommendations generation."""
     system_instruction = IMPROVEMENT_SYSTEM_INSTRUCTION
+    if has_formatting_pdf:
+        system_instruction += FORMATTING_TEMPLATE_INSTRUCTION
     user_prompt = get_improvement_recommendations_user_prompt(context) + format_custom_instructions(custom_instructions)
     return system_instruction, user_prompt
 
