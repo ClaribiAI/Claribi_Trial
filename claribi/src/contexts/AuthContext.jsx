@@ -1,6 +1,8 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import authService from '../services/auth';
 
+const isDev = import.meta.env && import.meta.env.DEV;
+
 // Create the context
 const AuthContext = createContext();
 
@@ -13,11 +15,36 @@ export const AuthProvider = ({ children }) => {
   const [error, setError] = useState(null);
   const [refreshInterval, setRefreshInterval] = useState(null);
 
+  // CRITICAL: Remove token from URL on mount if HTML script didn't catch it
+  // (HTML script in index.html handles this first, but this is a backup)
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const jwtToken = urlParams.get('token');
+    
+    if (jwtToken) {
+      // Remove token from URL immediately - synchronous operation
+      const url = new URL(window.location);
+      url.searchParams.delete('auth');
+      url.searchParams.delete('token');
+      window.history.replaceState({}, '', url);
+      
+      // Store token immediately (if not already stored by HTML script)
+      if (isDev) console.log("Storing JWT token from URL (React fallback)");
+      authService.setToken(jwtToken);
+      
+      // Mark that this is a login redirect so onboarding can detect it
+      sessionStorage.setItem('from_login_redirect', 'true');
+    }
+  }, []); // Run only once on mount
+
   // Fetch the user profile from the backend using JWT tokens
   const fetchUserProfile = async () => {
     try {
-      // Don't fetch profile if on login page
-      if (window.location.pathname === '/login') {
+      // Don't fetch profile if on login page (unless we just got a token)
+      const urlParams = new URLSearchParams(window.location.search);
+      const hasTokenInUrl = urlParams.get('token') !== null;
+      
+      if (window.location.pathname === '/login' && !hasTokenInUrl) {
         // Clear user state when on login page (handles logout redirect case)
         setCurrentUser(null);
         setLoading(false);
@@ -25,27 +52,17 @@ export const AuthProvider = ({ children }) => {
       }
       
       setLoading(true);
-      
-      // Check URL parameters for JWT token
-      const urlParams = new URLSearchParams(window.location.search);
-      const authStatus = urlParams.get('auth');
-      const jwtToken = urlParams.get('token'); // JWT token from login callback
 
       let data;
       
-      // After successful auth redirect, store JWT token and bootstrap session
-      if (authStatus === 'success' && jwtToken) {
-          console.log("Storing JWT token from login callback");
-          authService.setToken(jwtToken);
-          
-          // Mark that this is a login redirect (before cleaning URL) so onboarding can detect it
-          sessionStorage.setItem('from_login_redirect', 'true');
-          
-          // Clean up URL after storing token
-          const url = new URL(window.location);
-          url.searchParams.delete('auth');
-          url.searchParams.delete('token');
-          window.history.replaceState({}, '', url);
+      // Check if we just processed a token from URL (it should be in localStorage now)
+      const storedToken = authService.getToken();
+      const fromLoginRedirect = sessionStorage.getItem('from_login_redirect') === 'true';
+      
+      // If we have a token and came from login redirect, verify it
+      if (storedToken && fromLoginRedirect) {
+          // Clear the flag
+          sessionStorage.removeItem('from_login_redirect');
           
           // Verify the token
           data = await authService.verifyAuth();
@@ -71,7 +88,7 @@ export const AuthProvider = ({ children }) => {
         setCurrentUser(null);
       }
     } catch (err) {
-      console.error("Failed to fetch user profile:", err);
+      if (isDev) console.error("Failed to fetch user profile:", err);
       
       if (err.response?.status === 403) {
         // Handle 403 errors
@@ -98,11 +115,11 @@ export const AuthProvider = ({ children }) => {
       const timeUntilExpiry = payload.exp - currentTime;
 
       if (timeUntilExpiry < 300 && timeUntilExpiry > 0) {
-        console.log('Token expires soon, refreshing proactively...');
+        if (isDev) console.log('Token expires soon, refreshing proactively...');
         await authService.refreshAccessToken();
       }
     } catch (error) {
-      console.error('Error checking token expiry:', error);
+      if (isDev) console.error('Error checking token expiry:', error);
     }
   };
 
@@ -188,7 +205,7 @@ export const AuthProvider = ({ children }) => {
       // 2. Microsoft will redirect back to our frontend login page
       window.location.href = '/api/auth/logout';
     } catch (err) {
-      console.error("Logout failed:", err);
+      if (isDev) console.error("Logout failed:", err);
       setError(err.message || "Logout failed");
       
       // Clear user state and redirect on error
@@ -204,7 +221,7 @@ export const AuthProvider = ({ children }) => {
       const response = await authService.getGraphData();
       return response;
     } catch (err) {
-      console.error("Failed to fetch Graph API data:", err);
+      if (isDev) console.error("Failed to fetch Graph API data:", err);
       throw err;
     }
   };

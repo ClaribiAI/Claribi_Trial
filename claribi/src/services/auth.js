@@ -1,5 +1,7 @@
 import api from './api';
 
+const isDev = import.meta.env && import.meta.env.DEV;
+
 /**
  * JWT Token management utilities
  */
@@ -75,72 +77,9 @@ const authService = {
       const response = await api.get('/api/auth/verify-auth');
       return response.data;
     } catch (error) {
-      console.error("Auth verification failed:", error);
+      if (isDev) console.error("Auth verification failed:", error);
       
       return { success: false, error: error.message };
-    }
-  },
-
-  /**
-   * Logout the current user by clearing JWT token
-   * @returns {Promise} Response indicating success or failure
-   */
-  logout: async () => {
-    try {
-      // Clear JWT token from localStorage
-      tokenManager.removeToken();
-      
-      // Redirect to Microsoft logout
-      window.location.href = '/api/auth/logout';
-    } catch (error) {
-      // Even if there's an error, clear the token
-      tokenManager.removeToken();
-      throw error;
-    }
-  },
-
-  /**
-   * Check if the user is authenticated using JWT token
-   * @returns {Promise<boolean>} True if authenticated, false otherwise
-   */
-  isAuthenticated: async () => {
-    try {
-      // Skip auth check if on login page
-      if (window.location.pathname === '/login') {
-        return false;
-      }
-      
-      const token = tokenManager.getToken();
-      if (!token || tokenManager.isTokenExpired(token)) {
-        return false;
-      }
-      
-      const response = await api.get('/api/auth/profile');
-      return response.data.success === true;
-    } catch (error) {
-      return false;
-    }
-  },
-
-  /**
-   * Check if the session is valid using JWT token
-   * @returns {Promise} Response indicating session validity
-   */
-  sessionCheck: async () => {
-    try {
-      const token = tokenManager.getToken();
-      if (!token || tokenManager.isTokenExpired(token)) {
-        return { success: false, error: 'No valid token' };
-      }
-      
-      const response = await api.get('/api/auth/session-check');
-      return response.data;
-    } catch (error) {
-      console.error("Session check failed:", error);
-      return { 
-        success: false, 
-        error: error.response?.data?.message || "Session check failed" 
-      };
     }
   },
 
@@ -158,7 +97,7 @@ const authService = {
       const response = await api.get('/api/auth/graph-data');
       return response.data;
     } catch (error) {
-      console.error("Graph API data fetch failed:", error);
+      if (isDev) console.error("Graph API data fetch failed:", error);
       
       throw error;
     }
@@ -205,12 +144,12 @@ const authService = {
       const response = await api.get('/api/auth/refresh');
       if (response.data.success) {
         tokenManager.setToken(response.data.access_token);
-        console.log('Access token refreshed successfully');
+        if (isDev) console.log('Access token refreshed successfully');
         return response.data.access_token;
       }
       throw new Error('Token refresh failed');
     } catch (error) {
-      console.error('Token refresh failed:', error);
+      if (isDev) console.error('Token refresh failed:', error);
       // Clear token on refresh failure
       tokenManager.removeToken();
       throw error;

@@ -4,6 +4,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import LoadingSpinner from '../ui/LoadingSpinner';
 import authService from '../../services/auth';
 
+const isDev = import.meta.env && import.meta.env.DEV;
+
 const ProtectedRoute = ({ children }) => {
   const { currentUser, loading } = useAuth();
   const location = useLocation();
@@ -18,9 +20,9 @@ const ProtectedRoute = ({ children }) => {
           setTokenValidating(true);
           try {
             await authService.refreshAccessToken();
-            console.log('Token refreshed successfully in ProtectedRoute');
+            if (isDev) console.log('Token refreshed successfully in ProtectedRoute');
           } catch (error) {
-            console.error('Token refresh failed in ProtectedRoute:', error);
+            if (isDev) console.error('Token refresh failed in ProtectedRoute:', error);
             // The API interceptor will handle redirect to login
           } finally {
             setTokenValidating(false);

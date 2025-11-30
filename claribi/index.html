@@ -13,14 +13,32 @@
   <body>
     <div id="root"></div>
     <script>
-      // Check if user is trying to access /login while already authenticated
-      // This runs before React loads to prevent routing issues
+      // CRITICAL: Remove JWT token from URL immediately to prevent exposure
+      // This runs before React loads to ensure token is never visible in address bar
       (function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const jwtToken = urlParams.get('token');
+        
+        if (jwtToken) {
+          // Store token in localStorage immediately
+          localStorage.setItem('jwt_token', jwtToken);
+          
+          // Remove token from URL immediately - synchronous operation
+          const url = new URL(window.location);
+          url.searchParams.delete('auth');
+          url.searchParams.delete('token');
+          window.history.replaceState({}, '', url);
+          
+          // Mark that this is a login redirect
+          sessionStorage.setItem('from_login_redirect', 'true');
+        }
+        
+        // Check if user is trying to access /login while already authenticated
+        // This runs before React loads to prevent routing issues
         const isLoggedIn = localStorage.getItem('jwt_token');
         const currentPath = window.location.pathname;
         
         if (isLoggedIn && currentPath === '/login') {
-          console.log('Redirecting authenticated user from /login to home...');
           window.location.replace('/');
         }
       })();

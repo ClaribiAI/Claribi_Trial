@@ -122,6 +122,9 @@ api.interceptors.response.use(
           return api.request(config);
         } catch (refreshError) {
           if (isDev) console.error('Token refresh failed, redirecting to login:', refreshError);
+          // Clear token before redirecting to login
+          const authService = (await import('./auth')).default;
+          authService.removeToken();
           // Only redirect to login if refresh fails
           window.location.href = '/login';
           return Promise.reject(error);

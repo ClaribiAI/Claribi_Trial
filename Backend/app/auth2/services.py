@@ -138,10 +138,11 @@ class MSALService:
             return result
             
         except Exception as e:
-            logger.error(f"Exception during token acquisition: {e}")
+            # Log full error details for debugging, but don't expose to client
+            logger.error(f"Exception during token acquisition: {e}", exc_info=True)
             return {
                 "error": "token_acquisition_exception",
-                "error_description": f"Exception during token acquisition: {str(e)}"
+                "error_description": "Token acquisition failed. Please try again."
             }
     
     @staticmethod
@@ -241,8 +242,3 @@ class UserService:
             logger.error(f"Database error in get_user_by_ms_object_id: {e}")
         
         return None
-
-
-class GraphService:
-    """Service class for Microsoft Graph API operations using Graph API flow"""
-    pass

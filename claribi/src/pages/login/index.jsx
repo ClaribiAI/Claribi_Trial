@@ -1,81 +1,54 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Typography, Paper, Button, Snackbar, Alert, useTheme } from '@mui/material';
-import { useNavigate, useLocation } from 'react-router-dom';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNotification } from '../../contexts/NotificationContext';
 import MicrosoftIcon from './MicrosoftIcon';
-import authService from '../../services/auth';
 
-const MAX_RETRIES = 3;
+const isDev = import.meta.env && import.meta.env.DEV;
+
+// Sanitize URL parameter to prevent XSS
+const sanitizeUrlParam = (param) => {
+  if (!param) return '';
+  // Remove any HTML tags and encode special characters
+  return param
+    .replace(/<[^>]*>/g, '') // Remove HTML tags
+    .replace(/[<>'"&]/g, '') // Remove potentially dangerous characters
+    .trim()
+    .slice(0, 200); // Limit length
+};
 
 const LoginPage = () => {
-  const navigate = useNavigate();
-  const location = useLocation();
   const { login, currentUser, loading } = useAuth();
   const { showNotification } = useNotification();
   const theme = useTheme();
   const [showSuccess, setShowSuccess] = useState(false);
-  const [verifying, setVerifying] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
-  const [backendError, setBackendError] = useState(false);
 
   // Note: Redirect logic for authenticated users is now handled by LoginWrapper component
+  // AuthContext handles token extraction, storage, and verification automatically
 
-
-  const verifyAuthentication = async () => {
-    try {
-      setRetryCount(0);
-      const data = await authService.verifyAuth();
-      
-      if (data.success) {
-        console.log("Authentication verified successfully");
-        handleSuccessfulVerification(data);
-      } else {
-        console.error("Authentication verification failed:", data.error);
-        showNotification(`Authentication failed: ${data.error}`, 'error');
-        setVerifying(false);
-      }
-    } catch (err) {
-      if (retryCount < MAX_RETRIES) {
-        console.log(`Verification attempt ${retryCount + 1} failed, retrying...`);
-        setRetryCount(prev => prev + 1);
-        setTimeout(() => verifyAuthentication(), 1000);
-      } else {
-        console.error("All verification attempts failed:", err);
-        showNotification("Authentication verification failed after multiple attempts. Please try logging in again.", 'error');
-        setVerifying(false);
-      }
-    }
-  };
-
-  const handleSuccessfulVerification = (data) => {
-    console.log("Verification successful, redirecting...");
-    setVerifying(false);
-    
-    // Navigate to home page using window.location to avoid HashRouter issues
-    window.location.href = '/';
-  };
-
-  // Check URL parameters for auth status - this should run first
+  // Check URL parameters for auth status and errors
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const errorMsg = urlParams.get('error');
     const authStatus = urlParams.get('auth');
+    const jwtToken = urlParams.get('token');
     
     if (errorMsg) {
-      // Handle error types
-      showNotification(errorMsg.replace(/\+/g, ' '), 'error');
+      // Sanitize error message to prevent XSS
+      const sanitizedError = sanitizeUrlParam(errorMsg);
+      showNotification(sanitizedError || 'An error occurred during authentication', 'error');
     }
 
-    if (authStatus === 'success') {
+    // Show success message if we have a token or auth=success
+    // AuthContext will handle token extraction and verification
+    if (authStatus === 'success' || jwtToken) {
       setShowSuccess(true);
-      setVerifying(true);
-      setRetryCount(0); // Reset retry count
-      
-      verifyAuthentication();
     }
-  }, [location, showNotification]);
+  }, [showNotification]);
+
+  // Show loading when AuthContext is verifying authentication after redirect
+  const isVerifying = loading && currentUser === null && showSuccess;
 
   const handleMicrosoftLogin = () => {
     login();
@@ -85,7 +58,8 @@ const LoginPage = () => {
     setShowSuccess(false);
   };
 
-  if ((loading && currentUser !== null) || verifying) {
+  // Show loading spinner while AuthContext is verifying or if user becomes authenticated
+  if (isVerifying || (loading && currentUser !== null)) {
     return <LoadingSpinner />;
   }
 

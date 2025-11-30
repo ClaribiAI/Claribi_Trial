@@ -33,7 +33,8 @@ import {
   FileText,
   Shield,
   ChartBar,
-  Info
+  Info,
+  ArrowClockwise
 } from '@phosphor-icons/react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -451,6 +452,40 @@ const SettingsPage = () => {
                             </Box>
                           </>
                         )}
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+
+                {/* Rewrites Usage Card */}
+                <Grid item xs={12} sm={6}>
+                  <Card
+                    elevation={0}
+                    sx={{
+                      border: `1px solid ${alpha(muiTheme.palette.divider, 0.1)}`,
+                      borderRadius: 2,
+                      height: '100%',
+                    }}
+                  >
+                    <CardContent>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                        <ArrowClockwise size={24} color={muiTheme.palette.primary.main} />
+                        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                          Section Rewrites
+                        </Typography>
+                      </Box>
+                      <Box sx={{ mb: 2 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                          <Typography variant="h4" sx={{ fontWeight: 700, color: muiTheme.palette.primary.main }}>
+                            {formatNumber(usageData.rewrites_count || 0)}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Total rewrites
+                          </Typography>
+                        </Box>
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontSize: '0.875rem' }}>
+                          Combined rewrites across all sections
+                        </Typography>
                       </Box>
                     </CardContent>
                   </Card>

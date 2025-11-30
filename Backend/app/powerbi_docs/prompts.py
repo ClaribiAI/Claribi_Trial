@@ -172,7 +172,7 @@ Categories to consider:
 - User Experience Improvements
 - Data Quality and Governance
 
-Return only the JSON array, nothing else. No explanatory text, no markdown, no code blocks. Sort the recommendations by priority.
+Return only the JSON array, nothing else. No explanatory text, no markdown, no code blocks. Sort the recommendations by priority. Return 10 recommendations.
 """
 
 def get_improvement_recommendations_user_prompt(context: dict) -> str:

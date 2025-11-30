@@ -35,20 +35,38 @@ class StatsService:
             stats = {
                 'documents_generated': 0,
                 'chat_queries': 0,
-                'time_saved': 0.0
+                'time_saved': 0.0,
+                'rewrites_count': 0
             }
             
-            # Get documents generated count (sum of generation_count)
+            # Get documents generated count (sum of generation_count, excluding rewrites)
+            # Rewrites are tracked with section names ending in '_rewrite'
             with get_db_cursor(commit=False) as cursor:
                 cursor.execute("""
                     SELECT COALESCE(SUM(generation_count), 0)
                     FROM powerbi_docs_token_usage
                     WHERE user_ms_object_id = %s
+                    AND section NOT LIKE '%%_rewrite'
                 """, (user_ms_object_id,))
                 
                 result = cursor.fetchone()
                 if result and result[0] is not None:
                     stats['documents_generated'] = int(result[0])
+            
+            # Get rewrites count (sum of generation_count for all rewrite sections)
+            with get_db_cursor(commit=False) as cursor:
+                cursor.execute("""
+                    SELECT COALESCE(SUM(generation_count), 0)
+                    FROM powerbi_docs_token_usage
+                    WHERE user_ms_object_id = %s
+                    AND section LIKE '%%_rewrite'
+                """, (user_ms_object_id,))
+                
+                result = cursor.fetchone()
+                if result and result[0] is not None:
+                    stats['rewrites_count'] = int(result[0])
+                else:
+                    stats['rewrites_count'] = 0
             
             # Get chat queries count
             with get_db_cursor(commit=False) as cursor:
@@ -79,7 +97,8 @@ class StatsService:
             return {
                 'documents_generated': 0,
                 'chat_queries': 0,
-                'time_saved': 0.0
+                'time_saved': 0.0,
+                'rewrites_count': 0
             }
     
     @staticmethod
@@ -103,6 +122,7 @@ class StatsService:
             }
             
             # Get documents breakdown by collection_name (PBIX file) with actual filename
+            # Exclude rewrites (sections ending with '_rewrite')
             with get_db_cursor(commit=False) as cursor:
                 cursor.execute("""
                     SELECT 
@@ -112,6 +132,7 @@ class StatsService:
                     FROM powerbi_docs_token_usage pdtu
                     LEFT JOIN powerbi_file_summaries pfs ON pdtu.collection_name = pfs.collection_name
                     WHERE pdtu.user_ms_object_id = %s
+                    AND pdtu.section NOT LIKE '%%_rewrite'
                     GROUP BY pdtu.collection_name, pfs.filename
                     ORDER BY total_generations DESC
                 """, (user_ms_object_id,))
@@ -193,6 +214,7 @@ class StatsService:
             usage_data = {
                 'documents_generated': stats.get('documents_generated', 0),
                 'chat_queries': stats.get('chat_queries', 0),
+                'rewrites_count': stats.get('rewrites_count', 0),
                 'documents_limit': documents_limit,
                 'chat_limit': chat_limit,
                 'plan_name': plan_name
@@ -244,6 +266,7 @@ class StatsService:
             return {
                 'documents_generated': 0,
                 'chat_queries': 0,
+                'rewrites_count': 0,
                 'documents_limit': None,
                 'chat_limit': None,
                 'plan_name': 'none'

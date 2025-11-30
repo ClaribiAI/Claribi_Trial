@@ -8,7 +8,7 @@ import jwt
 import time
 import logging
 from typing import Dict, Any, Optional, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from app.config.settings import config
 
 logger = logging.getLogger(__name__)
@@ -33,11 +33,15 @@ class JWTService:
         if secret_key is None:
             secret_key = config.SECRET_KEY
         
-        # Set access token expiration (1 hour)
-        access_exp_time = datetime.utcnow() + timedelta(hours=1)
+        # Get current UTC time as integer timestamp (seconds since epoch)
+        now = datetime.now(timezone.utc)
+        now_timestamp = int(now.timestamp())
         
-        # Set refresh token expiration (7 days)
-        refresh_exp_time = datetime.utcnow() + timedelta(days=7)
+        # Set access token expiration (1 hour) as integer timestamp
+        access_exp_timestamp = int((now + timedelta(hours=1)).timestamp())
+        
+        # Set refresh token expiration (7 days) as integer timestamp
+        refresh_exp_timestamp = int((now + timedelta(days=7)).timestamp())
         
         # Helper function to convert UUID objects to strings
         def convert_uuid_to_string(value):
@@ -48,8 +52,8 @@ class JWTService:
         # Create access token payload with UUID conversion
         access_payload = {
             'user_id': convert_uuid_to_string(user_data.get('ms_object_id')),
-            'exp': access_exp_time,
-            'iat': datetime.utcnow(),
+            'exp': access_exp_timestamp,  # Integer timestamp (seconds since epoch)
+            'iat': now_timestamp,  # Integer timestamp (seconds since epoch)
             'iss': 'claribi-auth',  # Issuer
             'sub': convert_uuid_to_string(user_data.get('ms_object_id')),  # Subject (user ID)
             'aud': 'claribi-app',  # Audience
@@ -59,8 +63,8 @@ class JWTService:
         # Create refresh token payload with UUID conversion
         refresh_payload = {
             'user_id': convert_uuid_to_string(user_data.get('ms_object_id')),
-            'exp': refresh_exp_time,
-            'iat': datetime.utcnow(),
+            'exp': refresh_exp_timestamp,  # Integer timestamp (seconds since epoch)
+            'iat': now_timestamp,  # Integer timestamp (seconds since epoch)
             'iss': 'claribi-auth',
             'sub': convert_uuid_to_string(user_data.get('ms_object_id')),
             'aud': 'claribi-app',

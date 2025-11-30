@@ -139,11 +139,13 @@ def callback():
                 import time
                 state_data = json.loads(base64.b64decode(state).decode('utf-8'))
                 
-                # Validate timestamp to prevent replay attacks (10 minute window)
+                # Validate timestamp to prevent replay attacks
+                # Window is configurable via AUTH2_STATE_VALIDATION_WINDOW (default: 5 minutes)
                 timestamp = state_data.get('timestamp', 0)
                 current_time = int(time.time())
-                if current_time - timestamp > 600:  # 10 minutes
-                    logger.warning(f"State parameter expired: {current_time - timestamp} seconds old")
+                validation_window = auth2_config.STATE_VALIDATION_WINDOW
+                if current_time - timestamp > validation_window:
+                    logger.warning(f"State parameter expired: {current_time - timestamp} seconds old (window: {validation_window}s)")
                     return redirect(f"{auth2_config.ALLOWED_LOGIN_REDIRECTS[0]}?error=state_expired")
                 
                 if 'redirect_uri' in state_data:
@@ -249,6 +251,7 @@ def callback():
         return redirect(f"{auth2_config.ALLOWED_LOGIN_REDIRECTS[0]}?error=server_error")
 
 @auth2_bp.route("/refresh")
+@rate_limit(auth2_config.REFRESH_RATE_LIMIT)
 def refresh_token():
     """
     Refresh access token using refresh token from cookie.
@@ -482,7 +485,8 @@ def get_graph_data():
         return jsonify(user_data)
         
     except Exception as e:
-        logger.error(f"Error getting Graph data: {e}")
+        # Log error type only to prevent information leakage
+        logger.error(f"Error getting Graph data: {type(e).__name__}", exc_info=True)
         return jsonify({
             "error": "server_error",
             "message": "An error occurred while fetching data"

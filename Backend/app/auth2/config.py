@@ -46,6 +46,12 @@ class Auth2Config:
     # Rate Limiting
     LOGIN_RATE_LIMIT = "5 per minute"
     CALLBACK_RATE_LIMIT = "10 per minute"
+    REFRESH_RATE_LIMIT = "20 per minute"  # Higher limit for refresh as it's called frequently
+    
+    # State Parameter Validation
+    # Time window for state parameter validation (in seconds)
+    # Reduced from 10 minutes to 5 minutes for better security
+    STATE_VALIDATION_WINDOW = int(os.environ.get('AUTH2_STATE_VALIDATION_WINDOW', 300))  # 5 minutes default
     
 
     

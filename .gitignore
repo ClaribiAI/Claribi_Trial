@@ -10,6 +10,7 @@
 # Backend/**/powerbi_docs/
 
 # Backend specific ignores
+Backend/instance/
 Backend/__pycache__/
 Backend/**/__pycache__/
 Backend/*.py[cod]

@@ -1,4 +1,7 @@
 import api from './api';
+import authService from './auth';
+
+const isDev = import.meta.env && import.meta.env.DEV;
 
 /**
  * Send a Power BI related query to the chat assistant
@@ -16,7 +19,7 @@ export const sendPowerBIQuery = async (query, pbixFile = null) => {
 
         return response.data;
     } catch (error) {
-        console.error('Error sending Power BI query:', error);
+        if (isDev) console.error('Error sending Power BI query:', error);
         
         // Handle different types of errors
         if (error.response) {
@@ -56,11 +59,11 @@ export const sendPowerBIQueryWithUpdates = async (query, pbixFile = null, onUpda
         };
 
         // Use fetch for Server-Sent Events
-        console.log('Sending streaming request to /powerbi-chat/query-stream with data:', requestData);
+        if (isDev) console.log('Sending streaming request to /powerbi-chat/query-stream with data:', requestData);
         
-        // Get JWT token for authentication
-        const jwtToken = localStorage.getItem('jwt_token');
-        console.log('JWT token for streaming request:', jwtToken ? 'present' : 'missing');
+        // Get JWT token for authentication using authService
+        const jwtToken = authService.getToken();
+        if (isDev) console.log('JWT token for streaming request:', jwtToken ? 'present' : 'missing');
         
         const response = await fetch('/powerbi-chat/query-stream', {
             method: 'POST',
@@ -73,7 +76,7 @@ export const sendPowerBIQueryWithUpdates = async (query, pbixFile = null, onUpda
             signal: abortSignal
         });
         
-        console.log('Streaming response status:', response.status, response.statusText);
+        if (isDev) console.log('Streaming response status:', response.status, response.statusText);
 
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -89,7 +92,7 @@ export const sendPowerBIQueryWithUpdates = async (query, pbixFile = null, onUpda
             while (true) {
                 // Check if aborted
                 if (abortSignal && abortSignal.aborted) {
-                    console.log('Request aborted by user');
+                    if (isDev) console.log('Request aborted by user');
                     reader.cancel();
                     streamError = new Error('Request cancelled by user');
                     streamError.isCancelled = true;
@@ -109,11 +112,11 @@ export const sendPowerBIQueryWithUpdates = async (query, pbixFile = null, onUpda
                             const data = JSON.parse(line.slice(6));
                             
                             if (data.type === 'update' && onUpdate) {
-                                console.log('Sending update to handler:', data);
+                                if (isDev) console.log('Sending update to handler:', data);
                                 onUpdate(data);
                             } else if (data.type === 'warning') {
                                 // Handle warning responses, including approaching limit
-                                console.log('Warning received:', data);
+                                if (isDev) console.log('Warning received:', data);
                                 if (data.warning === 'approaching_limit') {
                                     // Create a warning object
                                     const warningObj = {
@@ -129,7 +132,7 @@ export const sendPowerBIQueryWithUpdates = async (query, pbixFile = null, onUpda
                                 }
                             } else if (data.type === 'error') {
                                 // Handle error responses, including usage limit exceeded
-                                console.log('Error received:', data);
+                                if (isDev) console.log('Error received:', data);
                                 if (data.error === 'usage_limit_exceeded') {
                                     // Create a user-friendly error object
                                     const usageError = new Error(data.message || 'Usage limit exceeded');
@@ -146,11 +149,11 @@ export const sendPowerBIQueryWithUpdates = async (query, pbixFile = null, onUpda
                                     break;
                                 }
                             } else if (data.type === 'final') {
-                                console.log('Final result received:', data);
+                                if (isDev) console.log('Final result received:', data);
                                 finalResult = data;
                             } else if (data.type === 'clarification_needed') {
                                 // Handle clarification needed response
-                                console.log('Clarification needed received:', data);
+                                if (isDev) console.log('Clarification needed received:', data);
                                 finalResult = data;
                             }
                         } catch (parseError) {
@@ -159,7 +162,7 @@ export const sendPowerBIQueryWithUpdates = async (query, pbixFile = null, onUpda
                                 streamError = parseError;
                                 break;
                             }
-                            console.warn('Error parsing SSE data:', parseError);
+                            if (isDev) console.warn('Error parsing SSE data:', parseError);
                         }
                     }
                 }
@@ -175,7 +178,7 @@ export const sendPowerBIQueryWithUpdates = async (query, pbixFile = null, onUpda
         
         // Throw error if one occurred during streaming
         if (streamError) {
-            console.log('Throwing stream error:', {
+            if (isDev) console.log('Throwing stream error:', {
                 error: streamError.error,
                 message: streamError.message,
                 hasErrorProperty: 'error' in streamError
@@ -185,7 +188,7 @@ export const sendPowerBIQueryWithUpdates = async (query, pbixFile = null, onUpda
 
         // If no final result was received, it might be because clarifications are needed
         if (!finalResult) {
-            console.log('No final result received, returning clarification_needed');
+            if (isDev) console.log('No final result received, returning clarification_needed');
             const result = { type: 'clarification_needed', message: 'Waiting for user clarifications' };
             // Include warning if present
             if (streamWarning) {
@@ -194,14 +197,14 @@ export const sendPowerBIQueryWithUpdates = async (query, pbixFile = null, onUpda
             return result;
         }
         
-        console.log('Final result received:', finalResult);
+        if (isDev) console.log('Final result received:', finalResult);
         // Include warning in final result if present
         if (streamWarning) {
             finalResult.warning = streamWarning;
         }
         return finalResult;
     } catch (error) {
-        console.error('Error sending Power BI query with updates:', error);
+        if (isDev) console.error('Error sending Power BI query with updates:', error);
         
         // Handle abort/cancellation
         if (error.name === 'AbortError' || error.isCancelled) {
@@ -246,7 +249,7 @@ export const uploadPowerBIFile = async (file, onProgress = null) => {
 
         return response.data;
     } catch (error) {
-        console.error('Error uploading Power BI file:', error);
+        if (isDev) console.error('Error uploading Power BI file:', error);
         
         // Handle specific error types with more detailed messages
         if (error.code === 'ECONNRESET' || error.code === 'ECONNABORTED') {
@@ -312,7 +315,7 @@ export const reuploadPowerBIFile = async (collectionName, file, onProgress = nul
 
         return response.data;
     } catch (error) {
-        console.error('Error reuploading Power BI file:', error);
+        if (isDev) console.error('Error reuploading Power BI file:', error);
         
         // Handle specific error types with more detailed messages
         if (error.code === 'ECONNRESET' || error.code === 'ECONNABORTED') {
@@ -362,7 +365,7 @@ export const deletePowerBISession = async (sessionId) => {
         });
         return response.data;
     } catch (error) {
-        console.error('Error deleting Power BI session:', error);
+        if (isDev) console.error('Error deleting Power BI session:', error);
         throw new Error(error.response?.data?.error || 'Failed to delete session');
     }
 };
@@ -382,7 +385,7 @@ export const sendUserClarifications = async (originalQuery, clarifications, sess
             clarification_session_key: clarificationSessionKey
         };
         
-        console.log('Sending clarifications to backend:', payload);
+        if (isDev) console.log('Sending clarifications to backend:', payload);
         
         const response = await api.post(
             '/powerbi-chat/clarification',
@@ -395,7 +398,7 @@ export const sendUserClarifications = async (originalQuery, clarifications, sess
 
         return response.data;
     } catch (error) {
-        console.error('Error sending user clarifications:', error);
+        if (isDev) console.error('Error sending user clarifications:', error);
         
         // Handle different types of errors
         if (error.response) {
@@ -420,7 +423,7 @@ export const getUploadedFiles = async () => {
         const response = await api.get('/powerbi-chat/list-files');
         return response.data.files || [];
     } catch (error) {
-        console.error('Error fetching uploaded files:', error);
+        if (isDev) console.error('Error fetching uploaded files:', error);
         
         // Handle different types of errors
         if (error.response) {
