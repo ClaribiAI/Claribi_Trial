@@ -928,8 +928,21 @@ const DocumentationSection = memo(({
                                                 const contentToDisplay = typeof content === 'string' ? content : JSON.stringify(content, null, 2);
                                                 
                                                 // Check if content is HTML (contains HTML tags)
-                                                const isHTML = typeof contentToDisplay === 'string' && 
+                                                // But be more strict: only treat as HTML if it looks like actual HTML structure,
+                                                // not markdown that mentions HTML tags
+                                                const hasHtmlTags = typeof contentToDisplay === 'string' && 
                                                     /<[a-z][\s\S]*>/i.test(contentToDisplay);
+                                                
+                                                // Check if content has markdown patterns (headings, lists, etc.)
+                                                const hasMarkdownPatterns = typeof contentToDisplay === 'string' && 
+                                                    (/^#{1,6}\s+/m.test(contentToDisplay) || 
+                                                     /^[\*\-\+]\s+/m.test(contentToDisplay) || 
+                                                     /^\d+\.\s+/m.test(contentToDisplay) ||
+                                                     /```/.test(contentToDisplay));
+                                                
+                                                // Only treat as HTML if it has HTML tags BUT no markdown patterns
+                                                // This prevents markdown content that mentions HTML tags from being treated as HTML
+                                                const isHTML = hasHtmlTags && !hasMarkdownPatterns;
                                                 
                                                 if (isHTML) {
                                                     // Render HTML directly
