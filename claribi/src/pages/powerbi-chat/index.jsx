@@ -3,7 +3,8 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
     Box,
     Alert,
-    Snackbar
+    Snackbar,
+    useTheme
 } from '@mui/material';
 import {
     CheckCircle
@@ -13,16 +14,20 @@ import FileSelectionDialog from '../../components/ui/FileSelectionDialog';
 import UploadConfirmationDialog from '../../components/ui/UploadConfirmationDialog';
 import FileManagementPage from './FileManagementPage';
 import ChatPage from './ChatPage';
+import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useFiles } from '../../contexts/FileContext';
 
 const PowerBIChat = () => {
+    const theme = useTheme();
     const { showNotification } = useNotification();
     const { refreshFiles, files } = useFiles();
     const location = useLocation();
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
-    const [currentView, setCurrentView] = useState('file-management'); // 'file-management' or 'chat'
+    // Initialize currentView based on URL - if fileId exists, start in chat view
+    const initialFileId = searchParams.get('fileId');
+    const [currentView, setCurrentView] = useState(initialFileId ? 'chat' : 'file-management'); // 'file-management' or 'chat'
     const [pbixFile, setPbixFile] = useState(null);
     const [uploadLoading, setUploadLoading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
@@ -32,8 +37,12 @@ const PowerBIChat = () => {
     const [showUploadConfirmation, setShowUploadConfirmation] = useState(false);
     const [pendingFile, setPendingFile] = useState(null);
     const [isNewlyUploaded, setIsNewlyUploaded] = useState(false);
+    // Initialize loading state - if we have a fileId, show loading initially
+    const [initialLoadComplete, setInitialLoadComplete] = useState(!initialFileId);
 
     const fileInputRef = useRef(null);
+    const previousPathnameRef = useRef(location.pathname);
+    const previousFileIdRef = useRef(null);
 
     // Handle file selection from navigation state or URL
     useEffect(() => {
@@ -45,6 +54,9 @@ const PowerBIChat = () => {
     // Load file from URL fileId parameter
     useEffect(() => {
         const fileId = searchParams.get('fileId');
+        const isFileIdChanging = previousFileIdRef.current !== fileId;
+        const isNavigatingFromAnotherPage = previousPathnameRef.current !== location.pathname && previousPathnameRef.current !== '';
+        
         if (fileId && files.length > 0) {
             const file = files.find(f => f.collection_name === fileId);
             if (file) {
@@ -55,10 +67,39 @@ const PowerBIChat = () => {
                 };
                 setPbixFile(fileWithSessionId);
                 setIsNewlyUploaded(false);
+                // Always show loading spinner when switching to chat view
+                // This handles both navigation from other pages and file selection within the app
+                setInitialLoadComplete(false);
                 setCurrentView('chat');
             }
+        } else if (!fileId) {
+            // No fileId in URL - go to file management
+            if (currentView === 'chat') {
+                setCurrentView('file-management');
+            }
+            setInitialLoadComplete(true);
         }
-    }, [searchParams, files]);
+        
+        // Update refs
+        previousPathnameRef.current = location.pathname;
+        previousFileIdRef.current = fileId;
+    }, [searchParams, files, location.pathname]);
+
+    // Handle initial load complete for chat view
+    useEffect(() => {
+        if (currentView === 'chat' && !initialLoadComplete) {
+            // Show loading spinner for a brief moment (less than a second)
+            const timer = setTimeout(() => {
+                setInitialLoadComplete(true);
+            }, 600); // 600ms delay for smooth transition
+
+            return () => clearTimeout(timer);
+        } else if (currentView === 'file-management') {
+            // Reset loading state when navigating to file management
+            setInitialLoadComplete(true);
+        }
+    }, [currentView, initialLoadComplete]);
+
 
     const handleFileUpload = (event) => {
         const file = event.target.files[0];
@@ -110,6 +151,7 @@ const PowerBIChat = () => {
             // Close confirmation dialog and switch to chat view
             setShowUploadConfirmation(false);
             setPendingFile(null);
+            setInitialLoadComplete(false);
             setCurrentView('chat');
             // Update URL with fileId
             setSearchParams({ fileId: fileWithSessionId.collection_name });
@@ -136,6 +178,7 @@ const PowerBIChat = () => {
         setPbixFile(fileWithSessionId);
         setIsNewlyUploaded(false);
         // Don't show success notification for already uploaded files
+        setInitialLoadComplete(false);
         setCurrentView('chat');
         // Update URL with fileId
         setSearchParams({ fileId: selectedFile.collection_name });
@@ -164,6 +207,25 @@ const PowerBIChat = () => {
         // Remove fileId from URL
         setSearchParams({});
     };
+
+    // Show loading spinner when switching to chat view
+    // Check both currentView state and URL to handle navigation from other pages
+    const fileId = searchParams.get('fileId');
+    const shouldShowLoading = (currentView === 'chat' || (location.pathname === '/powerbi-chat' && fileId)) && !initialLoadComplete;
+    
+    if (shouldShowLoading) {
+        return (
+            <Box sx={{ 
+                display: 'flex',
+                height: '100vh',
+                bgcolor: theme.palette.background.chat,
+                alignItems: 'center',
+                justifyContent: 'center'
+            }}>
+                <LoadingSpinner size={60} />
+            </Box>
+        );
+    }
 
     return (
         <Box sx={{ width: '100%', height: '100vh', display: 'flex', flexDirection: 'column' }}>
