@@ -475,7 +475,7 @@ const HelpPage = () => {
           </Typography>
         </Box>
         
-        <Box sx={{ width: '100%' }}>
+        <Box sx={{ width: '100%', pb: 3 }}>
         {/* Getting Started Section */}
         <HelpAccordion
           title={HELP_CONTENT.gettingStarted.title}
