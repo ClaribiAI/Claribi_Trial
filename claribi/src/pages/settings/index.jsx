@@ -549,7 +549,49 @@ const SettingsPage = () => {
           <SettingItem
             label="Necessary Cookies"
             description="Required for the application to function properly"
-            infoTooltip="These cookies and local storage are essential for the application to function correctly. We use them to keep you securely logged in, remember your chat conversations, save your preferences (such as theme and chat settings), and maintain your current session. These cannot be disabled as they are required for core functionality. All data is stored securely and is only used to provide you with a seamless, personalized experience. For more detailed information, please read our Privacy Policy and Terms of Service."
+            infoTooltip={
+              <Box>
+                These cookies and local storage are essential for the application to function correctly. We use them to keep you securely logged in, remember your chat conversations, save your preferences (such as theme and chat settings), and maintain your current session. These cannot be disabled as they are required for core functionality. All data is stored securely and is only used to provide you with a seamless, personalized experience. For more detailed information, please read our{' '}
+                <Link
+                  href="https://www.claribi.ai/privacy-policy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  sx={{
+                    color: muiTheme.palette.mode === 'dark' 
+                      ? muiTheme.palette.primary.dark 
+                      : muiTheme.palette.primary.light,
+                    textDecoration: 'underline',
+                    fontWeight: 500,
+                    '&:hover': {
+                      opacity: 0.8,
+                    },
+                  }}
+                >
+                  Privacy Policy
+                </Link>
+                {' '}and{' '}
+                <Link
+                  href="https://www.claribi.ai/terms-and-conditions"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  sx={{
+                    color: muiTheme.palette.mode === 'dark' 
+                      ? muiTheme.palette.primary.dark 
+                      : muiTheme.palette.primary.light,
+                    textDecoration: 'underline',
+                    fontWeight: 500,
+                    '&:hover': {
+                      opacity: 0.8,
+                    },
+                  }}
+                >
+                  Terms of Service
+                </Link>
+                .
+              </Box>
+            }
           >
             <FormControlLabel
               control={
