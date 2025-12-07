@@ -84,27 +84,79 @@ Data Model Structure:
 # Visualization Analysis Generation
 VISUALIZATION_SYSTEM_INSTRUCTION = BASE_SYSTEM_PROMPT + """
 
-TASK: Generate Visualization Analysis
-You are tasked with providing a detailed visualization overview covering:
-1.  **Page Structure**: Explain the page structure of the report, with the purpose of each page based on the visuals and the data it contains.
-2.  **Visual Analysis**: For each major visual, explain the data story it tells, the insights users can gain, and how it supports decision-making.
-3.  **Overall Design**: Analyze how the visuals work together to form a cohesive narrative for the user.
+TASK: Generate professional documentation that clearly explains the Power BI report structure, content, and functionality for both report authors and end users.
 
-Focus on the business value each visual provides and how they support analytical workflows.
+YOUR ROLE: Transform technical metadata into clear, professional explanations that serve dual purposes:
+- For report authors: Provide accurate technical context about visual types, data sources, and structure
+- For end users: Explain business value, insights, and how to navigate and use the report effectively
+
+DOCUMENTATION STRUCTURE:
+1. **Report Overview**: Provide a professional introduction covering:
+   - Total number of pages, visuals, and bookmarks
+   - Overall report purpose and scope
+   - Primary business objectives and use cases
+
+2. **Page Analysis**: For each page, document:
+   - Page purpose and business focus
+   - Key business questions addressed
+   - Visual inventory and layout organization
+   - Primary metrics and insights presented
+   - How the page supports decision-making
+
+3. **Visual Documentation**: For each visual, provide:
+   - Visual type and format (e.g., bar chart, table, card, matrix)
+   - Visual title or identifier
+   - Data content: Translate technical field references into clear business descriptions
+     * Example: Instead of "Sales[Revenue]", describe as "revenue from sales transactions"
+     * Include table and measure names when relevant for report authors
+   - Business purpose and analytical value
+   - Key insights users can derive
+   - For action buttons: Document the action type, target destination, and user interaction outcome
+
+4. **Bookmarks Documentation**: For each bookmark, document:
+   - Bookmark name and purpose
+   - Target page or section
+   - Functionality: Describe what the bookmark accomplishes for users (view changes, filter resets, navigation)
+   - Scope: Indicate whether it affects all visuals or specific selected visuals
+
+5. **Report Navigation and Design**: Explain:
+   - How pages connect and flow together
+   - Navigation patterns and user journey
+   - Overall design approach and visual organization
+
+WRITING STYLE:
+- Use professional, clear business language appropriate for both technical and non-technical audiences
+- Balance technical accuracy with accessibility
+- Explain business meaning and context, not just technical specifications
+- Focus on actionable insights and decision support
+- Structure content for easy scanning and reference
+- Maintain formal tone while remaining accessible
+
+CRITICAL REQUIREMENTS:
+- Base all content exclusively on the provided JSON data. Do not infer, assume, or speculate.
+- When data is incomplete, explicitly state what information is available and what is missing.
+- Prohibit speculative language: "likely", "probably", "appears", "seems", "might", "could", "may", "possibly", "suggests", "indicates", "typically", "generally", "usually".
+- Translate technical field references into business descriptions while preserving accuracy for report authors.
+- For bookmarks: Focus on user functionality and outcomes. Do not include technical filter implementation details.
+- Ensure documentation is useful for both report maintenance (authors) and report consumption (end users).
 """
 
 def get_visualization_analysis_user_prompt(context: dict) -> str:
     """Generate the user prompt for visualization analysis."""
     return f"""
-Report Visuals:
+Generate professional documentation for this Power BI report that serves both report authors and end users.
+
+Report Structure and Visuals:
 ```json
 {context['report']}
 ```
 
-Data Model (for context):
+Data Model Reference (for understanding data sources, fields, measures, and relationships):
 ```json
 {context['model']}
 ```
+
+Create comprehensive documentation that accurately describes all pages, visuals, and bookmarks. Ensure the content is clear and accessible for end users while providing sufficient technical detail for report authors. Translate technical field references into clear business descriptions while maintaining accuracy.
 """
 
 # Security Analysis Generation

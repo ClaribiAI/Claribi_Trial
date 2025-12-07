@@ -96,6 +96,171 @@ class PBIXParsingService:
         return documents, collection_metadata
 
     @staticmethod
+    def _extract_action_button_info(single_visual: Dict[str, Any], bookmarks: List[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Extract actionButton-specific information including action type, target, and button text.
+        
+        Args:
+            single_visual: The singleVisual dictionary from the visual config
+            bookmarks: Optional list of bookmarks to look up bookmark names by ID
+            
+        Returns:
+            Dictionary with actionButton information including:
+            - action_type: Type of action (Bookmark, Page, URL, etc.)
+            - action_target: Target of the action (bookmark name, page name, URL, etc.)
+            - tooltip: Tooltip text describing what the button does
+            - button_text: Text displayed on the button
+            - icon_shape: Icon shape type (leftArrow, reset, etc.)
+        """
+        action_info = {}
+        
+        try:
+            # Extract action information from vcObjects.visualLink
+            vc_objects = single_visual.get("vcObjects", {})
+            visual_link = vc_objects.get("visualLink", [])
+            
+            if visual_link and isinstance(visual_link, list) and len(visual_link) > 0:
+                # Get the first visualLink item (usually the main action)
+                link_item = visual_link[0]
+                if isinstance(link_item, dict):
+                    link_props = link_item.get("properties", {})
+                    if link_props:
+                        # Extract action type
+                        action_type_expr = link_props.get("type", {}).get("expr", {})
+                        if action_type_expr:
+                            literal = action_type_expr.get("Literal", {})
+                            if literal:
+                                action_type = literal.get("Value", "")
+                                # Remove quotes if present
+                                if isinstance(action_type, str) and len(action_type) >= 2:
+                                    if action_type[0] == "'" and action_type[-1] == "'":
+                                        action_type = action_type[1:-1]
+                                action_info["action_type"] = action_type
+                        
+                        # Extract action target (bookmark, page, URL, etc.)
+                        bookmark_expr = link_props.get("bookmark", {}).get("expr", {})
+                        if bookmark_expr:
+                            literal = bookmark_expr.get("Literal", {})
+                            if literal:
+                                bookmark_id = literal.get("Value", "")
+                                # Remove quotes if present
+                                if isinstance(bookmark_id, str) and len(bookmark_id) >= 2:
+                                    if bookmark_id[0] == "'" and bookmark_id[-1] == "'":
+                                        bookmark_id = bookmark_id[1:-1]
+                                
+                                # If bookmarks are provided, look up the bookmark name (since bookmark_expr exists, it's a bookmark action)
+                                if bookmarks:
+                                    bookmark_name = PBIXParsingService._lookup_bookmark_name(bookmark_id, bookmarks)
+                                    action_info["action_target"] = bookmark_name if bookmark_name else bookmark_id
+                                else:
+                                    action_info["action_target"] = bookmark_id
+                        
+                        # Extract tooltip
+                        tooltip_expr = link_props.get("tooltip", {}).get("expr", {})
+                        if tooltip_expr:
+                            literal = tooltip_expr.get("Literal", {})
+                            if literal:
+                                tooltip = literal.get("Value", "")
+                                # Remove quotes if present
+                                if isinstance(tooltip, str) and len(tooltip) >= 2:
+                                    if tooltip[0] == "'" and tooltip[-1] == "'":
+                                        tooltip = tooltip[1:-1]
+                                action_info["tooltip"] = tooltip
+                        
+                        # Check for other action types (Page, URL, etc.)
+                        page_expr = link_props.get("page", {}).get("expr", {})
+                        if page_expr:
+                            literal = page_expr.get("Literal", {})
+                            if literal:
+                                page_name = literal.get("Value", "")
+                                if isinstance(page_name, str) and len(page_name) >= 2:
+                                    if page_name[0] == "'" and page_name[-1] == "'":
+                                        page_name = page_name[1:-1]
+                                action_info["action_target"] = page_name
+                        
+                        url_expr = link_props.get("url", {}).get("expr", {})
+                        if url_expr:
+                            literal = url_expr.get("Literal", {})
+                            if literal:
+                                url = literal.get("Value", "")
+                                if isinstance(url, str) and len(url) >= 2:
+                                    if url[0] == "'" and url[-1] == "'":
+                                        url = url[1:-1]
+                                action_info["action_target"] = url
+            
+            # Extract button text from objects.text
+            objects = single_visual.get("objects", {})
+            text_obj = objects.get("text", [])
+            
+            if text_obj and isinstance(text_obj, list):
+                # Find the text item with the actual text value (usually the second item with selector "default")
+                for text_item in text_obj:
+                    if isinstance(text_item, dict):
+                        text_props = text_item.get("properties", {})
+                        if text_props:
+                            text_expr = text_props.get("text", {}).get("expr", {})
+                            if text_expr:
+                                literal = text_expr.get("Literal", {})
+                                if literal:
+                                    button_text = literal.get("Value", "")
+                                    # Remove quotes if present
+                                    if isinstance(button_text, str) and len(button_text) >= 2:
+                                        if button_text[0] == "'" and button_text[-1] == "'":
+                                            button_text = button_text[1:-1]
+                                    if button_text:
+                                        action_info["button_text"] = button_text
+                                        break  # Found the text, no need to continue
+            
+            # Extract icon shape from objects.icon
+            icon_obj = objects.get("icon", [])
+            if icon_obj and isinstance(icon_obj, list) and len(icon_obj) > 0:
+                icon_item = icon_obj[0]
+                if isinstance(icon_item, dict):
+                    icon_props = icon_item.get("properties", {})
+                    if icon_props:
+                        shape_expr = icon_props.get("shapeType", {}).get("expr", {})
+                        if shape_expr:
+                            literal = shape_expr.get("Literal", {})
+                            if literal:
+                                icon_shape = literal.get("Value", "")
+                                # Remove quotes if present
+                                if isinstance(icon_shape, str) and len(icon_shape) >= 2:
+                                    if icon_shape[0] == "'" and icon_shape[-1] == "'":
+                                        icon_shape = icon_shape[1:-1]
+                                action_info["icon_shape"] = icon_shape
+        
+        except Exception as e:
+            logger.warning(f"Error extracting actionButton info: {e}")
+        
+        return action_info
+
+    @staticmethod
+    def _lookup_bookmark_name(bookmark_id: str, bookmarks: List[Dict[str, Any]]) -> str:
+        """
+        Look up a bookmark's display name by its ID.
+        
+        Args:
+            bookmark_id: The bookmark ID to look up
+            bookmarks: List of bookmark dictionaries
+            
+        Returns:
+            The bookmark's displayName if found, otherwise empty string
+        """
+        if not bookmark_id or not bookmarks:
+            return ""
+        
+        for bookmark in bookmarks:
+            if isinstance(bookmark, dict):
+                # Check if the bookmark's 'name' field matches the ID
+                bookmark_name = bookmark.get("name", "")
+                if bookmark_name == bookmark_id:
+                    # Return displayName (always use displayName, not the name/ID)
+                    display_name = bookmark.get("displayName", "")
+                    return display_name
+        
+        return ""
+
+    @staticmethod
     def _convert_to_bracket_notation(field_ref: str) -> str:
         """
         Convert field reference from Table.Column format to Table[Column] format.
@@ -122,7 +287,7 @@ class PBIXParsingService:
         return field_ref
 
     @staticmethod
-    def _parse_visual_config(config_json: str) -> Dict[str, Any]:
+    def _parse_visual_config(config_json: str, bookmarks: List[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         Parse visual configuration JSON to extract key metadata.
 
@@ -142,6 +307,7 @@ class PBIXParsingService:
                 "fields_used": {},
                 "data_sources": [],
                 "key_properties": {},
+                "action_button_info": {},  # For actionButton visuals
             }
 
             # Extract single visual information
@@ -262,6 +428,12 @@ class PBIXParsingService:
                                     "categoryAxis"
                                 ] = axis_props
 
+                # Extract actionButton-specific information
+                if visual_info["visual_type"] == "actionButton":
+                    action_info = PBIXParsingService._extract_action_button_info(single_visual, bookmarks)
+                    if action_info:
+                        visual_info["action_button_info"] = action_info
+
             return visual_info
 
         except (json.JSONDecodeError, KeyError, TypeError) as e:
@@ -274,6 +446,7 @@ class PBIXParsingService:
                 "fields_used": {},
                 "data_sources": [],
                 "key_properties": {},
+                "action_button_info": {},
             }
 
     @staticmethod
@@ -348,6 +521,15 @@ class PBIXParsingService:
         except Exception as e:
             logger.warning(f"Could not extract RLS roles: {str(e)}")
             extracted_data["rls_roles"] = []
+
+        # Extract bookmarks from report layout
+        try:
+            bookmarks = pbix_model.bookmarks
+            extracted_data["bookmarks"] = safe_to_list(bookmarks)
+        except Exception as e:
+            logger.warning(f"Could not extract bookmarks: {str(e)}")
+            extracted_data["bookmarks"] = []
+        
         return extracted_data
 
     @staticmethod
@@ -701,17 +883,52 @@ class PBIXParsingService:
         visuals = []
         pages = []
         raw_visuals = raw_data.get("visuals", [])
+        # Get raw bookmarks for bookmark name lookup
+        raw_bookmarks = raw_data.get("bookmarks", [])
         for visual_data in raw_visuals:
             try:
                 # Parse the visual configuration
                 config_json = visual_data.get("config", "{}")
-                parsed_config = PBIXParsingService._parse_visual_config(config_json)
+                parsed_config = PBIXParsingService._parse_visual_config(config_json, raw_bookmarks)
                 # Skip image visuals
                 visual_type = parsed_config.get("visual_type", "unknown")
                 if visual_type == "image":
                     continue
+                
+                # Extract position and size - handle both top-level and nested formats
+                # The unpacker should flatten position data to top level, but handle both cases
+                # Check if position is nested (raw format) or at top level (unpacked format)
+                x = None
+                y = None
+                z = None
+                width = None
+                height = None
+                
+                # First try top-level (unpacked format from pbix_unpacker)
+                if "x" in visual_data or "y" in visual_data:
+                    x = visual_data.get("x")
+                    y = visual_data.get("y")
+                    z = visual_data.get("z")
+                    width = visual_data.get("width")
+                    height = visual_data.get("height")
+                # If not found, try nested position object (in case unpacker didn't flatten)
+                elif "position" in visual_data:
+                    position_obj = visual_data.get("position", {})
+                    if isinstance(position_obj, dict):
+                        x = position_obj.get("x")
+                        y = position_obj.get("y")
+                        z = position_obj.get("z")
+                        width = position_obj.get("width")
+                        height = position_obj.get("height")
+                
+                # Log warning if position data is missing (for debugging)
+                if x is None and y is None and width is None and height is None:
+                    logger.warning(
+                        f"Visual {visual_data.get('id', 'unknown')} missing position/size data. "
+                        f"Available keys: {list(visual_data.keys())}"
+                    )
+                
                 # Create structured visual metadata (without ID, name, and filters)
-
                 visual_metadata = {
                     "visual_type": visual_type,
                     "section_name": visual_data.get("section_name", ""),
@@ -719,11 +936,12 @@ class PBIXParsingService:
                     "fields_used": parsed_config.get("fields_used", {}),
                     "data_sources": parsed_config.get("data_sources", []),
                     "key_properties": parsed_config.get("key_properties", {}),
-                    "x": visual_data.get("x"),
-                    "y": visual_data.get("y"),
-                    "z": visual_data.get("z"),
-                    "width": visual_data.get("width"),
-                    "height": visual_data.get("height"),
+                    "action_button_info": parsed_config.get("action_button_info", {}),
+                    "x": x,
+                    "y": y,
+                    "z": z,
+                    "width": width,
+                    "height": height,
                 }
 
                 visuals.append(visual_metadata)
@@ -780,6 +998,18 @@ class PBIXParsingService:
         for role_data in role_groups.values():
             rls_roles.append(role_data)
 
+        # 8. Process bookmarks
+        # Note: bookmarks from pbix_model.bookmarks already contain all detailed information
+        # (activeSection, filters, visuals, etc.), so we preserve the full structure
+        bookmarks = []
+        raw_bookmarks = raw_data.get("bookmarks", [])
+        for bookmark_data in raw_bookmarks:
+            if isinstance(bookmark_data, dict):
+                # Preserve the full bookmark structure with all details
+                # The bookmark_data already contains: name, displayName, activeSection, 
+                # filters, visuals, targetVisualNames, explorationState
+                bookmarks.append(bookmark_data)
+
         return {
             "tables": tables,
             "relationships": relationships,
@@ -787,6 +1017,7 @@ class PBIXParsingService:
             "visuals": visuals,
             "pages": pages,
             "rls_roles": rls_roles,
+            "bookmarks": bookmarks,
         }
 
     @staticmethod
@@ -966,6 +1197,8 @@ class PBIXParsingService:
             fields_used = visual.get("fields_used", {})
             data_sources = visual.get("data_sources", [])
             key_properties = visual.get("key_properties", {})
+            action_button_info = visual.get("action_button_info", {})
+            
             # Create detailed visual document
             visual_doc = f"Visual Type: {visual_type}\n"
             visual_doc += f"Page: {section_name}\n"
@@ -1003,6 +1236,53 @@ class PBIXParsingService:
                 if "categoryAxis" in key_properties:
                     visual_doc += f"  - Category axis configured\n"
 
+            # Add actionButton-specific information
+            if visual_type == "actionButton" and action_button_info:
+                visual_doc += "Button Action:\n"
+                
+                button_text = action_button_info.get("button_text", "")
+                if button_text:
+                    visual_doc += f"  - Button Text: {button_text}\n"
+                
+                action_type = action_button_info.get("action_type", "")
+                if action_type:
+                    visual_doc += f"  - Action Type: {action_type}\n"
+                
+                action_target = action_button_info.get("action_target", "")
+                if action_target:
+                    visual_doc += f"  - Action Target: {action_target}\n"
+                
+                tooltip = action_button_info.get("tooltip", "")
+                if tooltip:
+                    visual_doc += f"  - Tooltip: {tooltip}\n"
+                
+                icon_shape = action_button_info.get("icon_shape", "")
+                if icon_shape:
+                    visual_doc += f"  - Icon Shape: {icon_shape}\n"
+                
+                # Create a human-readable description of what the button does
+                action_description = ""
+                if action_type == "Bookmark":
+                    if tooltip:
+                        action_description = f"Navigates to bookmark '{action_target}' ({tooltip})"
+                    else:
+                        action_description = f"Navigates to bookmark '{action_target}'"
+                elif action_type == "Page":
+                    if tooltip:
+                        action_description = f"Navigates to page '{action_target}' ({tooltip})"
+                    else:
+                        action_description = f"Navigates to page '{action_target}'"
+                elif action_type == "URL":
+                    if tooltip:
+                        action_description = f"Opens URL '{action_target}' ({tooltip})"
+                    else:
+                        action_description = f"Opens URL '{action_target}'"
+                elif tooltip:
+                    action_description = tooltip
+                
+                if action_description:
+                    visual_doc += f"  - Description: {action_description}\n"
+
             documents.append(
                 Document(
                     page_content=visual_doc,
@@ -1011,6 +1291,7 @@ class PBIXParsingService:
                         "page_name": section_name,
                         "data_sources": data_sources,
                         "type": "visual",
+                        "action_button_info": action_button_info if visual_type == "actionButton" else {},
                     },
                 )
             )

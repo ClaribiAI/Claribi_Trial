@@ -135,10 +135,49 @@ class SummaryGenerationService:
         }
     
     @staticmethod
+    def _extract_title_text(key_properties: Dict[str, Any]) -> str:
+        """
+        Extract title text from key_properties.title structure.
+        The parsing code stores title[0].properties in key_properties["title"],
+        so the structure is: key_properties["title"]["text"]["expr"]["Literal"]["Value"]
+        """
+        if not key_properties:
+            return ''
+        
+        title_props = key_properties.get('title', {})
+        if not title_props or not isinstance(title_props, dict):
+            return ''
+        
+        # Handle nested structure to extract text value
+        # title_props is the properties object containing text, show, etc.
+        text_prop = title_props.get('text', {})
+        if not text_prop or not isinstance(text_prop, dict):
+            return ''
+        
+        expr = text_prop.get('expr', {})
+        if not expr or not isinstance(expr, dict):
+            return ''
+        
+        literal = expr.get('Literal', {})
+        if not literal or not isinstance(literal, dict):
+            return ''
+        
+        value = literal.get('Value', '')
+        if not value:
+            return ''
+        
+        # Remove surrounding quotes if present (PowerBI stores as 'text')
+        if isinstance(value, str) and len(value) >= 2 and value[0] == "'" and value[-1] == "'":
+            return value[1:-1]
+        
+        return str(value) if value else ''
+    
+    @staticmethod
     def _generate_visuals_summary(metadata: Dict[str, Any]) -> Dict[str, Any]:
-        """Generate visuals summary with pages, visual types, and fields used."""
+        """Generate visuals summary with pages, visual types, fields used, position, size, title, and bookmarks."""
         visuals = metadata.get('visuals', [])
         pages = metadata.get('pages', [])
+        bookmarks = metadata.get('bookmarks', [])
         
         # Process pages
         pages_summary = []
@@ -158,6 +197,8 @@ class SummaryGenerationService:
             section_name = visual.get('section_name', 'Unknown')
             fields_used = visual.get('fields_used', {})
             data_sources = visual.get('data_sources', [])
+            key_properties = visual.get('key_properties', {})
+            action_button_info = visual.get('action_button_info', {})
             
             # Flatten fields used for easier analysis
             all_fields = []
@@ -165,19 +206,83 @@ class SummaryGenerationService:
                 if isinstance(fields, list):
                     all_fields.extend(fields)
             
-            visuals_summary.append({
+            # Extract title from key_properties
+            title = SummaryGenerationService._extract_title_text(key_properties)
+            
+            # Extract position and size
+            position = {
+                'x': visual.get('x'),
+                'y': visual.get('y'),
+                'z': visual.get('z')
+            }
+            
+            size = {
+                'width': visual.get('width'),
+                'height': visual.get('height')
+            }
+            
+            visual_summary_item = {
                 'visual_type': visual_type,
                 'page_name': section_name,
+                'title': title,
+                'position': position,
+                'size': size,
                 'fields_used': fields_used,
                 'all_fields': all_fields,
                 'data_sources': data_sources
-            })
+            }
+            
+            # Include action_button_info if present (for actionButton visuals)
+            if action_button_info:
+                visual_summary_item['action_button_info'] = action_button_info
+            
+            visuals_summary.append(visual_summary_item)
+        
+        # Process bookmarks
+        bookmarks_summary = []
+        for bookmark in bookmarks:
+            display_name = bookmark.get('displayName', '')
+            flags = bookmark.get('flags', {})
+            active_section = bookmark.get('activeSection', {})
+            visuals = bookmark.get('visuals', [])
+            target_visual_names = bookmark.get('targetVisualNames', [])
+            
+            # Only process visuals if selectedVisuals flag is true
+            visuals_cleaned = []
+            if flags.get('selectedVisuals', False) and visuals:
+                # Process visuals to remove IDs and filters
+                for visual in visuals:
+                    visual_cleaned = {
+                        'type': visual.get('type', ''),
+                        'display_mode': visual.get('display_mode', 'normal'),
+                        'fields_used': visual.get('fields_used', {}),
+                        'query': visual.get('query')
+                    }
+                    # Remove None query if empty
+                    if not visual_cleaned['query']:
+                        visual_cleaned.pop('query', None)
+                    visuals_cleaned.append(visual_cleaned)
+            
+            bookmark_summary_item = {
+                'displayName': display_name,
+                'flags': flags,
+                'activeSection': active_section.get('name', '')
+            }
+            
+            # Only include visuals if selectedVisuals flag is true
+            if flags.get('selectedVisuals', False):
+                bookmark_summary_item['visuals'] = visuals_cleaned
+                bookmark_summary_item['targetVisualNames'] = target_visual_names
+            
+            bookmarks_summary.append(bookmark_summary_item)
         
         return {
             'pages': pages_summary,
             'visuals': visuals_summary,
+            'bookmarks': bookmarks_summary,
             'total_pages': len(pages_summary),
-            'total_visuals': len(visuals_summary)
+            'total_visuals': len(visuals_summary),
+            'total_bookmarks': len(bookmarks_summary)
         }
     
     @staticmethod
@@ -228,5 +333,7 @@ class SummaryGenerationService:
             'affected_tables': unique_affected_tables,
             'total_affected_tables': len(unique_affected_tables)
         }
+
+
 
 

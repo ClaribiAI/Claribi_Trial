@@ -481,17 +481,17 @@ const OnboardingGuide = ({
                                 width: `${highlightBox.width + 8}px`,
                                 height: `${highlightBox.height + 8}px`,
                                 borderRadius: 2,
-                                boxShadow: `0 0 20px ${alpha(theme.palette.primary.main, 0.5)}`,
+                                boxShadow: `0 0 20px ${alpha('#FCC000', 0.5)}`,
                                 pointerEvents: 'none',
                                 zIndex: 13001,
                                 transition: 'opacity 0.15s ease, transform 0.15s ease', // Faster transition
                                 animation: 'pulse 2s ease-in-out infinite',
                                 '@keyframes pulse': {
                                     '0%, 100%': {
-                                        boxShadow: `0 0 20px ${alpha(theme.palette.primary.main, 0.5)}`
+                                        boxShadow: `0 0 20px ${alpha('#FCC000', 0.5)}`
                                     },
                                     '50%': {
-                                        boxShadow: `0 0 30px ${alpha(theme.palette.primary.main, 0.8)}`
+                                        boxShadow: `0 0 30px ${alpha('#FCC000', 0.8)}`
                                     }
                                 }
                             }}
@@ -505,7 +505,7 @@ const OnboardingGuide = ({
                                 width: `${highlightBox.width}px`,
                                 height: `${highlightBox.height}px`,
                                 borderRadius: 2,
-                                border: `2px solid ${theme.palette.primary.main}`,
+                                border: `2px solid #FCC000`,
                                 pointerEvents: 'none',
                                 zIndex: 13001,
                                 transition: 'opacity 0.15s ease, transform 0.15s ease' // Faster transition

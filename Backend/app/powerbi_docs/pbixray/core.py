@@ -75,5 +75,9 @@ class PBIXRay:
         return self._metadata_handler.visuals
     
     @property
+    def bookmarks(self):
+        return self._metadata_handler.bookmarks
+    
+    @property
     def rls_roles(self):
         return self._metadata_handler.metadata.rls_roles_df

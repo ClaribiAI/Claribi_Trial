@@ -79,6 +79,7 @@ class PowerBIPbixService:
             "report": {
                 "visuals": visuals.get('visuals', []),
                 "pages": visuals.get('pages', []),
+                "bookmarks": visuals.get('bookmarks', []),
                 "filters": [],  # Not available in summaries
                 "themes": []    # Not available in summaries
             },
