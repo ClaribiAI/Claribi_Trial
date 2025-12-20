@@ -164,6 +164,11 @@ class Config:
 
     # API settings
     GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+    
+    # Gemini AI Generation Settings
+    # Maximum output tokens for content generation (default: 20000)
+    # Maximum allowed for gemini-2.5-flash-lite: 65,536 tokens (64k) per official Google documentation
+    GEMINI_MAX_OUTPUT_TOKENS = int(os.getenv('GEMINI_MAX_OUTPUT_TOKENS', '65536'))
 
     # RAG Pipeline Settings
     VECTOR_EMBEDDING_MODEL = os.getenv('VECTOR_EMBEDDING_MODEL', 'text-embedding-004')
@@ -228,7 +233,7 @@ class Config:
             'chat': 100      # 100 chat queries
         },
         'Premium': {
-            'docs': 500,     # 500 document generations
+            'docs': 5000,     # 500 document generations
             'chat': 1000     # 1000 chat queries
         },
         'none': {
