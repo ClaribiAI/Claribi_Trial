@@ -121,10 +121,9 @@ def set_session_token_cookie(response, token: str):
             path=path
         )
         
-        # Also set Access-Control-Allow-Credentials header if not already set
-        # This is required for cross-origin cookies
-        if 'Access-Control-Allow-Credentials' not in response.headers:
-            response.headers['Access-Control-Allow-Credentials'] = 'true'
+        # Note: Access-Control-Allow-Credentials is handled by Flask-CORS
+        # configured globally in app/__init__.py with supports_credentials=True
+        # Do not set it manually here to avoid duplicate headers
         
         logger.info(
             f"Set session token cookie: {token[:8]}... "
