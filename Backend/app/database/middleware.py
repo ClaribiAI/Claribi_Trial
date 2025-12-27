@@ -5,6 +5,8 @@ from app.core.session_token import get_or_create_session_token
 import psycopg
 import psycopg.sql
 import time
+import os
+from app.config.settings import config
 
 def set_user_context():
     """Set user context for Row Level Security (RLS) using session token"""
@@ -23,46 +25,57 @@ def set_user_context():
         g.session_token = None
 
 def ensure_db_pool():
-    """Ensure database pool is initialized"""
-    import os
-    from app.config.settings import config
+    """Ensure database pool is initialized and responsive"""
     
-    max_retries = config.DB_CONNECTION_RETRIES
+    max_retries = config.DB_CONNECTION_RETRIES # Set this to at least 5
     retry_count = 0
     last_error = None
 
     while retry_count < max_retries:
         try:
             pool = get_connection_pool()
+            
             if not pool:
-                # Always read DATABASE_URL directly from environment to detect changes
                 db_url = os.getenv('DATABASE_URL') or current_app.config.get('DATABASE_URL')
-                if not db_url:
-                    raise DatabaseError("DATABASE_URL not found in environment or config")
-                # Use config values for pool initialization
+                
+                # 1. Initialize the pool
                 init_db_pool(
                     min_conn=config.DB_POOL_MIN_CONN,
                     max_conn=config.DB_POOL_MAX_CONN,
                     database_url=db_url,
-                    connection_timeout=config.DB_CONNECTION_TIMEOUT
+                    # Ensure the underlying driver allows enough time for Neon to wake up
+                    connection_timeout=30 
                 )
                 pool = get_connection_pool()
-                if not pool:
-                    raise DatabaseError("Failed to initialize database pool")
-            return  # Success, exit the function
-            
+
+            # 2. VITAL: "Ping" the database to force the wake-up
+            # Getting the pool isn't enough; we need to execute a simple query
+            conn = pool.getconn()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1;")
+                pool.putconn(conn)
+                return  # Success! Database is awake and responding.
+            except Exception as e:
+                pool.putconn(conn, close=True) # Close the tainted connection
+                raise e
+
         except Exception as e:
             last_error = str(e)
-            current_app.logger.warning(f"Database pool initialization error on attempt {retry_count + 1}: {str(e)}")
             retry_count += 1
+            wait_time = (2 ** retry_count) + (retry_count * 2) # Slightly more aggressive backoff
+            
+            current_app.logger.warning(
+                f"Neon cold start: Attempt {retry_count}/{max_retries} failed. "
+                f"Retrying in {wait_time}s... Error: {last_error}"
+            )
             
             if retry_count < max_retries:
-                # Wait before retrying, with exponential backoff
-                time.sleep(2 ** retry_count)
-                continue
-    
-    # If we've exhausted all retries, raise the error
-    raise DatabaseError(f"Could not initialize database pool after {max_retries} attempts. Last error: {last_error}")
+                time.sleep(wait_time)
+            else:
+                break
+
+    raise DatabaseError(f"Neon failed to wake up after {max_retries} attempts. Last error: {last_error}")
 
 def db_context_middleware(app):
     @app.before_request
