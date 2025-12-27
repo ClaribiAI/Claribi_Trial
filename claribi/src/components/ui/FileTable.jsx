@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React from 'react';
 import {
     Box,
     Typography,
@@ -28,8 +28,6 @@ import {
 import {
     ChatCircle,
     FileText,
-    Trash,
-    CloudArrowUp,
     DotsThreeVertical,
     Table as TableIcon,
     Calculator,
@@ -41,27 +39,17 @@ import {
     CaretDown,
     Stethoscope
 } from '@phosphor-icons/react';
-import { deletePowerBISession, reuploadPowerBIFile } from '../../services/powerbiChatService';
 import { useNotification } from '../../contexts/NotificationContext';
 import LoadingSpinner from './LoadingSpinner';
-import ConfirmationDialog from './ConfirmationDialog';
-import { clearChatHistory } from '../../utils/chatHistoryStorage';
 
-const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, onFileRefresh, actionType = 'chat', onChatClick, onDocsClick, onDiagnosticsClick, showUploadButton = true }) => {
+const FileTable = ({ files, onFileClick, onUploadNew, onFileRefresh, actionType = 'chat', onChatClick, onDocsClick, onDiagnosticsClick, showUploadButton = true }) => {
     const theme = useTheme();
     const { showNotification } = useNotification();
     const [anchorEl, setAnchorEl] = React.useState(null);
     const [selectedFile, setSelectedFile] = React.useState(null);
     const [detailsDialogOpen, setDetailsDialogOpen] = React.useState(false);
-    const [deletingFile, setDeletingFile] = React.useState(null);
-    const [confirmDialogOpen, setConfirmDialogOpen] = React.useState(false);
-    const [fileToDelete, setFileToDelete] = React.useState(null);
     const [sortBy, setSortBy] = React.useState('date');
     const [sortOrder, setSortOrder] = React.useState('desc');
-    const [reuploadingFile, setReuploadingFile] = React.useState(null);
-    const [reuploadProgress, setReuploadProgress] = React.useState(0);
-    const fileInputRef = React.useRef(null);
-    const fileToReuploadRef = React.useRef(null);
 
     const formatDate = (dateString) => {
         if (!dateString) return 'Unknown';
@@ -120,116 +108,6 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, onFileRefres
         setSelectedFile(null);
     };
 
-    const handleDeleteFile = () => {
-        if (!selectedFile) return;
-        setFileToDelete(selectedFile);
-        setConfirmDialogOpen(true);
-        handleMenuClose();
-    };
-
-    const handleConfirmDelete = async () => {
-        if (!fileToDelete) return;
-
-        setDeletingFile(fileToDelete.collection_name);
-        
-        try {
-            await deletePowerBISession(fileToDelete.collection_name);
-            
-            // Delete all chat histories from localStorage if this is a chat action
-            if (actionType === 'chat') {
-                const fileId = fileToDelete.collection_name || fileToDelete.sessionId;
-                if (fileId) {
-                    // Clear all chats for this file (pass null as chatId to clear all)
-                    clearChatHistory(fileId, null);
-                }
-            }
-            
-            showNotification(`File "${fileToDelete.filename}" deleted successfully!`, 'success');
-            
-            // Call the parent's delete handler to update the files list
-            if (onFileDelete) {
-                onFileDelete(fileToDelete);
-            }
-            setConfirmDialogOpen(false);
-        } catch (err) {
-            console.error('Error deleting file:', err);
-            showNotification(`Failed to delete "${fileToDelete.filename}". ${err.message || 'Please try again.'}`, 'error');
-            setConfirmDialogOpen(false);
-        } finally {
-            setDeletingFile(null);
-            setFileToDelete(null);
-        }
-    };
-
-    const handleCancelDelete = () => {
-        setConfirmDialogOpen(false);
-        setFileToDelete(null);
-    };
-
-    const handleReuploadFile = () => {
-        if (!selectedFile) return;
-        // Store the file in a ref before closing the menu
-        fileToReuploadRef.current = selectedFile;
-        handleMenuClose();
-        // Use setTimeout to ensure menu is closed before triggering file input
-        setTimeout(() => {
-            if (fileInputRef.current) {
-                // Reset the file input value to ensure onChange fires even if same file is selected
-                fileInputRef.current.value = '';
-                fileInputRef.current.click();
-            }
-        }, 100);
-    };
-
-    const handleFileInputChange = useCallback(async (event) => {
-        const file = event.target.files?.[0];
-        const fileToReupload = fileToReuploadRef.current;
-        
-        if (!file) {
-            fileToReuploadRef.current = null;
-            return;
-        }
-        
-        if (!fileToReupload) {
-            fileToReuploadRef.current = null;
-            return;
-        }
-
-        // Validate file
-        if (!file.name.toLowerCase().endsWith('.pbix')) {
-            showNotification('Please select a valid .pbix file', 'error');
-            fileToReuploadRef.current = null;
-            return;
-        }
-
-        setReuploadingFile(fileToReupload.collection_name);
-        setReuploadProgress(0);
-
-        try {
-            await reuploadPowerBIFile(fileToReupload.collection_name, file, (progress) => {
-                setReuploadProgress(progress);
-            });
-
-            showNotification(`File "${fileToReupload.filename}" reuploaded successfully!`, 'success');
-            
-            // Refresh files list if callback provided
-            if (onFileRefresh) {
-                await onFileRefresh();
-            }
-        } catch (err) {
-            console.error('Error reuploading file:', err);
-            showNotification(`Failed to reupload "${fileToReupload.filename}". ${err.message || 'Please try again.'}`, 'error');
-        } finally {
-            setReuploadingFile(null);
-            setReuploadProgress(0);
-            fileToReuploadRef.current = null;
-            // Reset file input
-            if (fileInputRef.current) {
-                fileInputRef.current.value = '';
-            }
-        }
-    }, [showNotification, onFileDelete]);
-
     const handleViewFile = () => {
         setDetailsDialogOpen(true);
         setAnchorEl(null); // Close menu but keep selectedFile
@@ -242,41 +120,6 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, onFileRefres
 
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
-            {/* Hidden file input for reupload */}
-            <input
-                key="reupload-file-input"
-                ref={fileInputRef}
-                type="file"
-                accept=".pbix"
-                style={{ display: 'none' }}
-                onChange={handleFileInputChange}
-            />
-
-            {/* Loading overlay for reupload */}
-            {reuploadingFile && (
-                <Box
-                    sx={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        bgcolor: alpha(theme.palette.background.paper, 0.9),
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        zIndex: 9999,
-                        gap: 2
-                    }}
-                >
-                    <LoadingSpinner size={60} />
-                    <Typography variant="body1" sx={{ color: theme.palette.text.primary }}>
-                        Reuploading file... {reuploadProgress > 0 && `${reuploadProgress}%`}
-                    </Typography>
-                </Box>
-            )}
-
             {/* Header with Upload Button */}
             {showUploadButton && onUploadNew && (
                 <Box display="flex" justifyContent="flex-end" alignItems="center" mb={3} sx={{ flexShrink: 0 }}>
@@ -610,61 +453,6 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, onFileRefres
                         }}
                     />
                 </MenuItem>
-                <MenuItem 
-                    onClick={handleReuploadFile}
-                    disabled={reuploadingFile === selectedFile?.collection_name}
-                    sx={{
-                        py: 1.5,
-                        px: 2,
-                        '&:hover': {
-                            bgcolor: alpha(theme.palette.primary.main, 0.08)
-                        }
-                    }}
-                >
-                    <ListItemIcon sx={{ minWidth: 36 }}>
-                        {reuploadingFile === selectedFile?.collection_name ? (
-                            <LoadingSpinner size={18} compact />
-                        ) : (
-                            <CloudArrowUp size={18} color={theme.palette.text.secondary} />
-                        )}
-                    </ListItemIcon>
-                    <ListItemText 
-                        primary={reuploadingFile === selectedFile?.collection_name ? "Reuploading..." : "Reupload file"}
-                        primaryTypographyProps={{
-                            fontSize: '0.875rem',
-                            fontFamily: "'Inter', 'Nunito Sans', sans-serif",
-                            fontWeight: 500
-                        }}
-                    />
-                </MenuItem>
-                <MenuItem 
-                    onClick={handleDeleteFile}
-                    disabled={deletingFile === selectedFile?.collection_name}
-                    sx={{
-                        py: 1.5,
-                        px: 2,
-                        '&:hover': {
-                            bgcolor: alpha(theme.palette.error.main, 0.08)
-                        }
-                    }}
-                >
-                    <ListItemIcon sx={{ minWidth: 36 }}>
-                        {deletingFile === selectedFile?.collection_name ? (
-                            <LoadingSpinner size={18} compact />
-                        ) : (
-                            <Trash size={18} color={theme.palette.error.main} />
-                        )}
-                    </ListItemIcon>
-                    <ListItemText 
-                        primary={deletingFile === selectedFile?.collection_name ? "Deleting..." : "Delete file"}
-                        primaryTypographyProps={{
-                            fontSize: '0.875rem',
-                            fontFamily: "'Inter', 'Nunito Sans', sans-serif",
-                            fontWeight: 500,
-                            color: theme.palette.error.main
-                        }}
-                    />
-                </MenuItem>
             </Menu>
 
             {/* File Details Dialog */}
@@ -870,35 +658,19 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, onFileRefres
                             <Box sx={{ 
                                 bgcolor: theme.palette.background.hover,
                                 borderRadius: 2,
-                                p: 2.5,
+                                p: 0.5,
                                 border: `1px solid ${alpha(theme.palette.divider, 0.1)}`
                             }}>
                                 <Typography variant="body2" sx={{ 
                                     color: theme.palette.text.secondary,
                                     fontFamily: "'Inter', 'Nunito Sans', sans-serif",
-                                    mb: 1.5,
+                                    mb: 0,
                                     fontSize: '0.8rem',
                                     fontWeight: 500
                                 }}>
                                     <strong>File Size:</strong> {selectedFile.file_size ? `${(selectedFile.file_size / 1024 / 1024).toFixed(2)} MB` : 'Unknown'}
                                 </Typography>
-                                <Typography variant="body2" sx={{ 
-                                    color: theme.palette.text.secondary,
-                                    fontFamily: "'Inter', 'Nunito Sans', sans-serif",
-                                    mb: 1.5,
-                                    fontSize: '0.8rem',
-                                    fontWeight: 500
-                                }}>
-                                    <strong>Document Count:</strong> {selectedFile.document_count || 0} chunks
-                                </Typography>
-                                <Typography variant="body2" sx={{ 
-                                    color: theme.palette.text.secondary,
-                                    fontFamily: "'Inter', 'Nunito Sans', sans-serif",
-                                    fontSize: '0.8rem',
-                                    fontWeight: 500
-                                }}>
-                                    <strong>Collection ID:</strong> {selectedFile.collection_name || 'Unknown'}
-                                </Typography>
+                            
                             </Box>
                         </Box>
                     ) : null}
@@ -932,19 +704,6 @@ const FileTable = ({ files, onFileClick, onUploadNew, onFileDelete, onFileRefres
                     </Button>
                 </DialogActions>
             </Dialog>
-
-            {/* Confirmation Dialog */}
-            <ConfirmationDialog
-                open={confirmDialogOpen}
-                onClose={handleCancelDelete}
-                onConfirm={handleConfirmDelete}
-                title="Delete File"
-                message={`Are you sure you want to delete "${fileToDelete?.filename}"? This action cannot be undone and will permanently remove the file and all its associated data.`}
-                confirmText="Delete"
-                cancelText="Cancel"
-                type="danger"
-                isLoading={deletingFile === fileToDelete?.collection_name}
-            />
         </Box>
     );
 };

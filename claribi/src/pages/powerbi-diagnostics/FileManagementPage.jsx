@@ -225,7 +225,6 @@ const FileManagementPage = ({ onFileSelect, onUploadNew }) => {
                         files={files} 
                         onFileClick={handleFileClick}
                         onUploadNew={onUploadNew}
-                        onFileDelete={handleFileDelete}
                         actionType="diagnostics"
                         showUploadButton={false}
                     />

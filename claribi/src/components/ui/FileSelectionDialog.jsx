@@ -30,15 +30,13 @@ import {
     Link,
     Columns,
     Code,
-    Trash,
     CloudArrowUp,
     X,
     CheckCircle,
     Eye
 } from '@phosphor-icons/react';
-import { getUploadedFiles, deletePowerBISession } from '../../services/powerbiChatService';
+import { getUploadedFiles } from '../../services/powerbiChatService';
 import { useNotification } from '../../contexts/NotificationContext';
-import ConfirmationDialog from './ConfirmationDialog';
 
 const FileSelectionDialog = ({ open, onClose, onFileSelect, onUploadNew }) => {
     const theme = useTheme();
@@ -46,9 +44,6 @@ const FileSelectionDialog = ({ open, onClose, onFileSelect, onUploadNew }) => {
     const [files, setFiles] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
-    const [deletingFile, setDeletingFile] = useState(null);
-    const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
-    const [fileToDelete, setFileToDelete] = useState(null);
 
     useEffect(() => {
         if (open) {
@@ -81,37 +76,6 @@ const FileSelectionDialog = ({ open, onClose, onFileSelect, onUploadNew }) => {
             documentCount: file.document_count
         });
         onClose();
-    };
-
-    const handleDeleteFile = (file) => {
-        setFileToDelete(file);
-        setConfirmDialogOpen(true);
-    };
-
-    const handleConfirmDelete = async () => {
-        if (!fileToDelete) return;
-
-        setDeletingFile(fileToDelete.collection_name);
-        
-        try {
-            await deletePowerBISession(fileToDelete.collection_name);
-            setFiles(prev => prev.filter(f => f.collection_name !== fileToDelete.collection_name));
-            showNotification(`File "${fileToDelete.filename}" deleted successfully!`, 'success');
-            setConfirmDialogOpen(false);
-        } catch (err) {
-            console.error('Error deleting file:', err);
-            setError(err.message || 'Failed to delete file');
-            showNotification(`Failed to delete "${fileToDelete.filename}". ${err.message || 'Please try again.'}`, 'error');
-            setConfirmDialogOpen(false);
-        } finally {
-            setDeletingFile(null);
-            setFileToDelete(null);
-        }
-    };
-
-    const handleCancelDelete = () => {
-        setConfirmDialogOpen(false);
-        setFileToDelete(null);
     };
 
     const formatFileSize = (bytes) => {
@@ -203,8 +167,7 @@ const FileSelectionDialog = ({ open, onClose, onFileSelect, onUploadNew }) => {
                                         <Box
                                             onClick={() => handleFileSelect(file)}
                                             sx={{
-                                                cursor: deletingFile === file.collection_name ? 'not-allowed' : 'pointer',
-                                                opacity: deletingFile === file.collection_name ? 0.6 : 1,
+                                                cursor: 'pointer',
                                                 '&:hover': {
                                                     bgcolor: theme.palette.background.hover,
                                                     '& .MuiTypography-root': {
@@ -304,28 +267,6 @@ const FileSelectionDialog = ({ open, onClose, onFileSelect, onUploadNew }) => {
                                                             />
                                                         </Box>
                                                     </Box>
-
-                                                    <Box display="flex" alignItems="center" gap={1}>
-                                                        {deletingFile === file.collection_name ? (
-                                                            <LoadingSpinner size={20} compact />
-                                                        ) : (
-                                                            <IconButton
-                                                                size="small"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleDeleteFile(file);
-                                                                }}
-                                                                sx={{ 
-                                                                    color: theme.palette.error.main,
-                                                                    '&:hover': {
-                                                                        bgcolor: alpha(theme.palette.error.main, 0.1)
-                                                                    }
-                                                                }}
-                                                            >
-                                                                <Trash size={16} />
-                                                            </IconButton>
-                                                        )}
-                                                    </Box>
                                                 </Box>
                                             </CardContent>
                                         </Box>
@@ -362,19 +303,6 @@ const FileSelectionDialog = ({ open, onClose, onFileSelect, onUploadNew }) => {
                     Upload New File
                 </Button>
             </DialogActions>
-
-            {/* Confirmation Dialog */}
-            <ConfirmationDialog
-                open={confirmDialogOpen}
-                onClose={handleCancelDelete}
-                onConfirm={handleConfirmDelete}
-                title="Delete File"
-                message={`Are you sure you want to delete "${fileToDelete?.filename}"? This action cannot be undone and will permanently remove the file and all its associated data.`}
-                confirmText="Delete"
-                cancelText="Cancel"
-                type="danger"
-                isLoading={deletingFile === fileToDelete?.collection_name}
-            />
         </Dialog>
     );
 };

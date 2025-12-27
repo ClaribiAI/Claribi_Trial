@@ -24,14 +24,7 @@ const api = axios.create({
 // Add a request interceptor
 api.interceptors.request.use(
   async config => {
-    // Add JWT token to all requests if available
-    const token = localStorage.getItem('jwt_token');
-    if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`;
-      if (isDev) console.log(`🔐 JWT token added to ${config.method.toUpperCase()} request to ${config.url}`);
-    } else {
-      if (isDev) console.log(`⚠️ No JWT token available for ${config.method.toUpperCase()} request to ${config.url}`);
-    }
+    // Authentication removed - diagnostics is now public
 
     // Set appropriate Content-Type header based on data type
     if (config.data && ['post', 'put', 'patch'].includes(config.method.toLowerCase())) {
@@ -92,49 +85,8 @@ api.interceptors.response.use(
       
       if (isDev) console.error(`HTTP Error ${status}:`, data);
       
-      // Handle authentication errors
-      if (status === 401) {
-        const currentPath = window.location.pathname;
-        
-        // Don't redirect if already on the login page
-        if (currentPath === '/login') {
-          return Promise.reject(error);
-        }
-        
-        // Don't retry if this request already failed after refresh
-        if (config._retry) {
-          if (isDev) console.log('Token refresh already attempted, redirecting to login');
-          window.location.href = '/login';
-          return Promise.reject(error);
-        }
-        
-        // Attempt token refresh before redirecting to login
-        try {
-          if (isDev) console.log('401 error detected, attempting token refresh...');
-          config._retry = true;
-          
-          // Import authService dynamically to avoid circular dependency
-          const authService = (await import('./auth')).default;
-          await authService.refreshAccessToken();
-          
-          if (isDev) console.log('Token refreshed successfully, retrying original request');
-          // Retry the original request with the new token
-          return api.request(config);
-        } catch (refreshError) {
-          if (isDev) console.error('Token refresh failed, redirecting to login:', refreshError);
-          // Clear token before redirecting to login
-          const authService = (await import('./auth')).default;
-          authService.removeToken();
-          // Only redirect to login if refresh fails
-          window.location.href = '/login';
-          return Promise.reject(error);
-        }
-      }
-      
-      if (status === 403) {
-        // Forbidden - user doesn't have access
-        if (isDev) console.error('You do not have permission to access this resource');
-      }
+      // Authentication removed - diagnostics is now public
+      // 401 and 403 errors are handled as regular errors
       
       // Try to extract more useful error info
       const normalized = normalizeApiError(error);

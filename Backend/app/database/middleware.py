@@ -1,85 +1,26 @@
 from flask import g, current_app
 from app.core.database import init_db_pool, get_connection_pool, get_db_connection, get_direct_db_connection_string
 from app.core.exceptions import DatabaseError
+from app.core.session_token import get_or_create_session_token
 import psycopg
 import psycopg.sql
 import time
 
 def set_user_context():
-    """Set user context for Row Level Security (RLS)"""
-    # Get user from JWT token via auth2 middleware
-    from app.auth2.middleware import get_current_user_from_token
-    user = get_current_user_from_token()
-    if not user:
-        return  # Not logged in
+    """Set user context for Row Level Security (RLS) using session token"""
+    try:
+        # Get or create session token for this request
+        session_token = get_or_create_session_token()
         
-    # Validate required fields
-    required_fields = ["ms_object_id"]
-    missing_fields = [field for field in required_fields if not user.get(field)]
-    if missing_fields:
-        current_app.logger.warning(f"Missing required user fields: {', '.join(missing_fields)}")
-        return
-
-    from app.config.settings import config
-    
-    max_retries = config.DB_VALIDATION_RETRIES
-    retry_count = 0
-    last_error = None
-
-    while retry_count < max_retries:
-        try:
-            ms_object_id = str(user["ms_object_id"]).strip()
-
-            if not ms_object_id:
-                current_app.logger.warning("Invalid user ID")
-                return
-
-            # Use direct connection for SET statement (not pooled)
-            # SET statements don't persist in PgBouncer transaction mode, so we need a direct connection
-            # See Neon documentation: https://neon.com/docs/connect/connection-pooling
-            direct_conn_str = get_direct_db_connection_string()
-            with psycopg.connect(direct_conn_str) as conn:
-                with conn.cursor() as cursor:
-                    # Execute SET statement and commit
-                    # SET statements don't work with parameterized queries, use string formatting with proper escaping
-                    cursor.execute(psycopg.sql.SQL("SET app.current_user_ms_object_id = {}").format(psycopg.sql.Literal(ms_object_id)))
-                    conn.commit()
-                    return  # Success, exit the function
-
-        except (psycopg.Error, DatabaseError) as e:
-            error_message = str(e)
-            
-            # Check if this is an RLS policy violation (not a connection issue)
-            if "violates row-level security policy" in error_message.lower():
-                current_app.logger.warning(f"RLS policy violation during user context setup: {error_message}")
-                # RLS violations are expected security behavior, not connection errors
-                # Continue without user context rather than crashing the app
-                return
-            
-            # Check for other non-fatal database errors that shouldn't trigger retries
-            non_fatal_errors = [
-                "permission denied",
-                "access denied", 
-                "insufficient privilege",
-                "authentication failed"
-            ]
-            
-            if any(error_pattern in error_message.lower() for error_pattern in non_fatal_errors):
-                current_app.logger.warning(f"Non-fatal database error during user context setup: {error_message}")
-                return
-            
-            # For other errors (connection issues, etc.), use retry logic
-            last_error = error_message
-            current_app.logger.warning(f"Database error on attempt {retry_count + 1}: {error_message}")
-            
-            retry_count += 1
-            if retry_count < max_retries:
-                # Wait before retrying, with exponential backoff
-                time.sleep(2 ** retry_count)
-                continue
-            
-            # If we've exhausted all retries, raise the error
-            raise DatabaseError(f"Failed to set user context after {max_retries} attempts. Last error: {last_error}")
+        # Store in Flask g for use in routes and database connections
+        # The session variable will be set on each database connection
+        # when get_db_cursor() is called (see database.py)
+        g.session_token = session_token
+    except Exception as e:
+        # If session token generation fails, continue without it
+        # Routes should handle missing tokens appropriately
+        current_app.logger.warning(f"Failed to set user context: {e}")
+        g.session_token = None
 
 def ensure_db_pool():
     """Ensure database pool is initialized"""

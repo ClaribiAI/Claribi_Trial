@@ -2,19 +2,13 @@ import json
 import logging
 from typing import Dict, Any, List
 
-from .prompts import (
-    get_executive_summary_prompt,
-    get_data_model_analysis_prompt,
-    get_visualization_analysis_prompt,
-    get_security_analysis_prompt,
-    get_improvement_recommendations_prompt
-)
+from .prompts import get_improvement_recommendations_prompt
 
 logger = logging.getLogger(__name__)
 
 class PowerBIDocumentationGenerator:
     """
-    Handles AI-powered documentation generation for Power BI reports.
+    Handles AI-powered improvement recommendations generation for Power BI diagnostics.
     This class constructs the prompts and uses a provided AI client to get results.
     """
 
@@ -27,107 +21,6 @@ class PowerBIDocumentationGenerator:
         """
         self.client = client
 
-
-    def generate_executive_summary(self, context: Dict, custom_instructions: str = '', file_uri: str = None) -> tuple[str, dict]:
-        """Generates the executive summary of the report."""
-        try:
-            # Format context for JSON serialization
-            formatted_context = {
-                'model': json.dumps(context['model'], indent=2, ensure_ascii=False),
-                'report': json.dumps(context['report'], indent=2, ensure_ascii=False)
-            }
-            
-            system_instruction, user_prompt = get_executive_summary_prompt(formatted_context, custom_instructions, has_formatting_pdf=(file_uri is not None))
-            
-            logger.info("Generating 'executive_summary' with Gemini.")
-            content, token_usage = self.client.generate_content(
-                prompt=user_prompt,
-                system_instruction=system_instruction,
-                context='executive_summary',
-                file_uri=file_uri
-            )
-            logger.info(f"Generated 'executive_summary' - Content length: {len(content)} chars")
-            return content, token_usage
-
-        except Exception as e:
-            logger.error(f"Error in generator for 'executive_summary': {str(e)}", exc_info=True)
-            return "An error occurred while generating the executive summary.", {'input_tokens': 0, 'output_tokens': 0, 'total_tokens': 0}
-
-    def generate_data_model_analysis(self, context: Dict, custom_instructions: str = '', file_uri: str = None) -> tuple[str, dict]:
-        """Generates the detailed data model analysis."""
-        try:
-            # Format context for JSON serialization
-            formatted_context = {
-                'model': json.dumps(context['model'], indent=2, ensure_ascii=False)
-            }
-            
-            system_instruction, user_prompt = get_data_model_analysis_prompt(formatted_context, custom_instructions, has_formatting_pdf=(file_uri is not None))
-            
-            logger.info("Generating 'data_model_analysis' with Gemini.")
-            content, token_usage = self.client.generate_content(
-                prompt=user_prompt,
-                system_instruction=system_instruction,
-                context='data_model_analysis',
-                file_uri=file_uri
-            )
-            logger.info(f"Generated 'data_model_analysis' - Content length: {len(content)} chars")
-            return content, token_usage
-
-        except Exception as e:
-            logger.error(f"Error in generator for 'data_model_analysis': {str(e)}", exc_info=True)
-            return "An error occurred while generating the data model analysis.", {'input_tokens': 0, 'output_tokens': 0, 'total_tokens': 0}
-
-    def generate_visualization_analysis(self, context: Dict, custom_instructions: str = '', file_uri: str = None) -> tuple[str, dict]:
-        """Generates the detailed visualization analysis."""
-        try:
-            # Format context for JSON serialization
-            formatted_context = {
-                'report': json.dumps(context['report'], indent=2, ensure_ascii=False),
-                'model': json.dumps(context['model'], indent=2, ensure_ascii=False)
-            }
-            
-            system_instruction, user_prompt = get_visualization_analysis_prompt(formatted_context, custom_instructions, has_formatting_pdf=(file_uri is not None))
-            
-            logger.info("Generating 'visualization_analysis' with Gemini.")
-            content, token_usage = self.client.generate_content(
-                prompt=user_prompt,
-                system_instruction=system_instruction,
-                context='visualization_analysis',
-                file_uri=file_uri
-            )
-            logger.info(f"Generated 'visualization_analysis' - Content length: {len(content)} chars")
-            return content, token_usage
-
-        except Exception as e:
-            logger.error(f"Error in generator for 'visualization_analysis': {str(e)}", exc_info=True)
-            return "An error occurred while generating the visualization analysis.", {'input_tokens': 0, 'output_tokens': 0, 'total_tokens': 0}
-
-    def generate_security_analysis(self, context: Dict, custom_instructions: str = '', file_uri: str = None) -> tuple[str, dict]:
-        """Generate security and access control analysis"""
-        try:
-            # Format context for JSON serialization
-            formatted_context = {
-                'model': json.dumps(context['model'], indent=2, ensure_ascii=False),
-                'report': json.dumps(context['report'], indent=2, ensure_ascii=False),
-                'rls_roles': json.dumps(context.get('model', {}).get('rls_roles', []), indent=2, ensure_ascii=False)
-            }
-            
-            system_instruction, user_prompt = get_security_analysis_prompt(formatted_context, custom_instructions, has_formatting_pdf=(file_uri is not None))
-            
-            logger.info("Generating 'security_analysis' with Gemini.")
-            content, token_usage = self.client.generate_content(
-                prompt=user_prompt,
-                system_instruction=system_instruction,
-                context='security_analysis',
-                file_uri=file_uri
-            )
-            logger.info(f"Generated 'security_analysis' - Content length: {len(content)} chars")
-            return content, token_usage
-
-        except Exception as e:
-            logger.error(f"Error in generator for 'security_analysis': {str(e)}", exc_info=True)
-            return "An error occurred while generating the security analysis.", {'input_tokens': 0, 'output_tokens': 0, 'total_tokens': 0}
-
     def generate_improvement_recommendations(self, context: Dict, custom_instructions: str = '', file_uri: str = None) -> tuple[str, dict]:
         """Generate data model improvement recommendations"""
         try:
@@ -137,7 +30,7 @@ class PowerBIDocumentationGenerator:
                 'report': json.dumps(context['report'], indent=2, ensure_ascii=False)
             }
             
-            system_instruction, user_prompt = get_improvement_recommendations_prompt(formatted_context, custom_instructions, has_formatting_pdf=(file_uri is not None))
+            system_instruction, user_prompt = get_improvement_recommendations_prompt(formatted_context, custom_instructions, has_formatting_pdf=False)
             
             logger.info("Generating improvement recommendations with simple JSON format")
             content, token_usage = self.client.generate_content(

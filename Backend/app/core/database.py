@@ -499,9 +499,28 @@ def get_db_cursor(commit: bool = False):
     Raises:
         DatabaseError: If cursor operation fails
     """
+    from flask import g
+    from app.core.session_token import get_session_token_from_request
+    
     with get_db_connection() as conn:
         cursor = None
         try:
+            # Set session token for RLS before creating cursor
+            # This ensures RLS policies work correctly on this connection
+            session_token = getattr(g, 'session_token', None) or get_session_token_from_request()
+            if session_token:
+                try:
+                    # Use a temporary cursor to set the session variable
+                    # This must be done on each connection since session variables are connection-specific
+                    temp_cursor = conn.cursor()
+                    temp_cursor.execute(
+                        "SELECT set_config('app.session_token', %s, false)",
+                        (session_token,)
+                    )
+                    temp_cursor.close()
+                except Exception as e:
+                    logger.warning(f"Failed to set RLS session variable on connection: {e}")
+            
             cursor = conn.cursor()
             if cursor.closed:
                 raise DatabaseError("Database cursor is closed immediately after creation")

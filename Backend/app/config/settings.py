@@ -17,21 +17,20 @@ class Config:
     SECURE_COOKIES = os.getenv('SECURE_COOKIES', 'true' if FLASK_ENV == 'production' else 'false').lower() == 'true'
 
     # Set SameSite cookie policy
-    # In production, frontend and backend are on different domains, so use None for cross-origin support
+    # In both development and production, frontend and backend may be on different origins
+    # So we use None for cross-origin support (requires Secure=True)
     # Environment variable takes precedence if explicitly set
     _cookie_samesite_env = os.getenv('COOKIE_SAMESITE')
     if _cookie_samesite_env:
         # Explicitly set via environment variable takes precedence
         COOKIE_SAMESITE = _cookie_samesite_env
-    elif FLASK_ENV == 'production':
-        # Production: Always use None for cross-origin cookie support
+    else:
+        # Both dev and production: Use None for cross-origin cookie support
+        # This is needed because frontend (localhost:5173) and backend (127.0.0.1:5000) are different origins
         COOKIE_SAMESITE = 'None'
         # Ensure SECURE_COOKIES is True when SameSite=None (required by browsers)
         if not SECURE_COOKIES:
             SECURE_COOKIES = True
-    else:
-        # Development defaults to Lax
-        COOKIE_SAMESITE = 'Lax'
 
     # Ensure SECURE_COOKIES is True when SameSite=None (required by browser security)
     if COOKIE_SAMESITE == 'None' and not SECURE_COOKIES:

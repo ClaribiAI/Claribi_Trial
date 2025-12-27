@@ -16,18 +16,6 @@ class PowerBIFileService {
         }
     }
 
-    async deleteFile(sessionId) {
-        try {
-            const response = await api.delete('/powerbi-chat/delete-session', {
-                data: { session_id: sessionId }
-            });
-            return response.data;
-        } catch (error) {
-            console.error('Error deleting file:', error);
-            throw new Error(`Failed to delete file: ${error.message}`);
-        }
-    }
-
     async getFileSummaries(collectionName) {
         try {
             const response = await api.get(`/api/powerbi-docs/get-summaries/${collectionName}`);

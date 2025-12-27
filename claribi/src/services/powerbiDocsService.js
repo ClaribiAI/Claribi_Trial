@@ -108,9 +108,23 @@ export const analyzePowerBISection = async (collectionName, section, customInstr
     }
 };
 
-export const parseImprovementRecommendations = async (collectionName) => {
+export const getRecommendations = async (collectionName) => {
+    try {
+        const response = await api.get(`/api/powerbi-docs/get-recommendations/${collectionName}`);
+        return response.data;
+    } catch (error) {
+        // If recommendations don't exist, return null instead of throwing
+        if (error.response?.status === 404) {
+            return null;
+        }
+        throw error.response?.data || error;
+    }
+};
+
+export const parseImprovementRecommendations = async (collectionName, forceRegenerate = false) => {
     const requestData = {
-        collection_name: collectionName
+        collection_name: collectionName,
+        force_regenerate: forceRegenerate
     };
 
     try {

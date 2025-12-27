@@ -4,34 +4,24 @@
 import logging
 import json
 from typing import Dict, List, Any
-from langchain_core.documents import Document
 from app.powerbi_docs.pbixray import PBIXRay
-from app.powerbi_chat.services.dataset_summary_service import dataset_summary_service
+# Document chunking removed - not needed for diagnostics (only metadata extraction)
 
 logger = logging.getLogger(__name__)
 
 class PBIXParsingService:
     """
-    Service for extracting, transforming, and chunking PBIX file metadata.
-    This version merges the robust discovery logic of the old parser with the
-    clean structure and chunking strategy of the new refactored version.
+    Service for extracting and transforming PBIX file metadata.
+    Only extracts structured metadata for diagnostics - no document chunking needed.
     """
     @staticmethod
-    def extract_and_chunk(filepath: str) -> List[Document]:
-        """High-level method to perform all parsing steps."""
-        raw_data = PBIXParsingService._extract_raw_data(filepath)
-        structured_metadata = PBIXParsingService._transform_to_structured_metadata(
-            raw_data
-        )
-
-        return PBIXParsingService._chunk_metadata(structured_metadata)
-
-    @staticmethod
-    def extract_and_chunk_with_metadata(
+    def extract_metadata_with_summary(
         filepath: str, filename: str
-    ) -> tuple[List[Document], dict]:
-
-        """High-level method to perform all parsing steps and return both documents and summary metadata."""
+    ) -> dict:
+        """
+        High-level method to extract structured metadata and create summary metadata.
+        Returns only metadata dictionary (no documents for embeddings).
+        """
 
         import time
         start_time = time.time()
@@ -41,27 +31,17 @@ class PBIXParsingService:
         extraction_time = time.time() - start_time
         logger.info(f"Raw data extraction completed in {extraction_time:.2f} seconds")
 
-        chunk_start = time.time()
+        transform_start = time.time()
         structured_metadata = PBIXParsingService._transform_to_structured_metadata(
             raw_data
         )
-        transform_time = time.time() - chunk_start
+        transform_time = time.time() - transform_start
         logger.info(f"Metadata transformation completed in {transform_time:.2f} seconds")
-
-        chunk_start = time.time()
-        documents = PBIXParsingService._chunk_metadata(structured_metadata)
-        chunk_time = time.time() - chunk_start
-        logger.info(f"Chunking completed in {chunk_time:.2f} seconds")
         
         total_time = time.time() - start_time
         logger.info(f"Total PBIX processing time: {total_time:.2f} seconds")
 
-        # Generate dataset summary document (always included in Gemini calls)
-        dataset_summary_doc = dataset_summary_service.generate_dataset_summary(structured_metadata)
-        documents.insert(0, dataset_summary_doc)  # Insert at the beginning for priority
-
         # Create summary metadata (not the full PBIX data)
-
         import os
         from datetime import datetime
 
@@ -87,13 +67,12 @@ class PBIXParsingService:
                 "power_query_scripts_count": len(power_query_scripts),
                 "pages_count": len(pages),
                 "visuals_count": len(visuals),
-                "document_count": len(documents),
             },
             # Include structured_metadata for summary generation
             "structured_metadata": PBIXParsingService._clean_metadata_for_json(structured_metadata),
         }
 
-        return documents, collection_metadata
+        return collection_metadata
 
     @staticmethod
     def _extract_action_button_info(single_visual: Dict[str, Any], bookmarks: List[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -1020,366 +999,7 @@ class PBIXParsingService:
             "bookmarks": bookmarks,
         }
 
-    @staticmethod
-    def _chunk_metadata(metadata: Dict[str, Any]) -> List[Document]:
-        """
-        Chunks the metadata into detailed documents for precise retrieval.
-        Uses comprehensive chunking strategy from the old implementation.
-        """
-
-        documents = []
-        tables = metadata.get("tables", [])
-        measures = metadata.get("measures", [])
-        relationships = metadata.get("relationships", [])
-        power_query_scripts = metadata.get("power_query_scripts", [])
-        visuals = metadata.get("visuals", [])
-        pages = metadata.get("pages", [])
-        rls_roles = metadata.get("rls_roles", [])
-
-        # 1. Create comprehensive table documents with all details (like old implementation)
-        for table in tables:
-            table_name = table.get("name", "Unknown")
-            table_columns = table.get("columns", [])
-            table_measures = table.get("measures", [])
-            # Create detailed table document
-            table_doc = f"Table: {table_name}\n"
-            table_doc += f"Columns ({len(table_columns)}): "
-
-            if table_columns:
-                column_details = []
-
-                for col in table_columns:
-                    col_name = col.get("name", "")
-                    col_type = col.get("dataType", "Unknown")
-                    column_details.append(f"{col_name} ({col_type})")
-
-                table_doc += ", ".join(column_details)
-
-            else:
-                table_doc += "No columns found"
-
-            table_doc += f"\nMeasures ({len(table_measures)}): "
-
-            if table_measures:
-                measure_names = [
-                    m.get("name", "") for m in table_measures if m.get("name")
-                ]
-                table_doc += ", ".join(measure_names)
-
-            else:
-                table_doc += "No measures found"
-
-            documents.append(
-                Document(
-                    page_content=table_doc,
-                    metadata={
-                        "source": "table_schema",
-                        "table_name": table_name,
-                        "type": "table",
-                        "column_count": len(table_columns),
-                        "measure_count": len(table_measures),
-                    },
-                )
-            )
-
-        # 2. Create individual detailed measure documents with full DAX (like old implementation)
-        for table in tables:
-            table_name = table.get("name", "Unknown")
-            table_measures = table.get("measures", [])
-            for measure in table_measures:
-                measure_name = measure.get("name", "")
-                expression = measure.get("expression", "")
-                if measure_name:
-                    measure_doc = f"Measure: {measure_name}\n"
-                    measure_doc += f"Table: {table_name}\n"
-                    measure_doc += f"DAX Expression:\n{expression}"
-                    documents.append(
-                        Document(
-                            page_content=measure_doc,
-                            metadata={
-                                "source": "measure_schema",
-                                "table_name": table_name,
-                                "measure_name": measure_name,
-                                "expression": expression,
-                                "type": "measure",
-                            },
-                        )
-                    )
-
-        # 3. Create detailed relationship documents (like old implementation)
-        for rel in relationships:
-            from_table = rel.get("fromTable", "")
-            from_column = rel.get("fromColumn", "")
-            to_table = rel.get("toTable", "")
-            to_column = rel.get("toColumn", "")
-            is_active = rel.get("isActive", True)
-            from_cardinality = rel.get("fromCardinality", "Unknown")
-            to_cardinality = rel.get("toCardinality", "Unknown")
-            cross_filtering = rel.get("crossFilteringBehavior", "Unknown")
-
-            if from_table and to_table:
-                rel_doc = f"Relationship:\n"
-                rel_doc += f"From: {from_table}[{from_column}]\n"
-                rel_doc += f"To: {to_table}[{to_column}]\n"
-                rel_doc += f"Active: {is_active}\n"
-                rel_doc += f"Cardinality: {from_cardinality} to {to_cardinality}\n"
-                rel_doc += f"Cross-filtering: {cross_filtering}\n"
-                rel_doc += f"From Key Count: {rel.get('fromKeyCount', 0)}\n"
-                rel_doc += f"To Key Count: {rel.get('toKeyCount', 0)}\n"
-                rel_doc += f"Referential Integrity: {rel.get('relyOnReferentialIntegrity', False)}"
-
-                documents.append(
-                    Document(
-                        page_content=rel_doc,
-                        metadata={
-                            "source": "relationship_schema",
-                            "from_table": from_table,
-                            "from_column": from_column,
-                            "to_table": to_table,
-                            "to_column": to_column,
-                            "is_active": is_active,
-                            "type": "relationship",
-                        },
-                    )
-                )
-
-        # 4. Create column-specific documents for better searchability (like old implementation)
-        for table in tables:
-            table_name = table.get("name", "Unknown")
-            table_columns = table.get("columns", [])
-            for column in table_columns:
-                column_name = column.get("name", "")
-                data_type = column.get("dataType", "")
-                if column_name:
-                    column_doc = f"Column: {column_name}\n"
-                    column_doc += f"Table: {table_name}\n"
-                    column_doc += f"Data Type: {data_type}"
-
-                    documents.append(
-                        Document(
-                            page_content=column_doc,
-                            metadata={
-                                "source": "column_schema",
-                                "table_name": table_name,
-                                "column_name": column_name,
-                                "data_type": data_type,
-                                "type": "column",
-                            },
-                        )
-                    )
-
-        # 5. Create Power Query (M code) documents (like old implementation)
-        for script in power_query_scripts:
-            script_name = script.get("name", "Unknown")
-            m_code = script.get("m_code", "")
-            # Create comprehensive Power Query document
-            pq_doc = f"Power Query Script: {script_name}\n"
-            if m_code:
-                pq_doc += f"\nM Code:\n{m_code}"
-            else:
-                pq_doc += "\nM Code: Not available"
-
-            documents.append(
-                Document(
-                    page_content=pq_doc,
-                    metadata={
-                        "source": "power_query_script",
-                        "script_name": script_name,
-                        "type": "power_query",
-                    },
-                )
-            )
-
-        # 6. Create individual visual documents with comprehensive details
-        for i, visual in enumerate(visuals, 1):
-            visual_type = visual.get("visual_type", "unknown")
-            section_name = visual.get("section_name", "Unknown")
-            fields_used = visual.get("fields_used", {})
-            data_sources = visual.get("data_sources", [])
-            key_properties = visual.get("key_properties", {})
-            action_button_info = visual.get("action_button_info", {})
-            
-            # Create detailed visual document
-            visual_doc = f"Visual Type: {visual_type}\n"
-            visual_doc += f"Page: {section_name}\n"
-
-            if fields_used:
-                visual_doc += "Fields Used:\n"
-                for role, fields in fields_used.items():
-                    if fields:
-                        visual_doc += f"  - {role}: {', '.join(fields)}\n"
-
-            if data_sources:
-                visual_doc += f"Data Sources: {', '.join(data_sources)}\n"
-
-            if key_properties:
-                visual_doc += "Key Configuration:\n"
-
-                if "title" in key_properties:
-                    title_text = (
-                        key_properties["title"]
-                        .get("text", {})
-                        .get("expr", {})
-                        .get("Literal", {})
-                        .get("Value", "")
-                    )
-
-                    if title_text:
-                        visual_doc += f"  - Title: {title_text}\n"
-
-                if "general" in key_properties:
-                    visual_doc += f"  - General properties configured\n"
-
-                if "valueAxis" in key_properties:
-                    visual_doc += f"  - Value axis configured\n"
-
-                if "categoryAxis" in key_properties:
-                    visual_doc += f"  - Category axis configured\n"
-
-            # Add actionButton-specific information
-            if visual_type == "actionButton" and action_button_info:
-                visual_doc += "Button Action:\n"
-                
-                button_text = action_button_info.get("button_text", "")
-                if button_text:
-                    visual_doc += f"  - Button Text: {button_text}\n"
-                
-                action_type = action_button_info.get("action_type", "")
-                if action_type:
-                    visual_doc += f"  - Action Type: {action_type}\n"
-                
-                action_target = action_button_info.get("action_target", "")
-                if action_target:
-                    visual_doc += f"  - Action Target: {action_target}\n"
-                
-                tooltip = action_button_info.get("tooltip", "")
-                if tooltip:
-                    visual_doc += f"  - Tooltip: {tooltip}\n"
-                
-                icon_shape = action_button_info.get("icon_shape", "")
-                if icon_shape:
-                    visual_doc += f"  - Icon Shape: {icon_shape}\n"
-                
-                # Create a human-readable description of what the button does
-                action_description = ""
-                if action_type == "Bookmark":
-                    if tooltip:
-                        action_description = f"Navigates to bookmark '{action_target}' ({tooltip})"
-                    else:
-                        action_description = f"Navigates to bookmark '{action_target}'"
-                elif action_type == "Page":
-                    if tooltip:
-                        action_description = f"Navigates to page '{action_target}' ({tooltip})"
-                    else:
-                        action_description = f"Navigates to page '{action_target}'"
-                elif action_type == "URL":
-                    if tooltip:
-                        action_description = f"Opens URL '{action_target}' ({tooltip})"
-                    else:
-                        action_description = f"Opens URL '{action_target}'"
-                elif tooltip:
-                    action_description = tooltip
-                
-                if action_description:
-                    visual_doc += f"  - Description: {action_description}\n"
-
-            documents.append(
-                Document(
-                    page_content=visual_doc,
-                    metadata={
-                        "visual_type": visual_type,
-                        "page_name": section_name,
-                        "data_sources": data_sources,
-                        "type": "visual",
-                        "action_button_info": action_button_info if visual_type == "actionButton" else {},
-                    },
-                )
-            )
-
-        # 7. Create page summary documents
-        for page in pages:
-            page_name = page.get("name", "Unknown")
-            visual_count = page.get("visual_count", 0)
-
-            # Get all visuals for this page
-            page_visuals = [v for v in visuals if v.get("section_name") == page_name]
-            visual_types = list(
-                set(v.get("visual_type", "unknown") for v in page_visuals)
-            )
-
-            all_data_sources = []
-
-            for visual in page_visuals:
-                all_data_sources.extend(visual.get("data_sources", []))
-            unique_data_sources = list(set(all_data_sources))
-            page_doc = f"Report Page: {page_name}\n"
-            page_doc += f"Visuals: {visual_count}\n"
-            page_doc += f"Visual Types: {', '.join(visual_types)}\n"
-
-            if unique_data_sources:
-                page_doc += f"Data Sources: {', '.join(unique_data_sources)}\n"
-
-            documents.append(
-                Document(
-                    page_content=page_doc,
-                    metadata={
-                        "source": "page_summary",
-                        "page_name": page_name,
-                        "visual_count": visual_count,
-                        "visual_types": visual_types,
-                        "type": "page",
-                    },
-                )
-            )
-
-        # 8. Create RLS role documents
-        for role in rls_roles:
-            role_name = role.get("role_name", "Unknown")
-            description = role.get("description", "")
-            table_filters = role.get("table_filters", [])
-
-            if role_name:
-                # Create RLS role document
-                rls_doc = f"Row-Level Security Role: {role_name}\n"
-                if description:
-                    rls_doc += f"Description: {description}\n"
-                rls_doc += "\n"
-                if table_filters:
-                    rls_doc += "Table Filters:\n"
-                    for filter_data in table_filters:
-                        table_name = filter_data.get("table", "")
-                        dax_filter = filter_data.get("dax_filter", "")
-                        if table_name and dax_filter:
-                            rls_doc += f"- Table: {table_name}\n"
-                            rls_doc += f"  DAX Filter: {dax_filter}\n"
-
-                else:
-                    rls_doc += "No table filters defined\n"
-
-                # Add affected tables list
-                affected_tables = [f.get("table", "") for f in table_filters if f.get("table")]
-
-                if affected_tables:
-                    rls_doc += f"\nAffected Tables: {', '.join(affected_tables)}"
-
-                else:
-                    rls_doc += "\nAffected Tables: None"
-
-                documents.append(
-                    Document(
-                        page_content=rls_doc,
-                        metadata={
-                            "source": "rls_role",
-                            "role_name": role_name,
-                            "type": "security",
-                            "affected_tables": affected_tables,
-                        },
-                    )
-                )
-
-        logger.info(f"Created {len(documents)} document chunks from metadata")
-
-        return documents
+    # Document chunking method removed - not needed for diagnostics (only metadata extraction)
 
     @staticmethod
     def _safe_numeric_value(value, default=0):

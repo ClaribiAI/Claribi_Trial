@@ -2,44 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   Box, 
-  List, 
   Divider, 
   Tooltip, 
   Typography, 
-  Paper,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
-  Popper,
-  Fade,
-  ClickAwayListener,
-  Chip,
-  Menu,
-  MenuItem,
-  Avatar,
-  Badge,
   useTheme,
   alpha
 } from '@mui/material';
 import { 
-  House, 
-  Folder, 
-  Question, 
-  SignOut, 
-  Star,
-  Clock,
-  Eye,
-  Gear,
-  User,
-  ChatCircle,
-  Bell,
-  Plus,
-  Files,
   Sun,
   Moon,
   Stethoscope
 } from '@phosphor-icons/react';
-import { useAuth } from '../../contexts/AuthContext';
 import { useTheme as useCustomTheme } from '../../contexts/ThemeContext';
 
 const Sidebar = ({ open = false, toggleSidebar }) => {
@@ -47,49 +20,20 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const theme = useTheme();
-  const { currentUser, logout } = useAuth();
   const { isDarkMode, toggleTheme } = useCustomTheme();
-  
-  // State for user menu
-  const [userMenuAnchorEl, setUserMenuAnchorEl] = useState(null);
   
   // Get current fileId from URL to preserve it when navigating
   const fileId = searchParams.get('fileId');
 
   const menuItems = [
-    { text: 'Home', icon: <House size={20} />, path: '/' },
-    { text: 'Instant Documentation', icon: <Files size={20} />, path: '/powerbi-docs' },
-    { text: 'Intelligent Chat', icon: <ChatCircle size={20} />, path: '/powerbi-chat' },
     { text: 'Diagnostics', icon: <Stethoscope size={20} />, path: '/powerbi-diagnostics' },
   ];
 
-  // All menu items are available to authenticated users
+  // All menu items are available
   const filteredMenuItems = menuItems;
-  
-  const handleLogout = (e) => {
-    e.preventDefault();
-    logout();
-    setUserMenuAnchorEl(null);
-  };
-
-  const handleUserMenuOpen = (event) => {
-    setUserMenuAnchorEl(event.currentTarget);
-  };
-
-  const handleUserMenuClose = () => {
-    setUserMenuAnchorEl(null);
-  };
 
   const isActive = (path) => {
-    if (path === '/') {
-      return location.pathname === path;
-    }
-    // For exact matches, use exact equality
-    if (path === '/powerbi-docs' || path === '/powerbi-chat' || path === '/powerbi-diagnostics') {
-      return location.pathname === path;
-    }
-    // For other paths, use startsWith
-    return location.pathname.startsWith(path);
+    return location.pathname === path;
   };
 
   return (
@@ -254,9 +198,6 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
                 to={item.path === '/' ? item.path : (fileId ? `${item.path}?fileId=${encodeURIComponent(fileId)}` : item.path)}
                 onClick={() => toggleSidebar && toggleSidebar()}
                 data-onboarding-target={
-                    item.path === '/' ? 'sidebar-home' :
-                    item.path === '/powerbi-docs' ? 'sidebar-docs' :
-                    item.path === '/powerbi-chat' ? 'sidebar-chat' :
                     item.path === '/powerbi-diagnostics' ? 'sidebar-diagnostics' : null
                 }
             sx={{ 
@@ -331,7 +272,7 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
         }} 
       />
 
-      <List 
+      <Box 
         sx={{ 
           display: 'flex', 
           flexDirection: 'column',
@@ -429,253 +370,7 @@ const Sidebar = ({ open = false, toggleSidebar }) => {
           </Box>
         </Tooltip>
 
-        <Tooltip 
-          title="Help & Support"
-          placement="right"
-          arrow
-          slotProps={{
-            tooltip: {
-              sx: {
-                backgroundColor: theme.palette.tooltip.background,
-                color: theme.palette.tooltip.text,
-                fontSize: '0.75rem',
-                fontFamily: "'Nunito Sans', sans-serif",
-                fontWeight: 500,
-                borderRadius: 2,
-                px: 1.5,
-                py: 0.75,
-                boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
-              }
-            }
-          }}
-        >
-              <Box
-          component={Link} 
-          to="/help"
-          sx={{ 
-            textDecoration: 'none', 
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-            width: '100%',
-            color: 'inherit',
-              p: { xs: 0.5, sm: 0.75 },
-              borderRadius: 3,
-              position: 'relative',
-              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-              flexShrink: 1,
-              minHeight: { xs: 40, sm: 44 },
-                  '&:hover': {
-                backgroundColor: theme.palette.sidebar.hoverBackground,
-                transform: 'translateY(-1px)',
-                '& .icon': {
-                  color: isActive('/help') ? theme.palette.sidebar.activeText : theme.palette.text.primary,
-                  transform: 'scale(1.05)',
-                },
-              },
-              '&:active': {
-                transform: 'translateY(0)',
-            }
-          }}
-        >
-          <Box 
-            className="icon"
-            sx={{
-                width: { xs: 36, sm: 40 },
-                height: { xs: 36, sm: 40 },
-                minWidth: { xs: 32, sm: 36 },
-                minHeight: { xs: 32, sm: 36 },
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-                borderRadius: 3,
-                backgroundColor: isActive('/help') ? theme.palette.sidebar.activeBackground : theme.palette.sidebar.inactiveBackground,
-                color: isActive('/help') ? theme.palette.sidebar.activeText : theme.palette.sidebar.inactiveText,
-                mb: 0,
-                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                boxShadow: isActive('/help') ? '0 4px 16px rgba(0, 0, 0, 0.25)' : '0 2px 8px rgba(0,0,0,0.08)',
-                '&:hover': {
-                  boxShadow: isActive('/help') ? '0 6px 20px rgba(0, 0, 0, 0.3)' : '0 4px 12px rgba(0,0,0,0.12)',
-                },
-                '& svg': {
-                  width: { xs: 18, sm: 20 },
-                  height: { xs: 18, sm: 20 },
-                }
-            }}
-          >
-            <Question size={20} />
-                </Box>
-              </Box>
-        </Tooltip>
-
-
-        <Tooltip 
-          title={currentUser?.email || "User Menu"}
-          placement="right"
-          arrow
-          slotProps={{
-            tooltip: {
-              sx: {
-                backgroundColor: theme.palette.tooltip.background,
-                color: theme.palette.tooltip.text,
-                fontSize: '0.75rem',
-                fontFamily: "'Nunito Sans', sans-serif",
-                fontWeight: 500,
-                borderRadius: 2,
-                px: 1.5,
-                py: 0.75,
-                boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
-              }
-            }
-          }}
-        >
-        <Box 
-          component="button" 
-          onClick={handleUserMenuOpen}
-          sx={{ 
-            display: 'flex', 
-            flexDirection: 'column', 
-            alignItems: 'center',
-            width: '100%',
-            color: 'inherit',
-            border: 'none',
-            background: 'none',
-            cursor: 'pointer',
-              p: { xs: 0.5, sm: 0.75 },
-              borderRadius: 3,
-              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-              flexShrink: 1,
-              minHeight: { xs: 40, sm: 44 },
-            '&:hover': {
-                backgroundColor: theme.palette.sidebar.hoverBackground,
-                transform: 'translateY(-1px)',
-                '& .icon': {
-                  color: theme.palette.text.primary,
-                  transform: 'scale(1.05)',
-                },
-              },
-              '&:active': {
-                transform: 'translateY(0)',
-            }
-          }}
-        >
-          <Box 
-            className="icon"
-            sx={{
-                width: { xs: 36, sm: 40 },
-                height: { xs: 36, sm: 40 },
-                minWidth: { xs: 32, sm: 36 },
-                minHeight: { xs: 32, sm: 36 },
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-                borderRadius: 3,
-                color: theme.palette.sidebar.inactiveText,
-                mb: 0,
-                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                backgroundColor: theme.palette.sidebar.inactiveBackground,
-                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-                '&:hover': {
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
-                },
-                '& svg': {
-                  width: { xs: 18, sm: 20 },
-                  height: { xs: 18, sm: 20 },
-                }
-            }}
-          >
-            <User size={20} />
-          </Box>
-        </Box>
-        </Tooltip>
-        
-        <Menu
-          anchorEl={userMenuAnchorEl}
-          open={Boolean(userMenuAnchorEl)}
-          onClose={handleUserMenuClose}
-          onClick={(e) => e.stopPropagation()}
-          slotProps={{
-            paper: {
-              elevation: 0,
-              sx: {
-                overflow: 'visible',
-                filter: 'drop-shadow(0px 8px 24px rgba(0,0,0,0.12))',
-                mt: 1.5,
-                borderRadius: 3,
-                minWidth: 180,
-                border: `1px solid ${theme.palette.divider}`,
-                fontFamily: "'Nunito Sans', sans-serif",
-                backgroundColor: theme.palette.menu.background,
-              },
-            }
-          }}
-          transformOrigin={{ horizontal: 'left', vertical: 'top' }}
-          anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-        >
-          <MenuItem 
-            onClick={() => {
-              navigate('/settings');
-              handleUserMenuClose();
-            }}
-            sx={{
-              py: 1.5,
-              px: 2,
-              borderRadius: 2,
-              mx: 1,
-              my: 0.5,
-              transition: 'all 0.2s ease',
-              '&:hover': { 
-                backgroundColor: theme.palette.menu.hover,
-                '& .MuiListItemIcon-root': { color: theme.palette.menu.icon },
-                '& .MuiTypography-root': { color: theme.palette.menu.text }
-              }
-            }}
-          >
-            <ListItemIcon sx={{ color: theme.palette.menu.icon, minWidth: 36 }}>
-              <Gear size={18} />
-            </ListItemIcon>
-            <ListItemText 
-              primary="Settings"
-              primaryTypographyProps={{
-                fontFamily: "'Nunito Sans', sans-serif",
-                fontWeight: 500,
-                fontSize: '0.875rem',
-                color: theme.palette.menu.text
-              }}
-            />
-          </MenuItem>
-          
-          <MenuItem 
-            onClick={handleLogout}
-            sx={{
-              py: 1.5,
-              px: 2,
-              borderRadius: 2,
-              mx: 1,
-              my: 0.5,
-              transition: 'all 0.2s ease',
-              '&:hover': { 
-                backgroundColor: theme.palette.menu.hover,
-                '& .MuiListItemIcon-root': { color: theme.palette.menu.icon },
-                '& .MuiTypography-root': { color: theme.palette.menu.text }
-              }
-            }}
-          >
-            <ListItemIcon sx={{ color: theme.palette.menu.icon, minWidth: 36 }}>
-              <SignOut size={18} />
-            </ListItemIcon>
-            <ListItemText 
-              primary="Logout"
-              primaryTypographyProps={{
-                fontFamily: "'Nunito Sans', sans-serif",
-                fontWeight: 500,
-                fontSize: '0.875rem',
-                color: theme.palette.menu.text
-              }}
-            />
-          </MenuItem>
-        </Menu>
-      </List>
+      </Box>
     </Box>
   );
 };

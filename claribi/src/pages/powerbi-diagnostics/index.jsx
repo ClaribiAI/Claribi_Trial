@@ -11,6 +11,7 @@ import {
 import { uploadPowerBIFile } from '../../services/powerbiChatService';
 import FileSelectionDialog from '../../components/ui/FileSelectionDialog';
 import UploadConfirmationDialog from '../../components/ui/UploadConfirmationDialog';
+import PurchasePlanDialog from '../../components/ui/PurchasePlanDialog';
 import FileManagementPage from './FileManagementPage';
 import DiagnosticsPage from './DiagnosticsPage';
 import { useFiles } from '../../contexts/FileContext';
@@ -31,6 +32,8 @@ const PowerBIDiagnostics = () => {
     const [uploadProgress, setUploadProgress] = useState(0);
     const [showUploadSuccess, setShowUploadSuccess] = useState(false);
     const [successMessage, setSuccessMessage] = useState('');
+    const [showPurchaseDialog, setShowPurchaseDialog] = useState(false);
+    const [isNewlyUploaded, setIsNewlyUploaded] = useState(false);
 
     const fileInputRef = useRef(null);
 
@@ -53,6 +56,7 @@ const PowerBIDiagnostics = () => {
                     name: file.filename
                 };
                 setSelectedFile(fileWithSessionId);
+                setIsNewlyUploaded(false); // Loading from URL is not a new upload
                 setCurrentView('diagnostics');
             }
         }
@@ -76,6 +80,17 @@ const PowerBIDiagnostics = () => {
         const maxSize = 100 * 1024 * 1024;
         if (file.size > maxSize) {
             showNotification('File size must be less than 100MB', 'error');
+            return;
+        }
+
+        // Check if user has already uploaded a file
+        if (files && files.length > 0) {
+            // User already has an upload, show purchase plan dialog
+            setShowPurchaseDialog(true);
+            // Reset file input
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
             return;
         }
 
@@ -111,6 +126,7 @@ const PowerBIDiagnostics = () => {
                 collection_name: response.session_id || response.collection_name
             };
             setSelectedFile(fileWithSessionId);
+            setIsNewlyUploaded(true); // Mark as newly uploaded
             setCurrentView('diagnostics');
             // Update URL with fileId
             setSearchParams({ fileId: fileWithSessionId.collection_name });
@@ -120,7 +136,13 @@ const PowerBIDiagnostics = () => {
 
         } catch (err) {
             console.error('Error uploading file:', err);
-            showNotification(err.message || 'Failed to upload file. Please try again.', 'error');
+            
+            // Check if error is 403 (upload limit reached)
+            if (err.message && err.message.includes('already uploaded')) {
+                setShowPurchaseDialog(true);
+            } else {
+                showNotification(err.message || 'Failed to upload file. Please try again.', 'error');
+            }
         } finally {
             setUploadLoading(false);
             setUploadProgress(0);
@@ -135,6 +157,7 @@ const PowerBIDiagnostics = () => {
             name: file.filename
         };
         setSelectedFile(fileWithSessionId);
+        setIsNewlyUploaded(false); // Not a new upload, just reopening
         setCurrentView('diagnostics');
         // Update URL with fileId
         setSearchParams({ fileId: file.collection_name });
@@ -148,6 +171,7 @@ const PowerBIDiagnostics = () => {
             name: selectedFile.filename
         };
         setSelectedFile(fileWithSessionId);
+        setIsNewlyUploaded(false); // Not a new upload, just selecting existing file
         setCurrentView('diagnostics');
         setShowFileSelection(false);
         setShowUploadSuccess(true);
@@ -165,16 +189,9 @@ const PowerBIDiagnostics = () => {
         setPendingFile(null);
     };
 
-    const handleFileDelete = (deletedFile) => {
-        // If the deleted file was selected, clear selection and go back to file management
-        if (selectedFile && selectedFile.collection_name === deletedFile.collection_name) {
-            setSelectedFile(null);
-            setCurrentView('file-management');
-        }
-    };
-
     const handleBackToFileManagement = () => {
         setSelectedFile(null);
+        setIsNewlyUploaded(false);
         setShowUploadSuccess(false);
         setCurrentView('file-management');
         // Remove fileId from URL
@@ -204,6 +221,7 @@ const PowerBIDiagnostics = () => {
                     onBack={handleBackToFileManagement}
                     showUploadSuccess={showUploadSuccess}
                     successMessage={successMessage}
+                    isNewlyUploaded={isNewlyUploaded}
                 />
             )}
 
@@ -247,6 +265,14 @@ const PowerBIDiagnostics = () => {
                 onConfirm={handleConfirmUpload}
                 file={pendingFile}
                 isUploading={uploadLoading}
+            />
+
+            {/* Purchase Plan Dialog */}
+            <PurchasePlanDialog
+                open={showPurchaseDialog}
+                onClose={() => setShowPurchaseDialog(false)}
+                title="Upload Limit Reached"
+                message="You have already uploaded a file. To upload more files, please purchase a plan by visiting"
             />
         </Box>
     );

@@ -21,7 +21,7 @@ class AIClient:
             try:
                 genai.configure(api_key=config.GOOGLE_API_KEY)
                 cls._model = genai.GenerativeModel('gemini-2.5-flash-lite')
-                logger.info("Gemini 1.5 Flash model initialized successfully.")
+                logger.info("Gemini model initialized successfully.")
             except Exception as e:
                 logger.error(f"Failed to initialize AI model: {str(e)}", exc_info=True)
                 raise
@@ -72,7 +72,19 @@ class AIClient:
                 except Exception as file_error:
                     logger.warning(f"Failed to retrieve file from Gemini{context_str}: {file_error}. Continuing without file.")
             
-            response = model.generate_content(content_parts)
+            # Configure generation parameters with max_output_tokens
+            # Note: max_output_tokens is a ceiling - the model will stop when it thinks the response is complete
+            # To encourage longer responses, we can adjust temperature and other parameters
+            generation_config = genai.types.GenerationConfig(
+                max_output_tokens=config.GEMINI_MAX_OUTPUT_TOKENS,
+                temperature=0.7  # Slightly higher temperature can encourage more detailed responses
+            )
+            logger.info(f"Generation config set: max_output_tokens={config.GEMINI_MAX_OUTPUT_TOKENS}, temperature=0.7{context_str}")
+            
+            response = model.generate_content(
+                content_parts,
+                generation_config=generation_config
+            )
 
             # Validate response has text attribute and is not empty
             if not hasattr(response, 'text') or not response.text:
@@ -99,7 +111,7 @@ class AIClient:
                 logger.info(
                     f"Gemini token usage{context_str} - "
                     f"Input: {token_usage['input_tokens']}, "
-                    f"Output: {token_usage['output_tokens']}, "
+                    f"Output: {token_usage['output_tokens']} (max allowed: {config.GEMINI_MAX_OUTPUT_TOKENS}), "
                     f"Total: {token_usage['total_tokens']}"
                 )
             else:

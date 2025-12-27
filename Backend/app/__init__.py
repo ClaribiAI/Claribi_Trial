@@ -26,16 +26,14 @@ def create_app():
     Create and configure the Flask application.
     
     This factory function creates a Flask app with:
-    - Authentication system (auth2)
-    - Power BI Chat functionality
-    - Power BI Docs functionality
-    - Production-ready security settings
+    - Power BI Diagnostics functionality
+    - File upload functionality
     """
     app = Flask(__name__, template_folder='../templates')
     app.config['ENV'] = config.FLASK_ENV
     app.secret_key = config.SECRET_KEY  # Secret key for session management (if needed in future)
     
-    app.logger.info("Using JWT-based authentication (no CSRF protection)")
+    app.logger.info("Diagnostics-only application (no authentication required)")
     
     # Configure CORS for production deployment
     # Note: supports_credentials=True is required for:
@@ -65,42 +63,18 @@ def create_app():
     # Initialize CORS with credentials support for cross-origin cookie handling
     cors.init_app(app, origins=allowed_origins, supports_credentials=True)
     
-    # Load Microsoft AD config from environment
-    app.config['MICROSOFT_CLIENT_ID'] = os.getenv("MICROSOFT_CLIENT_ID")
-    app.config['MICROSOFT_CLIENT_SECRET'] = os.getenv("MICROSOFT_CLIENT_SECRET")
-    app.config['MICROSOFT_TENANT_ID'] = os.getenv("MICROSOFT_TENANT_ID")
-    app.config['MICROSOFT_REDIRECT_URI'] = os.getenv("MICROSOFT_REDIRECT_URI")
-    app.config['MICROSOFT_AUTHORITY'] = os.getenv("MICROSOFT_AUTHORITY")
-    app.config['MICROSOFT_SCOPE'] = os.getenv('MICROSOFT_SCOPE')  # Define directly as a list instead of splitting env var
-
     # Configure app settings
     app.config['MAX_CONTENT_LENGTH'] = config.MAX_CONTENT_LENGTH
     app.config['FRONTEND_URL'] = config.FRONTEND_URL
     app.config['BACKEND_URL'] = config.BACKEND_URL
-    
-    # Redis configuration removed - using JWT tokens instead
-
-    #Configure encryption 
-    app.config['TOKEN_ENCRYPTION_KEY'] = config.TOKEN_ENCRYPTION_KEY
-    app.config['TOKEN_ENCRYPTION_ALGORITHM'] = config.TOKEN_ENCRYPTION_ALGORITHM
-
-    #NEON Auth --> Not used for now (does not support python)
-    #app.config['NEXT_PUBLIC_DATABASE_AUTHENTICATED_URL'] = config.NEXT_PUBLIC_DATABASE_AUTHENTICATED_URL
-    #app.config['DATABASE_AUTHENTICATED_URL'] = config.DATABASE_AUTHENTICATED_URL
     app.config['DATABASE_URL'] = config.DATABASE_URL
     
     # Register database middleware - use only one RLS context setting method
     db_context_middleware(app)
 
     # Register security middleware
-    from app.auth2.middleware import SecurityHeaders
     from app.core.simple_rate_limiter import rate_limit_headers
     rate_limit_headers(app)  # Add rate limit headers to responses
-    
-    # Apply comprehensive security headers to all responses
-    @app.after_request
-    def apply_security_headers(response):
-        return SecurityHeaders.apply_security_headers(response)
 
     # Centralized error handling using standardized error envelope
     from app.core.responses import error_response
@@ -122,17 +96,13 @@ def create_app():
         app.logger.error(f"Unhandled exception: {str(error)}", exc_info=True)
         return error_response(500, "An unexpected error occurred")
 
-    # Import blueprints - only the ones that actually exist
-    from app.auth2 import auth2_bp  # Authentication system
-    from app.powerbi_chat import powerbi_chat_bp  # Power BI Chat functionality
-    from app.powerbi_docs import powerbi_docs_bp  # Power BI Docs functionality
-    from app.stats import stats_bp  # Statistics functionality
+    # Import blueprints - only the ones needed for diagnostics
+    from app.powerbi_chat import powerbi_chat_bp  # Power BI file upload functionality
+    from app.powerbi_docs import powerbi_docs_bp  # Power BI Docs/Diagnostics functionality
 
     # Register blueprints
-    app.register_blueprint(auth2_bp, supports_credentials=True)  # Authentication at /api/auth
-    app.register_blueprint(powerbi_chat_bp, supports_credentials=True)  # Power BI Chat
-    app.register_blueprint(powerbi_docs_bp, supports_credentials=True)  # Power BI Docs
-    app.register_blueprint(stats_bp, supports_credentials=True)  # Statistics at /api/stats
+    app.register_blueprint(powerbi_chat_bp, supports_credentials=True)  # File upload routes
+    app.register_blueprint(powerbi_docs_bp, supports_credentials=True)  # Diagnostics routes
     
     # API-only backend - no catch-all route needed
     # Frontend will be served separately

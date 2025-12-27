@@ -24,7 +24,6 @@ import {
 } from '@mui/material';
 import {
     LightbulbIcon,
-    SparkleIcon,
     ArrowLeft,
     ArrowClockwiseIcon,
     Calculator,
@@ -37,20 +36,22 @@ import {
     DotsThreeVertical,
     CloudArrowUp
 } from '@phosphor-icons/react';
-import { analyzePowerBISection, parseImprovementRecommendations, getGeneratedDocs, getDiagnosticsKPIs, getDiagnosticsKPIDetails } from '../../services/powerbiDocsService';
-import { reuploadPowerBIFile } from '../../services/powerbiChatService';
+import { parseImprovementRecommendations, getRecommendations, getDiagnosticsKPIs, getDiagnosticsKPIDetails } from '../../services/powerbiDocsService';
+
 import { useNotification } from '../../contexts/NotificationContext';
 import RecommendationCard from './components/RecommendationCard';
 import DiagnosticsKPICard from './components/DiagnosticsKPICard';
 import KPIDetailsDialog from './components/KPIDetailsDialog';
-import ChatPage from '../powerbi-chat/ChatPage';
+import OverallScoreCard from './components/OverallScoreCard';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import PurchasePlanDialog from '../../components/ui/PurchasePlanDialog';
 
 const DiagnosticsPage = ({ 
     selectedFile, 
     onBack, 
     showUploadSuccess, 
-    successMessage 
+    successMessage,
+    isNewlyUploaded = false
 }) => {
     const theme = useTheme();
     const { showNotification } = useNotification();
@@ -78,16 +79,21 @@ const DiagnosticsPage = ({
     const [menuAnchorEl, setMenuAnchorEl] = useState(null);
     const menuOpen = Boolean(menuAnchorEl);
     
-    // Reupload state
-    const [reuploadingFile, setReuploadingFile] = useState(false);
-    const [reuploadProgress, setReuploadProgress] = useState(0);
-    const fileInputRef = useRef(null);
+    // Purchase plan dialog state
+    const [showPurchaseDialog, setShowPurchaseDialog] = useState(false);
+    const [purchaseDialogType, setPurchaseDialogType] = useState('upload'); // 'upload', 'regenerate', 'applyFix'
+
     
     // Chat interface state
     const [showChat, setShowChat] = useState(false);
     const [chatInitialMessage, setChatInitialMessage] = useState('');
     const [chatWidth, setChatWidth] = useState(50); // Percentage of viewport width
     const [isDragging, setIsDragging] = useState(false);
+    
+    // Track which file we've generated recommendations for
+    const lastGeneratedFileRef = useRef(null);
+    // Track if we're currently loading recommendations to prevent race conditions
+    const isLoadingRecommendationsRef = useRef(false);
 
     // Memoize sorted recommendations to prevent re-sorting on every render
     const sortedRecommendations = useMemo(() => {
@@ -102,18 +108,10 @@ const DiagnosticsPage = ({
     }, [recommendations]);
 
     const handleApplyRecommendation = useCallback((recommendation) => {
-        if (!selectedFile) {
-            showNotification('Please select a file first', 'error');
-            return;
-        }
-
-        // Create the initial message for the chat
-        const initialMessage = `Please guide me step-by-step on how to implement this recommendation: ${recommendation.title} - ${recommendation.description}`;
-        
-        // Set the chat state
-        setChatInitialMessage(initialMessage);
-        setShowChat(true);
-    }, [selectedFile, showNotification]);
+        // Show purchase plan dialog when apply fix is clicked
+        setPurchaseDialogType('applyFix');
+        setShowPurchaseDialog(true);
+    }, []);
 
     const handleCloseChat = () => {
         setShowChat(false);
@@ -129,55 +127,8 @@ const DiagnosticsPage = ({
         setMenuAnchorEl(null);
     };
 
-    // Handle reupload file
-    const handleReuploadFile = () => {
-        if (!selectedFile) return;
-        handleMenuClose();
-        // Trigger file input
-        if (fileInputRef.current) {
-            fileInputRef.current.click();
-        }
-    };
 
-    const handleFileInputChange = async (event) => {
-        const file = event.target.files?.[0];
-        if (!file || !selectedFile) return;
-
-        // Validate file
-        if (!file.name.toLowerCase().endsWith('.pbix')) {
-            showNotification('Please select a valid .pbix file', 'error');
-            return;
-        }
-
-        setReuploadingFile(true);
-        setReuploadProgress(0);
-
-        try {
-            const collectionName = selectedFile.collection_name;
-            if (!collectionName) {
-                throw new Error('Collection name not found');
-            }
-
-            await reuploadPowerBIFile(collectionName, file, (progress) => {
-                setReuploadProgress(progress);
-            });
-
-            showNotification(`File "${selectedFile.filename}" reuploaded successfully!`, 'success');
-            
-            // Optionally refresh file data - parent component should handle this
-        } catch (err) {
-            console.error('Error reuploading file:', err);
-            showNotification(`Failed to reupload "${selectedFile.filename}". ${err.message || 'Please try again.'}`, 'error');
-        } finally {
-            setReuploadingFile(false);
-            setReuploadProgress(0);
-            // Reset file input
-            if (fileInputRef.current) {
-                fileInputRef.current.value = '';
-            }
-        }
-    };
-
+ 
     // Helper function to render message with clickable links
     const renderMessageWithLinks = (message) => {
         if (!message) return message;
@@ -285,7 +236,7 @@ const DiagnosticsPage = ({
         };
     }, [isDragging]);
 
-    const handleGenerateRecommendations = useCallback(async () => {
+    const handleGenerateRecommendations = useCallback(async (forceRegenerate = false) => {
         if (!selectedFile) {
             showNotification('Please select a file first', 'error');
             return;
@@ -295,47 +246,28 @@ const DiagnosticsPage = ({
         setWarning(null);
 
         try {
-            const result = await analyzePowerBISection(selectedFile.collection_name, 'improvement_recommendations', '');
+            // Use parse-recommendations endpoint which parses from existing summaries
+            // If forceRegenerate is false, it will check for existing recommendations first
+            const parsedResult = await parseImprovementRecommendations(selectedFile.collection_name, forceRegenerate);
+            setRecommendations(parsedResult.recommendations || []);
             
-            // Check for warning in response
-            if (result && result.warning && result.warning.type === 'approaching_limit') {
-                setWarning(result.warning.message || 'You are approaching your usage limit.');
-            }
-            
-            // Update content
-            setRawContent(result.analysis);
-
-            // Special handling for improvement_recommendations - extract structured data
-            if (result.analysis && typeof result.analysis === 'object') {
-                if (result.analysis.recommendations) {
-                    setRecommendations(result.analysis.recommendations);
-                } else if (result.analysis.raw_text) {
-                    // If backend returns structured format but parsing failed, try to parse again
-                    try {
-                        const parsedResult = await parseImprovementRecommendations(selectedFile.collection_name);
-                        setRecommendations(parsedResult.recommendations || []);
-                    } catch (parseError) {
-                        console.error('Error parsing recommendations:', parseError);
-                        setRecommendations([]);
-                    }
-                }
+            // Set raw content from recommendations for display
+            if (parsedResult.recommendations && parsedResult.recommendations.length > 0) {
+                setRawContent({ recommendations: parsedResult.recommendations });
             }
         } catch (err) {
-            // Handle usage limit exceeded errors with user-friendly messages
-            if (err.error === 'usage_limit_exceeded') {
-                showNotification(err.message || 'You have reached your usage limit. Please upgrade your plan to continue generating improvement recommendations.', 'error');
-            } else {
-                showNotification(err.message || err.error || 'An error occurred while generating improvement recommendations', 'error');
-            }
+            showNotification(err.message || err.error || 'An error occurred while generating improvement recommendations', 'error');
             console.error('Error:', err);
         } finally {
             setIsLoading(false);
         }
-    }, [selectedFile]);
+    }, [selectedFile, showNotification]);
 
     const handleRegenerate = useCallback(() => {
-        handleGenerateRecommendations();
-    }, [handleGenerateRecommendations]);
+        // Show purchase plan dialog when regenerate is clicked
+        setPurchaseDialogType('regenerate');
+        setShowPurchaseDialog(true);
+    }, []);
 
     // Load KPIs when selectedFile changes
     useEffect(() => {
@@ -427,47 +359,73 @@ const DiagnosticsPage = ({
         }
     }, [kpiDetailsCacheLoading, kpiDetailsOpen, selectedKpiType, kpiDetailsCache]);
 
-    // Load existing generated recommendations when selectedFile changes
+    // Load existing recommendations when selectedFile changes
     useEffect(() => {
-        const loadExistingRecommendations = async () => {
+        const loadRecommendations = async () => {
             if (!selectedFile?.collection_name) {
+                setInitialLoadComplete(true);
+                lastGeneratedFileRef.current = null;
+                setRecommendations([]);
+                return;
+            }
+
+            const fileId = selectedFile.collection_name;
+            
+            // Reset recommendations when file changes
+            if (fileId !== lastGeneratedFileRef.current) {
+                setRecommendations([]);
+                lastGeneratedFileRef.current = fileId;
+            }
+
+            // If it's a newly uploaded file, skip loading existing recommendations
+            // and mark as complete - generation will happen in separate effect
+            if (isNewlyUploaded) {
                 setInitialLoadComplete(true);
                 return;
             }
 
-            setInitialLoadComplete(false);
-
+            // Try to load existing recommendations first for reopened files
+            isLoadingRecommendationsRef.current = true;
+            setIsLoading(true);
             try {
-                const response = await getGeneratedDocs(selectedFile.collection_name);
-                const generatedSections = response.generated_sections || {};
-
-                // Handle improvement recommendations
-                const improvementData = generatedSections.improvement_recommendations?.content;
-                if (improvementData) {
-                    if (improvementData.recommendations) {
-                        // Direct object format
-                        setRecommendations(improvementData.recommendations);
-                        setRawContent(improvementData);
-                    } else if (improvementData.content && improvementData.content.recommendations) {
-                        // New wrapped format
-                        setRecommendations(improvementData.content.recommendations);
-                        setRawContent(improvementData.content);
-                    } else if (typeof improvementData === 'string') {
-                        // String format
-                        setRawContent(improvementData);
-                    }
+                const existingRecommendations = await getRecommendations(fileId);
+                if (existingRecommendations && existingRecommendations.recommendations && existingRecommendations.recommendations.length > 0) {
+                    setRecommendations(existingRecommendations.recommendations);
+                    setRawContent({ recommendations: existingRecommendations.recommendations });
+                    setInitialLoadComplete(true);
+                    setIsLoading(false);
+                    isLoadingRecommendationsRef.current = false;
+                    return;
                 }
             } catch (err) {
-                console.error('Error loading existing recommendations:', err);
-                // Don't set error state for this - just log it silently
-                // The user can still generate new recommendations
+                // If recommendations don't exist, that's fine - we'll generate them
+                console.log('No existing recommendations found, will generate new ones');
             } finally {
-                setInitialLoadComplete(true);
+                setIsLoading(false);
+                isLoadingRecommendationsRef.current = false;
             }
+
+            // Mark as complete - if no recommendations found, generation will happen in separate effect
+            setInitialLoadComplete(true);
         };
 
-        loadExistingRecommendations();
-    }, [selectedFile?.collection_name]);
+        loadRecommendations();
+    }, [selectedFile?.collection_name, isNewlyUploaded]);
+
+    // Automatically generate recommendations when needed
+    useEffect(() => {
+        const fileId = selectedFile?.collection_name;
+        if (!fileId || !initialLoadComplete || isLoading || isLoadingRecommendationsRef.current) {
+            return;
+        }
+
+        // Generate recommendations if:
+        // 1. It's a newly uploaded file, OR
+        // 2. No recommendations are currently loaded
+        if ((isNewlyUploaded || recommendations.length === 0) && fileId === lastGeneratedFileRef.current) {
+            handleGenerateRecommendations(false);
+        }
+    }, [selectedFile?.collection_name, initialLoadComplete, recommendations.length, isLoading, isNewlyUploaded, handleGenerateRecommendations]);
 
     // Show loading spinner for the entire page until initial load is complete
     if (!initialLoadComplete) {
@@ -492,39 +450,7 @@ const DiagnosticsPage = ({
                 bgcolor: theme.palette.background.chat,
                 position: 'relative'
             }}>
-                {/* Hidden file input for reupload */}
-                <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".pbix"
-                    style={{ display: 'none' }}
-                    onChange={handleFileInputChange}
-                />
-
-                {/* Loading overlay for reupload */}
-                {reuploadingFile && (
-                    <Box
-                        sx={{
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            bgcolor: alpha(theme.palette.background.paper, 0.9),
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            zIndex: 9999,
-                            gap: 2
-                        }}
-                    >
-                        <LoadingSpinner size={60} />
-                        <Typography variant="body1" sx={{ color: theme.palette.text.primary }}>
-                            Reuploading file... {reuploadProgress > 0 && `${reuploadProgress}%`}
-                        </Typography>
-                    </Box>
-                )}
+                
 
                 {/* Main Diagnostics Area */}
                 <Box sx={{ 
@@ -581,69 +507,7 @@ const DiagnosticsPage = ({
                             }}>
                                 {selectedFile?.filename}
                             </Typography>
-
-                            {/* 3 Dots Menu Button */}
-                            <Tooltip title="More options">
-                                <Button
-                                    onClick={handleMenuOpen}
-                                    sx={{
-                                        minWidth: 'auto',
-                                        width: 40,
-                                        height: 40,
-                                        borderRadius: 2,
-                                        bgcolor: 'transparent',
-                                        color: theme.palette.text.secondary,
-                                        p: 0,
-                                        '&:hover': {
-                                            bgcolor: alpha(theme.palette.primary.main, 0.1),
-                                            color: theme.palette.primary.main,
-                                            transform: 'scale(1.05)'
-                                        },
-                                        transition: 'all 0.2s ease'
-                                    }}
-                                >
-                                    <DotsThreeVertical size={20} />
-                                </Button>
-                            </Tooltip>
-
-                            {/* 3 Dots Menu */}
-                            <Menu
-                                anchorEl={menuAnchorEl}
-                                open={menuOpen}
-                                onClose={handleMenuClose}
-                                anchorOrigin={{
-                                    vertical: 'bottom',
-                                    horizontal: 'right',
-                                }}
-                                transformOrigin={{
-                                    vertical: 'top',
-                                    horizontal: 'right',
-                                }}
-                                PaperProps={{
-                                    sx: {
-                                        mt: 1,
-                                        minWidth: 200,
-                                        borderRadius: 2,
-                                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-                                    }
-                                }}
-                            >
-                                <MenuItem 
-                                    onClick={handleReuploadFile}
-                                    disabled={reuploadingFile || !selectedFile}
-                                >
-                                    <ListItemIcon>
-                                        {reuploadingFile ? (
-                                            <CircularProgress size={20} />
-                                        ) : (
-                                            <CloudArrowUp size={20} />
-                                        )}
-                                    </ListItemIcon>
-                                    <ListItemText>
-                                        {reuploadingFile ? 'Reuploading...' : 'Reupload file'}
-                                    </ListItemText>
-                                </MenuItem>
-                            </Menu>
+                        
                         </Box>
                     </Box>
 
@@ -662,6 +526,11 @@ const DiagnosticsPage = ({
 
                     {/* Main Content Area with padding */}
                     <Box sx={{ px: 4, py: 4, flexGrow: 1 }}>
+                    {/* Overall Score Card */}
+                    {kpis && (
+                        <OverallScoreCard kpis={kpis} />
+                    )}
+
                     {/* KPIs Section */}
                     {kpis && (
                         <Box sx={{ mb: 4 }}>
@@ -795,7 +664,7 @@ const DiagnosticsPage = ({
                                     </Typography>
                                 }
                                 action={
-                                    recommendations.length > 0 ? (
+                                    recommendations.length > 0 && (
                                         <Box
                                             sx={{
                                                 display: 'flex',
@@ -820,31 +689,6 @@ const DiagnosticsPage = ({
                                                 </IconButton>
                                             </Tooltip>
                                         </Box>
-                                    ) : (
-                                        <Button
-                                            onClick={handleGenerateRecommendations}
-                                            disabled={isLoading}
-                                            variant="contained"
-                                            size="small"
-                                            startIcon={isLoading ? <CircularProgress size={16} color={theme.palette.primary.contrastText} /> : <SparkleIcon size={16} color={theme.palette.primary.contrastText} />}
-                                            sx={{ 
-                                                bgcolor: theme.palette.primary.main,
-                                                color: theme.palette.primary.contrastText,
-                                                fontFamily: "'Nunito Sans', sans-serif",
-                                                fontWeight: 500,
-                                                textTransform: 'none',
-                                                borderRadius: 2,
-                                                '&:hover': {
-                                                    bgcolor: theme.palette.primary.dark,
-                                                    color: theme.palette.primary.contrastText
-                                                },
-                                                '&:disabled': {
-                                                    bgcolor: alpha(theme.palette.primary.main, 0.3)
-                                                }
-                                            }}
-                                        >
-                                            {isLoading ? 'Generating...' : 'Generate Recommendations'}
-                                        </Button>
                                     )
                                 }
                                 sx={{ 
@@ -901,10 +745,10 @@ const DiagnosticsPage = ({
                                             <LightbulbIcon size={48} />
                                         </Box>
                                         <Typography variant="body1" align="center" sx={{ mb: 2, color: theme.palette.text.secondary }}>
-                                            Click "Generate Recommendations" to analyze your Power BI file
+                                            Generating recommendations for your Power BI file...
                                         </Typography>
                                         <Typography variant="body2" align="center" sx={{ color: theme.palette.text.disabled }}>
-                                            Get actionable improvement suggestions for performance, optimization, and best practices
+                                            Analyzing your file to provide actionable improvement suggestions
                                         </Typography>
                                     </Box>
                                 )}
@@ -979,6 +823,26 @@ const DiagnosticsPage = ({
                         selectedKpiType === 'many_to_many_relationships' ? 'Many-to-Many Relationships' :
                         'KPI Details'
                         : 'KPI Details'
+                    }
+                />
+
+                {/* Purchase Plan Dialog */}
+                <PurchasePlanDialog
+                    open={showPurchaseDialog}
+                    onClose={() => setShowPurchaseDialog(false)}
+                    title={
+                        purchaseDialogType === 'regenerate' 
+                            ? 'Upgrade Required' 
+                            : purchaseDialogType === 'applyFix'
+                            ? 'Upgrade Required'
+                            : 'Upload Limit Reached'
+                    }
+                    message={
+                        purchaseDialogType === 'regenerate'
+                            ? 'To regenerate recommendations, please purchase a plan by visiting'
+                            : purchaseDialogType === 'applyFix'
+                            ? 'To apply fixes to your Power BI file, please purchase a plan by visiting'
+                            : 'You have already uploaded a file. To upload more files, please purchase a plan by visiting'
                     }
                 />
             </Box>

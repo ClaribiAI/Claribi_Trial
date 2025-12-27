@@ -3,232 +3,113 @@
 import logging
 import tempfile
 import json
-from flask import Blueprint, request, jsonify, Response, current_app, g
-from threading import Thread, Event
-from queue import Queue, Empty
-import time
+from flask import Blueprint, request, jsonify, current_app, g
 from flask_cors import cross_origin
 import os
 from app.powerbi_chat.services.pbix_parsing_service import PBIXParsingService
-from app.powerbi_chat.services.vector_store_service import vector_store_service
-from app.powerbi_chat.services.rag_orchestration_service import rag_orchestration_service, RAGResult
-from app.powerbi_chat.caching.cache_manager import cache_manager
 from app.powerbi_docs.summary_generation_service import SummaryGenerationService
-from app.auth2.middleware import auth_required
+import uuid
+# Authentication removed - diagnostics is now public
 from app.core.database import get_db_cursor
 from app.core.responses import error_response
+from app.core.session_token import get_or_create_session_token, ensure_session_token_in_response
 from app.config.settings import config
-from app.services.token_limit_service import usage_limit_service
 
 logger = logging.getLogger(__name__)
 powerbi_chat_bp = Blueprint('powerbi_chat', __name__)
 
-@powerbi_chat_bp.route('/powerbi-chat/query-stream', methods=['POST', 'OPTIONS'])
-@cross_origin(supports_credentials=True)
-@auth_required
-def process_powerbi_query_stream():
-    if request.method == 'OPTIONS': return jsonify({'status': 'ok'})
-    data = request.get_json()
-    query, session_id = data.get('query'), data.get('session_id')
-    conversation_history = data.get('conversation_history', [])
-    response_mode = data.get('response_mode', 'detailed')
-    if not query or not session_id: return error_response(400, 'Query and session_id are required')
+
+def get_client_ip():
+    """
+    Extract the real client IP address from the request.
+    Handles proxy cases by checking X-Forwarded-For header.
+    """
+    # Check for X-Forwarded-For header (used by proxies/load balancers)
+    if request.headers.get('X-Forwarded-For'):
+        # X-Forwarded-For can contain multiple IPs, the first one is the original client
+        forwarded_ips = request.headers.get('X-Forwarded-For').split(',')
+        client_ip = forwarded_ips[0].strip()
+        logger.info(f"Extracted IP from X-Forwarded-For: {client_ip}")
+        return client_ip
     
-    # Extract user information from authentication
-    user = g.current_user
-    user_ms_object_id = user.get('ms_object_id') if user else None
+    # Fallback to remote_addr
+    client_ip = request.remote_addr
+    logger.info(f"Using remote_addr as IP: {client_ip}")
+    return client_ip
 
-    # Check usage limit BEFORE starting the generator (synchronous check)
-    warning_message = ''
-    if user_ms_object_id:
-        try:
-            allowed, current_usage, limit, message = usage_limit_service.check_usage_limit(
-                user_ms_object_id,
-                feature_type='chat'
-            )
-            
-            logger.info(f"Usage limit check for user {user_ms_object_id}: allowed={allowed}, usage={current_usage}, limit={limit}")
-            
-            if not allowed:
-                logger.warning(f"Usage limit exceeded for user {user_ms_object_id}. Usage: {current_usage}, Limit: {limit}")
-                # Return error response immediately before starting SSE stream
-                def error_stream():
-                    error_data = {
-                        'type': 'error',
-                        'error': 'usage_limit_exceeded',
-                        'message': message,
-                        'current_usage': {'count': current_usage},
-                        'limit': {'count': limit},
-                        'feature_type': 'chat'
-                    }
-                    yield f"data: {json.dumps(error_data)}\n\n"
-                return Response(error_stream(), mimetype='text/event-stream')
-            
-            # Check if approaching limit (only if limit not exceeded)
-            try:
-                is_approaching, approaching_usage, approaching_limit, remaining, approaching_warning = usage_limit_service.check_approaching_limit(
-                    user_ms_object_id,
-                    feature_type='chat'
-                )
-                
-                if is_approaching:
-                    warning_message = approaching_warning
-                    logger.info(f"User {user_ms_object_id} is approaching chat limit. Remaining: {remaining}")
-            except Exception as approaching_check_error:
-                # Log error but don't block request
-                logger.error(f"Error checking approaching limit for user {user_ms_object_id}: {approaching_check_error}", exc_info=True)
-        except Exception as limit_check_error:
-            # Log error but allow request to proceed (fail open)
-            logger.error(f"Error checking usage limit for user {user_ms_object_id}: {limit_check_error}", exc_info=True)
-    else:
-        logger.warning("No user_ms_object_id found, skipping usage limit check")
-
-    def generate_updates():
-        # Create cancellation event to signal when client disconnects
-        cancellation_event = Event()
-        
-        try:
-            # Send warning message if approaching limit (before other updates)
-            if warning_message:
-                warning_data = {
-                    'type': 'warning',
-                    'warning': 'approaching_limit',
-                    'message': warning_message,
-                    'feature_type': 'chat'
-                }
-                yield f"data: {json.dumps(warning_data)}\n\n"
-            
-            # Stream a small initial update to open the SSE channel
-            yield f"data: {json.dumps({'type': 'update', 'step': 'initial_retrieval', 'current_action': 'Retrieving initial context from your Power BI file...'})}\n\n"
-
-            # Queue to receive updates from orchestrator thread
-            updates_queue: Queue = Queue()
-            result_container = {'result': None}
-
-            def update_callback(update_data: dict):
-                # Check if cancelled before sending update
-                if cancellation_event.is_set():
-                    return
-                # Push each update into the queue to be streamed to client
-                updates_queue.put(update_data)
-
-            def run_orchestrator():
-                try:
-                    result: RAGResult = rag_orchestration_service.start_query(
-                        session_id,
-                        query,
-                        update_callback=update_callback,
-                        conversation_history=conversation_history,
-                        response_mode=response_mode,
-                        user_ms_object_id=user_ms_object_id,
-                        cancellation_event=cancellation_event
-                    )
-                    # Only set result if not cancelled
-                    if not cancellation_event.is_set():
-                        result_container['result'] = result
-                except InterruptedError:
-                    # Request was cancelled - this is expected, just log and exit
-                    logger.info("RAG orchestration cancelled by client")
-                    cancellation_event.set()
-                except Exception as e:
-                    logger.error(f"Error in orchestrator thread: {e}", exc_info=True)
-                    if not cancellation_event.is_set():
-                        result_container['result'] = None
-                finally:
-                    # Signal completion to the streaming loop
-                    if not cancellation_event.is_set():
-                        updates_queue.put({'__final__': True})
-
-            # Start orchestrator on a background thread
-            worker = Thread(target=run_orchestrator, daemon=True)
-            worker.start()
-
-            # Stream updates as they arrive
-            while True:
-                try:
-                    # Check if client disconnected (GeneratorExit will be raised)
-                    update = updates_queue.get(timeout=0.1)
-                except Empty:
-                    # Check for cancellation periodically
-                    if cancellation_event.is_set():
-                        logger.info("Client disconnected, stopping response generation")
-                        break
-                    time.sleep(0.05)
-                    continue
-
-                if '__final__' in update:
-                    break
-
-                yield f"data: {json.dumps(update)}\n\n"
-
-            # Send final payload depending on result status (only if not cancelled)
-            if cancellation_event.is_set():
-                logger.info("Request cancelled by client, not sending final result")
-                return
-                
-            result = result_container['result']
-            if not result:
-                yield f"data: {json.dumps({'type': 'error', 'message': 'No result generated.'})}\n\n"
-                return
-
-            if result.status == "NEEDS_CLARIFICATION":
-                context_key = cache_manager.set(result.data['context_for_continuation'])
-                final_data = {
-                    'type': 'clarification_needed',
-                    'user_clarifications': result.data['user_clarifications'],
-                    'clarification_session_key': context_key
-                }
-                yield f"data: {json.dumps(final_data)}\n\n"
-            elif result.status == "COMPLETE":
-                yield f"data: {json.dumps({'type': 'final', 'answer': result.data['answer']})}\n\n"
-        except GeneratorExit:
-            # Client disconnected - signal cancellation
-            logger.info("Client disconnected (GeneratorExit), stopping response generation")
-            cancellation_event.set()
-        except Exception as e:
-            logger.error(f"Error in streaming query: {e}", exc_info=True)
-            cancellation_event.set()
-            try:
-                yield f"data: {json.dumps({'type': 'error', 'message': 'An internal error occurred.'})}\n\n"
-            except GeneratorExit:
-                # Client already disconnected, ignore
-                pass
-
-    return Response(generate_updates(), mimetype='text/event-stream')
-
-
-@powerbi_chat_bp.route('/powerbi-chat/clarification', methods=['POST', 'OPTIONS'])
-@cross_origin(supports_credentials=True)
-@auth_required
-def process_user_clarification():
-    if request.method == 'OPTIONS': return jsonify({'status': 'ok'})
-    data = request.get_json()
-    key, clarifications = data.get('clarification_session_key'), data.get('clarifications')
-    if not key or not clarifications: return error_response(400, 'Key and clarifications required')
+def ensure_user_exists(ms_object_id: str) -> None:
+    """
+    Ensure a user exists in the users table before saving documents.
+    Checks if user exists first, then inserts if they don't.
+    """
+    if not ms_object_id:
+        logger.warning("ensure_user_exists called with empty ms_object_id")
+        return
     
-    # Extract user information from authentication
-    user = g.current_user
-    user_ms_object_id = user.get('ms_object_id') if user else None
-        
-    context = cache_manager.get(key)
-    if not context: return error_response(400, 'Invalid or expired session.')
+    logger.info(f"Ensuring user exists: {ms_object_id}")
+    try:
+        with get_db_cursor(commit=True) as cursor:
+            # Check if user already exists
+            cursor.execute("""
+                SELECT 1 FROM users WHERE ms_object_id = %s
+            """, (ms_object_id,))
+            exists = cursor.fetchone()
+            
+            if not exists:
+                # User doesn't exist, insert them
+                logger.info(f"User {ms_object_id} not found, inserting...")
+                cursor.execute("""
+                    INSERT INTO users (ms_object_id)
+                    VALUES (%s)
+                """, (ms_object_id,))
+                logger.info(f"Successfully created new user in users table: {ms_object_id}")
+            else:
+                logger.info(f"User {ms_object_id} already exists in users table")
+    except Exception as e:
+        logger.error(f"Error ensuring user exists in users table for {ms_object_id}: {e}", exc_info=True)
+        # Re-raise to prevent foreign key violations
+        raise
 
-    # We can also add updates to the clarification flow if needed in the future
-    result = rag_orchestration_service.continue_with_clarifications(context, clarifications, user_ms_object_id=user_ms_object_id)
-    if result.status == "COMPLETE": return jsonify({'answer': result.data['answer'], 'status': 'success'})
-    return error_response(500, 'Failed to generate a final response.')
-
-# ... (The /upload and /list-files routes remain unchanged) ...
+# Chat routes removed - only file upload functionality remains for diagnostics
 @powerbi_chat_bp.route('/powerbi-chat/upload', methods=['POST', 'OPTIONS'])
 @cross_origin(supports_credentials=True)
-@auth_required
 def upload_powerbi_file():
     if request.method == 'OPTIONS': return jsonify({'status': 'ok'})
     if 'pbix_file' not in request.files: return error_response(400, 'PBIX file is required')
 
-    # Extract user information from authentication
-    user = g.current_user
-    user_ms_object_id = user.get('ms_object_id') if user else None
+    # Get or create session token (from cookie or generate new)
+    session_token = get_or_create_session_token()
+    
+    # Check if this session has already uploaded a file
+    try:
+        with get_db_cursor(commit=False) as cursor:
+            cursor.execute("""
+                SELECT collection_name 
+                FROM powerbi_file_summaries 
+                WHERE session_token = %s
+                LIMIT 1
+            """, (session_token,))
+            existing_upload = cursor.fetchone()
+            
+            if existing_upload:
+                logger.warning(f"Upload attempt blocked for session {session_token[:8]}... - already has an upload")
+                return error_response(
+                    403, 
+                    'You have already uploaded a file. To upload more files, please purchase a plan by visiting www.claribi.ai/claribi-console'
+                )
+    except Exception as e:
+        logger.error(f"Error checking existing upload for session {session_token[:8]}...: {e}", exc_info=True)
+        # Continue with upload if check fails (fail open for availability)
+    
+    # Use session token as user identifier (replaces IP-based identification)
+    user_ms_object_id = session_token
+    
+    # Ensure user exists in users table before processing
+    try:
+        ensure_user_exists(user_ms_object_id)
+    except Exception as e:
+        logger.error(f"Failed to ensure user exists: {e}", exc_info=True)
+        return error_response(500, 'Failed to initialize user session. Please try again.')
 
     file = request.files['pbix_file']
     
@@ -264,10 +145,10 @@ def upload_powerbi_file():
         # Log file processing start
         logger.info(f"Starting PBIX processing for file: {file.filename} (size: {file_size} bytes)")
         
-        # Extract documents and metadata using the correct method with error handling
+        # Extract metadata using the correct method with error handling
         try:
-            documents, collection_metadata = PBIXParsingService.extract_and_chunk_with_metadata(temp_filename, file.filename)
-            logger.info(f"Successfully extracted {len(documents)} documents from PBIX file")
+            collection_metadata = PBIXParsingService.extract_metadata_with_summary(temp_filename, file.filename)
+            logger.info(f"Successfully extracted metadata from PBIX file")
         except MemoryError as e:
             logger.error(f"Memory error processing PBIX file {file.filename}: {e}")
             return error_response(413, 'File too large to process. Please try with a smaller file.')
@@ -284,19 +165,17 @@ def upload_powerbi_file():
             # Continue without summaries rather than failing completely
             summaries = []
         
-        collection_name = vector_store_service.generate_collection_name()
-        
-        try:
-            vector_store_service.create_collection(documents, collection_name, collection_metadata, ms_object_id=user_ms_object_id)
-            logger.info(f"Successfully created vector collection: {collection_name}")
-        except Exception as e:
-            logger.error(f"Error creating vector collection for {file.filename}: {e}")
-            return error_response(500, 'Failed to create vector collection. Please try again.')
+        # Generate collection name (using same format as before for compatibility)
+        unique_id = uuid.uuid4().hex
+        collection_name = f"{config.VECTOR_STORE_COLLECTION_PREFIX}{unique_id}"
 
         # Save summaries to database
         try:
             from datetime import datetime
             import json
+            
+            # Ensure user exists before saving summaries
+            ensure_user_exists(user_ms_object_id)
             
             # Parse upload_time from collection_metadata
             upload_time_str = collection_metadata.get('upload_time', datetime.now().isoformat())
@@ -307,10 +186,11 @@ def upload_powerbi_file():
             
             with get_db_cursor(commit=True) as cursor:
                 # Insert summary record using raw SQL
+                # Include session_token for RLS filtering
                 cursor.execute("""
                     INSERT INTO powerbi_file_summaries 
-                    (collection_name, filename, upload_time, semantic_model_summary, power_query_summary, visuals_summary, rls_summary, ms_object_id)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    (collection_name, filename, upload_time, semantic_model_summary, power_query_summary, visuals_summary, rls_summary, ms_object_id, session_token)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
                     collection_name,
                     file.filename,
@@ -319,22 +199,29 @@ def upload_powerbi_file():
                     json.dumps(summaries['power_query_summary']),
                     json.dumps(summaries['visuals_summary']),
                     json.dumps(summaries.get('rls_summary', {})),
-                    user_ms_object_id
+                    user_ms_object_id,
+                    session_token
                 ))
                 
-                logger.info(f"Saved summaries for collection {collection_name}")
+                logger.info(f"Saved summaries for collection {collection_name} with session {session_token[:8]}...")
                     
         except Exception as e:
             logger.error(f"Error saving summaries to database: {e}", exc_info=True)
             # Don't fail the upload if summary saving fails
 
-        return jsonify({
+        # Create response and ensure session token cookie is set
+        response = jsonify({
             'session_id': collection_name,
             'filename': file.filename,
-            'message': f"{len(documents)} chunks created and summaries saved.",
+            'message': "Metadata extracted and summaries saved.",
             'metadata': collection_metadata['summary'],
             'status': 'success'
         })
+        
+        # Ensure session token cookie is set in response
+        response = ensure_session_token_in_response(response, session_token)
+        
+        return response
     except Exception as e:
         logger.error(f"Failed to process uploaded PBIX file: {e}", exc_info=True)
         return error_response(500, 'Failed to analyze the PBIX file.')
@@ -353,235 +240,77 @@ def upload_powerbi_file():
             logger.error(f"Error during cleanup: {cleanup_error}")
 
 
-@powerbi_chat_bp.route('/powerbi-chat/reupload', methods=['POST', 'OPTIONS'])
-@cross_origin(supports_credentials=True)
-@auth_required
-def reupload_powerbi_file():
-    if request.method == 'OPTIONS': 
-        return jsonify({'status': 'ok'})
-    
-    if 'pbix_file' not in request.files: 
-        return error_response(400, 'PBIX file is required')
-    
-    collection_name = request.form.get('collection_name')
-    if not collection_name:
-        return error_response(400, 'Collection name is required')
-
-    # Extract user information from authentication
-    user = g.current_user
-    user_ms_object_id = user.get('ms_object_id') if user else None
-
-    file = request.files['pbix_file']
-    
-    # Enhanced file validation
-    if not file.filename:
-        return error_response(400, 'No file selected')
-    
-    # Check file size before processing
-    file.seek(0, 2)  # Seek to end
-    file_size = file.tell()
-    file.seek(0)  # Reset to beginning
-    
-    if file_size > config.MAX_CONTENT_LENGTH:
-        return error_response(413, f'File too large. Maximum size is {config.MAX_CONTENT_LENGTH // (1024*1024)}MB')
-    
-    if file_size == 0:
-        return error_response(400, 'Empty file not allowed')
-
-    # Extract existing filename from powerbi_file_summaries before deletion
-    existing_filename = None
-    try:
-        with get_db_cursor(commit=False) as cursor:
-            cursor.execute("""
-                SELECT filename 
-                FROM powerbi_file_summaries 
-                WHERE collection_name = %s
-            """, (collection_name,))
-            result = cursor.fetchone()
-            if result:
-                existing_filename = result[0]
-    except Exception as e:
-        logger.warning(f"Could not retrieve existing file info for {collection_name}: {e}")
-        # Continue with new filename if we can't retrieve existing one
-
-    # Use existing filename if available, otherwise use uploaded file's filename
-    filename_to_use = existing_filename if existing_filename else file.filename
-    # Use current time for upload_time on reupload (to update last modified)
-    from datetime import datetime
-    current_upload_time = datetime.now()
-
-    temp_dir = os.path.join(current_app.instance_path, 'temp_uploads')
-    os.makedirs(temp_dir, exist_ok=True)
-
-    temp_file = tempfile.NamedTemporaryFile(suffix='.pbix', dir=temp_dir, delete=False)
-    temp_filename = temp_file.name
-
-    try:
-        # Save file with progress tracking
-        file.save(temp_filename)
-        temp_file.close()
-
-        # Log file processing start
-        logger.info(f"Starting PBIX reupload processing for collection: {collection_name}, file: {file.filename} (size: {file_size} bytes)")
-        
-        # Delete existing metadata (docs and token usage are always preserved)
-        try:
-            success = vector_store_service.delete_collection(collection_name)
-            if not success:
-                logger.warning(f"Failed to delete existing collection metadata for {collection_name}, continuing anyway")
-        except Exception as e:
-            logger.error(f"Error deleting existing collection metadata: {e}", exc_info=True)
-            return error_response(500, 'Failed to delete existing collection metadata. Please try again.')
-        
-        # Extract documents and metadata using the correct method with error handling
-        try:
-            documents, collection_metadata = PBIXParsingService.extract_and_chunk_with_metadata(temp_filename, filename_to_use)
-            logger.info(f"Successfully extracted {len(documents)} documents from PBIX file")
-        except MemoryError as e:
-            logger.error(f"Memory error processing PBIX file {file.filename}: {e}")
-            return error_response(413, 'File too large to process. Please try with a smaller file.')
-        except Exception as e:
-            logger.error(f"Error extracting PBIX file {file.filename}: {e}")
-            return error_response(400, 'Failed to process PBIX file. The file may be corrupted or in an unsupported format.')
-        
-        # Generate summaries using the powerbi_docs service
-        try:
-            summaries = SummaryGenerationService.generate_summaries_from_metadata(collection_metadata['structured_metadata'])
-            logger.info(f"Successfully generated summaries for {file.filename}")
-        except Exception as e:
-            logger.error(f"Error generating summaries for {file.filename}: {e}")
-            # Continue without summaries rather than failing completely
-            summaries = []
-        
-        # Update collection_metadata with existing filename and current upload_time
-        collection_metadata['filename'] = filename_to_use
-        collection_metadata['upload_time'] = current_upload_time.isoformat()
-        
-        # Create collection with existing collection_name
-        try:
-            vector_store_service.create_collection(documents, collection_name, collection_metadata, ms_object_id=user_ms_object_id)
-            logger.info(f"Successfully recreated vector collection: {collection_name}")
-        except Exception as e:
-            logger.error(f"Error creating vector collection for {file.filename}: {e}")
-            return error_response(500, 'Failed to create vector collection. Please try again.')
-
-        # Update summaries in database (using current time for upload_time)
-        try:
-            import json
-            
-            with get_db_cursor(commit=True) as cursor:
-                # Update summary record using raw SQL
-                cursor.execute("""
-                    UPDATE powerbi_file_summaries 
-                    SET filename = %s, 
-                        upload_time = %s,
-                        semantic_model_summary = %s,
-                        power_query_summary = %s,
-                        visuals_summary = %s,
-                        rls_summary = %s,
-                        ms_object_id = %s,
-                        updated_at = NOW()
-                    WHERE collection_name = %s
-                """, (
-                    filename_to_use,
-                    current_upload_time,
-                    json.dumps(summaries['semantic_model_summary']),
-                    json.dumps(summaries['power_query_summary']),
-                    json.dumps(summaries['visuals_summary']),
-                    json.dumps(summaries.get('rls_summary', {})),
-                    user_ms_object_id,
-                    collection_name
-                ))
-                
-                # If no rows were updated, insert a new record
-                if cursor.rowcount == 0:
-                    cursor.execute("""
-                        INSERT INTO powerbi_file_summaries 
-                        (collection_name, filename, upload_time, semantic_model_summary, power_query_summary, visuals_summary, rls_summary, ms_object_id)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    """, (
-                        collection_name,
-                        filename_to_use,
-                        current_upload_time,
-                        json.dumps(summaries['semantic_model_summary']),
-                        json.dumps(summaries['power_query_summary']),
-                        json.dumps(summaries['visuals_summary']),
-                        json.dumps(summaries.get('rls_summary', {})),
-                        user_ms_object_id
-                    ))
-                
-                logger.info(f"Updated summaries for collection {collection_name}")
-                    
-        except Exception as e:
-            logger.error(f"Error updating summaries to database: {e}", exc_info=True)
-            # Don't fail the reupload if summary saving fails
-
-        return jsonify({
-            'session_id': collection_name,
-            'filename': filename_to_use,
-            'message': f"{len(documents)} chunks created and summaries updated.",
-            'metadata': collection_metadata['summary'],
-            'status': 'success'
-        })
-    except Exception as e:
-        logger.error(f"Failed to process reuploaded PBIX file: {e}", exc_info=True)
-        return error_response(500, 'Failed to analyze the PBIX file.')
-    finally:
-        # Memory cleanup and file cleanup
-        try:
-            # Force garbage collection to free memory
-            import gc
-            gc.collect()
-            
-            # The finally block now reliably deletes the file after all operations are done.
-            if os.path.exists(temp_filename):
-                os.remove(temp_filename)
-                logger.info(f"Cleaned up temporary file: {temp_filename}")
-        except Exception as cleanup_error:
-            logger.error(f"Error during cleanup: {cleanup_error}")
-
-
 @powerbi_chat_bp.route('/powerbi-chat/list-files', methods=['GET', 'OPTIONS'])
 @cross_origin(supports_credentials=True)
-@auth_required
 def list_uploaded_files():
     if request.method == 'OPTIONS':
         return jsonify({'status': 'ok'})
 
     try:
-        uploaded_files = vector_store_service.list_collections_with_details()
-        return jsonify({
+        # Get session token (from cookie or generate new)
+        session_token = get_or_create_session_token()
+        
+        # Query summaries table - filter by session token for RLS
+        uploaded_files = []
+        with get_db_cursor(commit=False) as cursor:
+            cursor.execute("""
+                SELECT collection_name, filename, upload_time, 
+                       semantic_model_summary, power_query_summary, visuals_summary
+                FROM powerbi_file_summaries
+                WHERE session_token = %s
+                ORDER BY upload_time DESC
+            """, (session_token,))
+            results = cursor.fetchall()
+            
+            for row in results:
+                collection_name, filename, upload_time, semantic_model_summary, power_query_summary, visuals_summary = row
+                
+                # Parse summaries to get counts
+                import json
+                try:
+                    semantic_model = json.loads(semantic_model_summary) if semantic_model_summary else {}
+                    visuals = json.loads(visuals_summary) if visuals_summary else {}
+                    
+                    tables = semantic_model.get('tables', [])
+                    total_measures = sum(len(t.get('measures', [])) for t in tables)
+                    total_columns = sum(len(t.get('columns', [])) for t in tables)
+                    relationships = semantic_model.get('relationships', [])
+                    power_query_scripts = power_query_summary and json.loads(power_query_summary) or {}
+                    pages = visuals.get('pages', [])
+                    visuals_list = visuals.get('visuals', [])
+                    
+                    summary = {
+                        'tables_count': len(tables),
+                        'measures_count': total_measures,
+                        'columns_count': total_columns,
+                        'relationships_count': len(relationships),
+                        'power_query_scripts_count': len(power_query_scripts.get('scripts', [])),
+                        'pages_count': len(pages),
+                        'visuals_count': len(visuals_list)
+                    }
+                except Exception as e:
+                    logger.warning(f"Error parsing summaries for {collection_name}: {e}")
+                    summary = {}
+                
+                uploaded_files.append({
+                    'collection_name': collection_name,
+                    'filename': filename,
+                    'upload_time': upload_time.isoformat() if upload_time else None,
+                    'metadata': summary,
+                    'document_count': 0  # No longer tracking document count
+                })
+        
+        # Create response and ensure session token cookie is set
+        response = jsonify({
             'files': uploaded_files,
             'total_count': len(uploaded_files),
             'status': 'success'
         })
+        
+        # Ensure session token cookie is set in response
+        response = ensure_session_token_in_response(response, session_token)
+        
+        return response
     except Exception as e:
         logger.error(f"Error retrieving list of uploaded files: {e}", exc_info=True)
         return error_response(500, 'Failed to retrieve uploaded files.')
-
-
-@powerbi_chat_bp.route('/powerbi-chat/delete-session', methods=['DELETE', 'OPTIONS'])
-@cross_origin(supports_credentials=True)
-@auth_required
-def delete_powerbi_session():
-    if request.method == 'OPTIONS':
-        return jsonify({'status': 'ok'})
-    
-    data = request.get_json()
-    session_id = data.get('session_id')
-    
-    if not session_id:
-        return error_response(400, 'Session ID is required')
-    
-    try:
-        success = vector_store_service.delete_collection(session_id)
-        if success:
-            return jsonify({
-                'message': 'Session deleted successfully',
-                'status': 'success'
-            })
-        else:
-            return error_response(500, 'Failed to delete session')
-    except Exception as e:
-        logger.error(f"Error deleting Power BI session {session_id}: {e}", exc_info=True)
-        return error_response(500, 'Failed to delete session')
