@@ -57,7 +57,11 @@ def ensure_db_pool():
                 pool.putconn(conn)
                 return  # Success! Database is awake and responding.
             except Exception as e:
-                pool.putconn(conn, close=True) # Close the tainted connection
+                # Close the tainted connection directly instead of returning to pool
+                try:
+                    conn.close()
+                except Exception:
+                    pass  # Connection might already be closed
                 raise e
 
         except Exception as e:
